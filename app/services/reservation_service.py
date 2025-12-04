@@ -2,13 +2,16 @@ import csv
 import math
 import os
 import re
-import sqlite3
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
 from app.models.reservation import ReservationRecord
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 ROOMS = [
     {"id": "ALJAZ", "name": "Soba ALJAŽ - Soba z balkonom (2 + 2)", "capacity": 4},
@@ -49,22 +52,69 @@ class ReservationService:
     def __init__(self) -> None:
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         self.csv_path = os.path.join(project_root, "reservations.csv")
-        self.data_dir = os.path.join(project_root, "data")
         self.backup_dir = os.path.join(project_root, "backups")
-        os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.backup_dir, exist_ok=True)
-        self.db_path = os.path.join(self.data_dir, "reservations.db")
+
+        # Če ni DATABASE_URL, uporabimo SQLite (lokalni razvoj)
+        self.use_postgres = bool(DATABASE_URL)
+        if not self.use_postgres:
+            self.data_dir = os.path.join(project_root, "data")
+            os.makedirs(self.data_dir, exist_ok=True)
+            self.db_path = os.path.join(self.data_dir, "reservations.db")
+
         self._ensure_db()
         self._import_csv_if_empty()
 
     # --- DB helpers ------------------------------------------------------
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _conn(self):
+        if self.use_postgres:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            return conn
+        else:
+            import sqlite3
+
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+    def _placeholder(self) -> str:
+        return "%s" if self.use_postgres else "?"
 
     def _ensure_db(self) -> None:
-        with self._conn() as conn:
+        if self.use_postgres:
+            conn = self._conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS reservations (
+                        id SERIAL PRIMARY KEY,
+                        date TEXT NOT NULL,
+                        nights INTEGER,
+                        rooms INTEGER,
+                        people INTEGER NOT NULL,
+                        reservation_type TEXT NOT NULL,
+                        time TEXT,
+                        location TEXT,
+                        name TEXT,
+                        phone TEXT,
+                        email TEXT,
+                        note TEXT,
+                        status TEXT DEFAULT 'pending',
+                        created_at TEXT NOT NULL,
+                        source TEXT NOT NULL
+                    )
+                    """
+                )
+                conn.commit()
+            finally:
+                cur.close()
+                conn.close()
+        else:
+            import sqlite3
+
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS reservations (
@@ -94,25 +144,41 @@ class ReservationService:
             if "status" not in existing_cols:
                 conn.execute("ALTER TABLE reservations ADD COLUMN status TEXT DEFAULT 'pending';")
             conn.commit()
+            conn.close()
 
     def _import_csv_if_empty(self) -> None:
-        with self._conn() as conn:
-            cursor = conn.execute("SELECT COUNT(1) FROM reservations")
-            count = cursor.fetchone()[0]
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(1) FROM reservations")
+            row = cur.fetchone()
+            if isinstance(row, dict):
+                count = list(row.values())[0]
+            elif isinstance(row, (list, tuple)):
+                count = row[0]
+            else:
+                count = row
             if count > 0 or not os.path.exists(self.csv_path):
                 return
+        finally:
+            cur.close()
+            conn.close()
         # preberi obstoječi csv in ga zapiši v sqlite
         legacy_rows = self._read_legacy_csv()
         if not legacy_rows:
             return
-        with self._conn() as conn:
+        conn = self._conn()
+        ph = self._placeholder()
+        placeholders = ", ".join([ph] * 11)
+        insert_sql = (
+            f"INSERT INTO reservations (date, nights, people, reservation_type, time, location, name, phone, email, created_at, source) "
+            f"VALUES ({placeholders})"
+        )
+        try:
+            cur = conn.cursor()
             for row in legacy_rows:
-                conn.execute(
-                    """
-                    INSERT INTO reservations
-                    (date, nights, people, reservation_type, time, location, name, phone, email, created_at, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                cur.execute(
+                    insert_sql,
                     (
                         row.get("date", ""),
                         int(row.get("nights") or 0) or None,
@@ -128,6 +194,9 @@ class ReservationService:
                     ),
                 )
             conn.commit()
+        finally:
+            cur.close()
+            conn.close()
 
     # --- helpers ---------------------------------------------------------
     def _parse_date(self, date_str: str) -> Optional[datetime]:
@@ -429,13 +498,20 @@ class ReservationService:
         # Admin / telefon / API vnosi se avtomatsko potrdijo
         if source in ("admin", "phone", "api"):
             status = "confirmed"
-        with self._conn() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO reservations
-                (date, nights, rooms, people, reservation_type, time, location, name, phone, email, note, status, created_at, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        conn = self._conn()
+        ph = self._placeholder()
+        placeholders = ", ".join([ph] * 14)
+        sql = (
+            f"INSERT INTO reservations "
+            f"(date, nights, rooms, people, reservation_type, time, location, name, phone, email, note, status, created_at, source) "
+            f"VALUES ({placeholders})"
+        )
+        if self.use_postgres:
+            sql += " RETURNING id"
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                sql,
                 (
                     date,
                     nights,
@@ -453,8 +529,15 @@ class ReservationService:
                     source,
                 ),
             )
-            new_id = cursor.lastrowid
+            if self.use_postgres:
+                fetched = cur.fetchone()
+                new_id = fetched["id"] if isinstance(fetched, dict) else fetched[0]
+            else:
+                new_id = cur.lastrowid
             conn.commit()
+        finally:
+            cur.close()
+            conn.close()
 
         reservation_data = {
             "id": new_id,
@@ -479,17 +562,23 @@ class ReservationService:
         """Posodobi status rezervacije. Vrne True če uspešno."""
         if new_status not in ("pending", "confirmed", "cancelled"):
             return False
-        with self._conn() as conn:
-            cursor = conn.execute(
-                "UPDATE reservations SET status = ? WHERE id = ?",
-                (new_status, reservation_id),
-            )
+        conn = self._conn()
+        ph = self._placeholder()
+        sql = f"UPDATE reservations SET status = {ph} WHERE id = {ph}"
+        try:
+            cur = conn.cursor()
+            cur.execute(sql, (new_status, reservation_id))
             conn.commit()
-            return cursor.rowcount > 0
+            return cur.rowcount > 0
+        finally:
+            cur.close()
+            conn.close()
 
     def read_reservations(self) -> list[Dict[str, Any]]:
-        with self._conn() as conn:
-            cursor = conn.execute(
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
                 """
                 SELECT id, date, nights, rooms, people, reservation_type, time, location,
                        name, phone, email, note, status, created_at, source
@@ -497,31 +586,36 @@ class ReservationService:
                 ORDER BY created_at DESC
                 """
             )
-            rows = cursor.fetchall()
+            rows = cur.fetchall()
             return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
 
     def _fetch_reservations(self) -> list[ReservationRecord]:
         records: list[ReservationRecord] = []
-        with self._conn() as conn:
-            cursor = conn.execute(
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
                 """
                 SELECT id, date, nights, rooms, people, reservation_type, time, location,
                        name, phone, email, note, status, created_at, source
                 FROM reservations
                 """
             )
-            for row in cursor.fetchall():
+            for row in cur.fetchall():
                 try:
                     people = int(row["people"])
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, KeyError):
                     people = 0
                 try:
                     nights = int(row["nights"]) if row["nights"] is not None else None
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, KeyError):
                     nights = None
                 try:
                     rooms = int(row["rooms"]) if row["rooms"] is not None else None
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, KeyError):
                     rooms = None
                 records.append(
                     ReservationRecord(
@@ -542,6 +636,9 @@ class ReservationService:
                         status=row["status"],
                     )
                 )
+        finally:
+            cur.close()
+            conn.close()
         return records
 
     def _read_legacy_csv(self) -> list[Dict[str, Any]]:
