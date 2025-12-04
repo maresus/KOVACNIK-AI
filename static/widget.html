@@ -44,6 +44,18 @@
     }
     .header-text h1 { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
     .header-text p { font-size: 0.75rem; opacity: 0.85; }
+    .header-actions { margin-left: auto; }
+    .clear-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    .clear-btn:hover { opacity: 1; background: rgba(255,255,255,0.3); }
     .messages {
       flex: 1; overflow-y: auto; padding: 16px;
       background: var(--bg-chat);
@@ -123,18 +135,13 @@
         <h1>Kovačnik AI</h1>
         <p>Vprašaj me karkoli o kmetiji</p>
       </div>
+      <div class="header-actions">
+        <button class="clear-btn" id="clearBtn" title="Počisti zgodovino">🗑️ Počisti</button>
+      </div>
     </div>
-    <div class="messages" id="messages">
-      <div class="msg bot">Pozdravljeni! 👋 Kako vam lahko pomagam?
-
-Vprašajte me o:
-- Sobah in nastanitvah
-- Vikend kosilih
-- Naših izdelkih
-- Izletih v okolici</div>
-    </div>
+    <div class="messages" id="messages"></div>
     <div class="quick-btns" id="quickBtns">
-      <button class="quick-btn" data-msg="Imate proste sobe?">🛏️ Sobe</button>
+      <button class="quick-btn" data-msg="Imate proste sobe?">��️ Sobe</button>
       <button class="quick-btn" data-msg="Kaj ponujate za vikend kosilo?">🍽️ Kosila</button>
       <button class="quick-btn" data-msg="Kakšne izdelke imate?">🛒 Izdelki</button>
       <button class="quick-btn" data-msg="Kaj lahko obiščem v okolici?">🗺️ Okolica</button>
@@ -147,19 +154,67 @@ Vprašajte me o:
     </div>
     <div class="powered">Ustvaril <a href="https://kovacnik.com" target="_blank">Turistična kmetija Kovačnik</a></div>
   </div>
+
   <script>
+    const STORAGE_KEY = 'kovacnik_chat_history';
+    const MAX_MESSAGES = 50;
+    
     const messagesEl = document.getElementById('messages');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
     const quickBtns = document.getElementById('quickBtns');
-    function addMessage(text, who) {
+    const clearBtn = document.getElementById('clearBtn');
+    
+    // Load history from localStorage
+    function loadHistory() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const messages = JSON.parse(saved);
+          if (messages.length > 0) {
+            messages.forEach(m => addMessageToDOM(m.text, m.who, false));
+            quickBtns.style.display = 'none';
+            return true;
+          }
+        }
+      } catch (e) { console.error('Error loading history:', e); }
+      return false;
+    }
+    
+    // Save history to localStorage
+    function saveHistory() {
+      try {
+        const messages = [];
+        document.querySelectorAll('.msg:not(.typing)').forEach(el => {
+          messages.push({
+            text: el.textContent,
+            who: el.classList.contains('user') ? 'user' : 'bot'
+          });
+        });
+        // Keep only last MAX_MESSAGES
+        const toSave = messages.slice(-MAX_MESSAGES);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+      } catch (e) { console.error('Error saving history:', e); }
+    }
+    
+    // Clear history
+    function clearHistory() {
+      localStorage.removeItem(STORAGE_KEY);
+      messagesEl.innerHTML = '';
+      addMessageToDOM('Pozdravljeni! 👋 Kako vam lahko pomagam?\n\nVprašajte me o:\n• Sobah in nastanitvah\n• Vikend kosilih\n• Naših izdelkih\n• Izletih v okolici', 'bot', false);
+      quickBtns.style.display = 'flex';
+    }
+    
+    function addMessageToDOM(text, who, save = true) {
       const div = document.createElement('div');
       div.className = 'msg ' + who;
       div.textContent = text;
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      if (save) saveHistory();
       return div;
     }
+    
     function showTyping() {
       const div = document.createElement('div');
       div.className = 'msg bot typing';
@@ -168,13 +223,15 @@ Vprašajte me o:
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
+    
     function hideTyping() {
       const el = document.getElementById('typing');
       if (el) el.remove();
     }
+    
     async function sendMessage(text) {
       if (!text.trim()) return;
-      addMessage(text, 'user');
+      addMessageToDOM(text, 'user');
       inputEl.value = '';
       inputEl.style.height = 'auto';
       sendBtn.disabled = true;
@@ -189,31 +246,43 @@ Vprašajte me o:
         hideTyping();
         if (res.ok) {
           const data = await res.json();
-          addMessage(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
+          addMessageToDOM(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
         } else {
-          addMessage('Oprostite, strežnik ni dosegljiv.', 'bot');
+          addMessageToDOM('Oprostite, strežnik ni dosegljiv.', 'bot');
         }
       } catch (err) {
         hideTyping();
-        addMessage('Oprostite, prišlo je do napake pri povezavi.', 'bot');
+        addMessageToDOM('Oprostite, prišlo je do napake pri povezavi.', 'bot');
       }
       sendBtn.disabled = false;
       inputEl.focus();
     }
+    
+    // Event listeners
     sendBtn.addEventListener('click', () => sendMessage(inputEl.value));
+    clearBtn.addEventListener('click', clearHistory);
+    
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage(inputEl.value);
       }
     });
+    
     inputEl.addEventListener('input', () => {
       inputEl.style.height = 'auto';
       inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
     });
+    
     document.querySelectorAll('.quick-btn').forEach(btn => {
       btn.addEventListener('click', () => { sendMessage(btn.dataset.msg); });
     });
+    
+    // Initialize
+    const hasHistory = loadHistory();
+    if (!hasHistory) {
+      addMessageToDOM('Pozdravljeni! 👋 Kako vam lahko pomagam?\n\nVprašajte me o:\n• Sobah in nastanitvah\n• Vikend kosilih\n• Naših izdelkih\n• Izletih v okolici', 'bot', false);
+    }
   </script>
 </body>
 </html>
