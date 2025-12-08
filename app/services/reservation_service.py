@@ -106,6 +106,20 @@ class ReservationService:
                     )
                     """
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id SERIAL PRIMARY KEY,
+                        session_id TEXT,
+                        user_message TEXT NOT NULL,
+                        bot_response TEXT NOT NULL,
+                        intent TEXT,
+                        needs_followup BOOLEAN DEFAULT FALSE,
+                        followup_email TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
                 conn.commit()
             finally:
                 cur.close()
@@ -133,6 +147,20 @@ class ReservationService:
                     status TEXT DEFAULT 'pending',
                     created_at TEXT NOT NULL,
                     source TEXT NOT NULL
+                    )
+                    """
+                )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    user_message TEXT NOT NULL,
+                    bot_response TEXT NOT NULL,
+                    intent TEXT,
+                    needs_followup BOOLEAN DEFAULT FALSE,
+                    followup_email TEXT,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
@@ -719,3 +747,69 @@ class ReservationService:
                     ]
                 )
         return backup_path
+
+    # --- conversation logging -------------------------------------------
+    def log_conversation(
+        self,
+        session_id: str,
+        user_message: str,
+        bot_response: str,
+        intent: Optional[str] = None,
+        needs_followup: bool = False,
+        followup_email: Optional[str] = None,
+    ) -> Optional[int]:
+        """Shrani pogovor v bazo in vrne ID vrstice."""
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ph = self._placeholder()
+        conn = self._conn()
+        conv_id: Optional[int] = None
+        try:
+            cur = conn.cursor()
+            sql = (
+                "INSERT INTO conversations (session_id, user_message, bot_response, intent, needs_followup, followup_email, created_at) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+            )
+            params = (session_id, user_message, bot_response, intent, needs_followup, followup_email, created_at)
+            if self.use_postgres:
+                sql += " RETURNING id"
+            cur.execute(sql, params)
+            if self.use_postgres:
+                fetched = cur.fetchone()
+                if fetched:
+                    conv_id = fetched["id"] if isinstance(fetched, dict) else fetched[0]
+            else:
+                conv_id = cur.lastrowid
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+        return conv_id
+
+    def get_conversations(self, limit: int = 100, needs_followup_only: bool = False) -> list[dict]:
+        """Vrne zadnje pogovore, opcijsko filtrirane po potrebi po followupu."""
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            sql = "SELECT * FROM conversations"
+            if needs_followup_only:
+                sql += " WHERE needs_followup = TRUE"
+            sql += " ORDER BY created_at DESC LIMIT " + str(limit)
+            cur.execute(sql)
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
+    def update_followup_email(self, conversation_id: int, email: str) -> bool:
+        """Posodobi email za followup pogovor."""
+        ph = self._placeholder()
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(f"UPDATE conversations SET followup_email = {ph} WHERE id = {ph}", (email, conversation_id))
+            conn.commit()
+            return True
+        finally:
+            cur.close()
+            conn.close()

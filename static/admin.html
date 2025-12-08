@@ -106,6 +106,7 @@
     .tag-room { background: rgba(34,197,94,0.15); color: #34d399; }
     .tag-table { background: rgba(56,189,248,0.15); color: #38bdf8; }
     .tag-source { background: rgba(255,255,255,0.08); color: #e5e7eb; }
+    .tag-followup { background: rgba(251,191,36,0.18); color: #fbbf24; }
     .note { color: var(--muted); font-size: 0.9rem; white-space: pre-wrap; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     textarea { min-height: 80px; resize: vertical; }
@@ -280,6 +281,40 @@
     </form>
   </div>
 
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div>
+        <h2 style="margin:0;">Pogovori</h2>
+        <div class="sub">Zadnji pogovori z botom, vključno z odprtimi follow-upi</div>
+      </div>
+      <div class="controls" style="flex-wrap:wrap; gap:8px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem; color:var(--muted);">
+          <input type="checkbox" id="convFollowup" /> Čaka na odgovor
+        </label>
+        <input type="number" id="convLimit" value="50" min="10" max="500" style="width:90px;" />
+        <button type="button" id="convRefresh">Osveži pogovore</button>
+      </div>
+    </div>
+    <div id="convStatus" class="sub" style="margin-top:8px;">—</div>
+    <div style="overflow-x:auto; margin-top:8px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Čas</th>
+            <th>Uporabnik</th>
+            <th>Bot</th>
+            <th>Intent</th>
+            <th>Email</th>
+            <th>Follow-up</th>
+          </tr>
+        </thead>
+        <tbody id="convBody">
+          <tr><td colspan="6">Nalaganje...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <script>
     const tbody = document.getElementById("tableBody");
     const statTotal = document.getElementById("statTotal");
@@ -308,8 +343,14 @@
     const tableSelect = document.getElementById("tableSelect");
     const dateInput = document.getElementById("dateInput");
     const roomsCountField = document.getElementById("roomsCountField");
+    const convBody = document.getElementById("convBody");
+    const convRefresh = document.getElementById("convRefresh");
+    const convFollowup = document.getElementById("convFollowup");
+    const convLimit = document.getElementById("convLimit");
+    const convStatus = document.getElementById("convStatus");
 
     let reservations = [];
+    let conversations = [];
 
     function formatDate(d) {
       try {
@@ -317,6 +358,39 @@
       } catch {
         return d;
       }
+    }
+
+    function sanitize(text) {
+      return (text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderConversations(list) {
+      if (!list.length) {
+        convBody.innerHTML = "<tr><td colspan='6'>Ni zapisov.</td></tr>";
+        return;
+      }
+      convBody.innerHTML = list
+        .map(conv => {
+          const created = formatDate(conv.created_at || "");
+          const userMsg = sanitize(conv.user_message || "");
+          const botMsg = sanitize(conv.bot_response || "");
+          const intent = sanitize(conv.intent || "-");
+          const email = sanitize(conv.followup_email || "—");
+          const follow = conv.needs_followup
+            ? "<span class='tag tag-followup'>Čaka</span>"
+            : "<span class='tag tag-source'>OK</span>";
+          return `
+            <tr>
+              <td>${created}</td>
+              <td>${userMsg}</td>
+              <td>${botMsg}</td>
+              <td>${intent}</td>
+              <td>${email}</td>
+              <td>${follow}</td>
+            </tr>
+          `;
+        })
+        .join("");
     }
 
     function renderTable(list) {
@@ -473,6 +547,22 @@
       }
     }
 
+    async function loadConversations() {
+      convStatus.textContent = "Nalaganje...";
+      const limit = Number(convLimit.value) || 50;
+      const followupOnly = convFollowup.checked ? "true" : "false";
+      try {
+        const res = await fetch(`/admin/conversations?limit=${limit}&followup_only=${followupOnly}`);
+        const data = await res.json();
+        conversations = data.conversations || [];
+        convStatus.textContent = `Prikazujem ${conversations.length}/${limit}${followupOnly === "true" ? " · čakajo na odgovor" : ""}`;
+        renderConversations(conversations);
+      } catch (err) {
+        convStatus.textContent = "Napaka pri nalaganju.";
+        convBody.innerHTML = "<tr><td colspan='6'>Napaka pri nalaganju.</td></tr>";
+      }
+    }
+
     async function checkAndShowAvailability() {
       const dateVal = dateInput.value;
       const nightsVal = document.querySelector('input[name="nights"]').value;
@@ -534,6 +624,9 @@
     tabAll.addEventListener("click", () => { filterType.value = ""; applyFilters(); });
     tabRooms.addEventListener("click", () => { filterType.value = "room"; applyFilters(); });
     tabTables.addEventListener("click", () => { filterType.value = "table"; applyFilters(); });
+    convRefresh.addEventListener("click", loadConversations);
+    convFollowup.addEventListener("change", loadConversations);
+    convLimit.addEventListener("change", loadConversations);
 
     backupBtn.addEventListener("click", async () => {
       backupBtn.disabled = true;
@@ -649,6 +742,7 @@
       const iso = today.toISOString().split("T")[0];
       dateInput.value = iso;
     }
+    loadConversations();
 
     // Modal za podrobnosti
     const modal = document.createElement("div");

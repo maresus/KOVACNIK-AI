@@ -1,6 +1,8 @@
 import re
+import random
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
+import uuid
 
 from fastapi import APIRouter
 
@@ -102,7 +104,7 @@ INFO_KEYWORDS = {
     "otroci",
     "popust",
 }
-GREETINGS = {"živjo", "zdravo", "hej", "hello", "dober dan", "pozdravljeni"}
+GREETING_KEYWORDS = {"živjo", "zdravo", "hej", "hello", "dober dan", "pozdravljeni"}
 GOODBYE_KEYWORDS = {
     "hvala",
     "najlepša hvala",
@@ -122,6 +124,23 @@ GOODBYE_KEYWORDS = {
     "vse dobro",
     "lahko noč",
 }
+GREETINGS = [
+    "Pozdravljeni! 😊 Kako vam lahko pomagam?",
+    "Lepo pozdravljeni s Pohorja! Kako vam lahko pomagam danes?",
+    "Dober dan! Vesela sem, da ste nas obiskali. S čim vam lahko pomagam?",
+    "Pozdravljeni pri Kovačniku! 🏔️ Kaj vas zanima?",
+]
+THANKS_RESPONSES = [
+    "Ni za kaj! Če boste imeli še kakšno vprašanje, sem tu. 😊",
+    "Z veseljem! Lep pozdrav s Pohorja! 🏔️",
+    "Ni problema! Vesela sem, če sem vam lahko pomagala.",
+    "Hvala vam! Se vidimo pri nas! 😊",
+]
+UNKNOWN_RESPONSES = [
+    "Ojoj, tega žal ne vem točno. 🤔 Lahko pa povprašam in vam sporočim - mi zaupate vaš email?",
+    "Hmm, tega nimam v svojih zapiskih. Če mi pustite email, vam z veseljem poizvem in odgovorim.",
+    "Na to vprašanje žal nimam odgovora pri roki. Lahko vam poizvem - mi zaupate vaš elektronski naslov?",
+]
 PRODUCT_FOLLOWUP_PHRASES = {
     "kaj pa",
     "kaj še",
@@ -283,19 +302,9 @@ PRICE_KEYWORDS = {
 }
 
 GREETING_RESPONSES = [
-    "Živjo! Kako vam lahko pomagam? Rezervacije, jedilnik ali info o kmetiji?",
-    "Pozdravljeni! Sem tukaj za pomoč – rezervacije, jedilnik, info ali izdelki.",
-    "Dober dan! Kako vam lahko pomagam danes?",
-    "Zdravo! Ste že bili pri nas ali bo to prvi obisk?",
-]
-greeting_index = 0
-GOODBYE_RESPONSES = [
-    "Hvala vam za pogovor! Če boste še kaj potrebovali, sem tukaj. Lep dan! 🌿",
-    "Z veseljem! Vabljeni k nam na Pohorje. Nasvidenje! 👋",
-    "Hvala za zanimanje! Veselimo se vašega obiska. Lep pozdrav! 🏡",
-    "Ni za kaj! Če imate še kakšno vprašanje, kar vprašajte. Srečno! ☀️",
-]
-goodbye_index = 0
+    # Uporabljamo GREETINGS za variacije v prijaznih uvodih
+] + GREETINGS
+GOODBYE_RESPONSES = THANKS_RESPONSES
 EXIT_KEYWORDS = {
     "konec",
     "stop",
@@ -499,6 +508,8 @@ last_info_query: Optional[str] = None
 last_menu_query: bool = False
 conversation_history: list[dict[str, str]] = []
 last_shown_products: list[str] = []
+unknown_question_state: dict[str, dict[str, Any]] = {}
+chat_session_id: str = str(uuid.uuid4())[:8]
 MENU_INTROS = [
     "Hej! Poglej, kaj kuhamo ta vikend:",
     "Z veseljem povem, kaj je na meniju:",
@@ -668,6 +679,11 @@ def detect_intent(message: str) -> str:
     if is_goodbye(message):
         return "goodbye"
 
+    # SOBE - posebej pred rezervacijo
+    sobe_keywords = ["sobe", "soba", "sobo", "nastanitev", "prenočitev", "nočitev nočitve", "rooms", "room", "accommodation"]
+    if any(kw in lower_message for kw in sobe_keywords) and "rezerv" not in lower_message and "book" not in lower_message:
+        return "room_info"
+    
     # 2) začetek rezervacije
     if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
         return "reservation"
@@ -1186,17 +1202,11 @@ def detect_reset_request(message: str) -> bool:
     return any(word in lowered for word in reset_words + exit_words)
 
 def get_greeting_response() -> str:
-    global greeting_index
-    response = GREETING_RESPONSES[greeting_index % len(GREETING_RESPONSES)]
-    greeting_index += 1
-    return response
+    return random.choice(GREETINGS)
 
 
 def get_goodbye_response() -> str:
-    global goodbye_index
-    response = GOODBYE_RESPONSES[goodbye_index % len(GOODBYE_RESPONSES)]
-    goodbye_index += 1
-    return response
+    return random.choice(THANKS_RESPONSES)
 
 
 def is_goodbye(message: str) -> bool:
@@ -1662,6 +1672,38 @@ def translate_response(text: str, target_lang: str) -> str:
         return text
 
 
+def is_unknown_response(response: str) -> bool:
+    """Preveri, ali odgovor nakazuje neznano informacijo."""
+    unknown_indicators = [
+        "žal ne morem",
+        "nimam informacij",
+        "ne vem",
+        "nisem prepričan",
+        "ni na voljo",
+        "podatka nimam",
+    ]
+    response_lower = response.lower()
+    return any(ind in response_lower for ind in unknown_indicators)
+
+
+def get_unknown_response(language: str = "si") -> str:
+    """Vrne prijazen odgovor, ko podatkov ni."""
+    if language == "si":
+        return random.choice(UNKNOWN_RESPONSES)
+    responses = {
+        "en": "Unfortunately, I cannot answer this question. 😊\n\nIf you share your email address, I will inquire and get back to you.",
+        "de": "Leider kann ich diese Frage nicht beantworten. 😊\n\nWenn Sie mir Ihre E-Mail-Adresse mitteilen, werde ich mich erkundigen und Ihnen antworten.",
+    }
+    return responses.get(language, "Na to vprašanje žal ne morem odgovoriti. 😊")
+
+
+def is_email(text: str) -> bool:
+    """Preveri, ali je besedilo e-poštni naslov."""
+    import re as _re
+
+    return bool(_re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", text.strip()))
+
+
 def validate_reservation_rules(arrival_date_str: str, nights: int) -> Tuple[bool, str, str]:
     cleaned_date = arrival_date_str.strip()
     try:
@@ -1829,13 +1871,13 @@ def _handle_room_reservation_impl(message: str) -> str:
         # če ni datuma in ni nič cifr, samo prosimo za datum
         if not extract_date_from_text(message) and not re.search(r"\d{1,2}\.\d{1,2}\.\d{4}", message):
             reservation_state["date"] = None
-            return "Prosim za datum prihoda v obliki DD.MM.YYYY (npr. 12.7.2025) in število nočitev."
+            return "Z veseljem uredim sobo. 😊 Sporočite datum prihoda (DD.MM.YYYY) in približno število nočitev?"
         # če so cifre, poskusimo validirati
         if not extract_date_from_text(message):
             try:
                 datetime.strptime(date_candidate, "%d.%m.%Y")
             except ValueError:
-                return "Prosim povej datum prihoda v obliki DD.MM.YYYY (npr. 12.3.2025)."
+                return "Morda še enkrat datum v obliki DD.MM.YYYY (npr. 12.3.2025)?"
 
         reservation_state["date"] = date_candidate
 
@@ -1852,17 +1894,17 @@ def _handle_room_reservation_impl(message: str) -> str:
             reservation_state["nights"] = nights_candidate
             reservation_state["step"] = "awaiting_people"
             return (
-                f"Zabeleženo: {reservation_state['date']} za {reservation_state['nights']} nočitev. "
-                "Za koliko oseb (odrasli + otroci skupaj)?"
+                f"Odlično, zabeležila sem {reservation_state['date']} za {reservation_state['nights']} nočitev. "
+                "Za koliko oseb bi bilo bivanje (odrasli + otroci)?"
             )
 
         reservation_state["step"] = "awaiting_nights"
-        return "Hvala! Za koliko nočitev želite rezervacijo? (min. 3 poleti, 2 sicer)"
+        return "Hvala! Koliko nočitev si predstavljate? (poleti min. 3, sicer 2)"
 
     if step == "awaiting_nights":
         if not reservation_state["date"]:
             reservation_state["step"] = "awaiting_room_date"
-            return "Najprej potrebujem datum prihoda (DD.MM.YYYY), nato število nočitev."
+            return "Najprej mi, prosim, zaupajte datum prihoda (DD.MM.YYYY), potem še število nočitev."
         nights = None
         match = re.search(r"(\d+)\s*(noč|noc|nočit|nocit|nočitev|noči)", message, re.IGNORECASE)
         if match:
@@ -1877,7 +1919,7 @@ def _handle_room_reservation_impl(message: str) -> str:
                     nights = int(nums[0])
 
         if nights is None:
-            return "Prosim sporočite število nočitev (npr. '3' ali '3 nočitve')."
+            return "Koliko nočitev bi si želeli? (npr. '3' ali '3 nočitve')"
         if nights <= 0 or nights > 30:
             return "Število nočitev mora biti med 1 in 30. Koliko nočitev želite?"
 
@@ -1891,7 +1933,7 @@ def _handle_room_reservation_impl(message: str) -> str:
             return error_message + " Prosim pošlji nov datum prihoda (DD.MM.YYYY) in število nočitev."
         reservation_state["nights"] = nights
         reservation_state["step"] = "awaiting_people"
-        return "Super! Za koliko oseb (odrasli + otroci skupaj)? Vsaka soba je 2+2, na voljo so 3 sobe. Če je skupina večja, lahko združimo več sob."
+        return "Super! Za koliko oseb (odrasli + otroci skupaj)? Vsaka soba je 2+2, imamo tri sobe in jih lahko tudi kombiniramo."
 
     if step == "awaiting_people":
         # če uporabnik popravlja nočitve v tem koraku
@@ -1908,7 +1950,7 @@ def _handle_room_reservation_impl(message: str) -> str:
                 return f"Popravljeno na {new_nights} nočitev. Za koliko oseb (odrasli + otroci skupaj)?"
         people = extract_people_count(message)
         if people is None or people <= 0:
-            return "Prosim sporočite število oseb (npr. '2 odrasla in 1 otrok' ali '3 osebe')."
+            return "Koliko vas bo? (npr. '2 odrasla in 1 otrok' ali '3 osebe')"
         if people > 12:
             return "Na voljo so tri sobe (vsaka 2+2). Za več kot 12 oseb nas prosim kontaktirajte na email."
         reservation_state["people"] = people
@@ -1944,7 +1986,7 @@ def _handle_room_reservation_impl(message: str) -> str:
             reservation_state["available_locations"] = free_rooms
             reservation_state["step"] = "awaiting_room_location"
             names = ", ".join(free_rooms)
-            return f"Proste sobe: {names}. Izberete katero (ali napišite več njih, npr. 'ALJAZ in ANA')?"
+            return f"Proste imamo: {names}. Katero bi želeli (lahko tudi več, npr. 'ALJAZ in ANA')?"
         # auto-assign
         if free_rooms:
             chosen = free_rooms[:needed]
@@ -1952,7 +1994,7 @@ def _handle_room_reservation_impl(message: str) -> str:
         else:
             reservation_state["location"] = "Sobe (dodelimo ob potrditvi)"
         reservation_state["step"] = "awaiting_name"
-        return "Odlično. Prosim še ime in priimek nosilca rezervacije."
+        return "Odlično. Kako se glasi ime in priimek nosilca rezervacije?"
 
     if step == "awaiting_room_location":
         options = reservation_state.get("available_locations") or []
@@ -2137,7 +2179,7 @@ def _handle_table_reservation_impl(message: str) -> str:
         ok, error_message = reservation_service.validate_table_rules(proposed, "12:00")
         if not ok:
             reservation_state["date"] = None
-            return error_message + " Prosim sporoči soboto ali nedeljo (DD.MM.YYYY)."
+            return error_message + " Bi poslali datum sobote ali nedelje v obliki DD.MM.YYYY?"
         reservation_state["date"] = proposed
         reservation_state["step"] = "awaiting_table_time"
         return "Ob kateri uri bi želeli mizo? (12:00–20:00, zadnji prihod na kosilo 15:00)"
@@ -2151,10 +2193,10 @@ def _handle_table_reservation_impl(message: str) -> str:
             reservation_state["step"] = "awaiting_table_date"
             reservation_state["date"] = None
             reservation_state["time"] = None
-            return error_message + " Sporoči nov datum (sobota/nedelja, DD.MM.YYYY)."
+            return error_message + " Poskusiva z novim datumom (sobota/nedelja, DD.MM.YYYY)."
         reservation_state["time"] = reservation_service._parse_time(desired_time)
         reservation_state["step"] = "awaiting_table_people"
-        return "Za koliko oseb je rezervacija mize?"
+        return "Za koliko oseb pripravimo mizo?"
 
     if step == "awaiting_table_people":
         people = extract_people_count(message)
@@ -2311,7 +2353,7 @@ def handle_reservation_flow(message: str) -> str:
                 prefilled_nights = extract_nights(message)
             if prefilled_date:
                 reservation_state["date"] = prefilled_date
-            reply_prefix = "Super, rezervacija sobe."
+            reply_prefix = "Super, z veseljem uredim rezervacijo sobe. 😊"
             # če imamo nočitve, jih validiramo
             if prefilled_nights:
                 ok, error_message, _ = validate_reservation_rules(
@@ -2323,7 +2365,7 @@ def handle_reservation_flow(message: str) -> str:
                     reservation_state["nights"] = None
                     return _tr(
                         f"{error_message} Na voljo imamo najmanj 2 nočitvi (oz. 3 v poletnih mesecih). "
-                        "Povej nov datum prihoda (DD.MM.YYYY) in število nočitev."
+                        "Mi pošljete nov datum prihoda (DD.MM.YYYY) in število nočitev?"
                     )
                 reservation_state["nights"] = prefilled_nights
             # določi naslednji korak glede na manjkajoče podatke
@@ -2339,34 +2381,34 @@ def handle_reservation_flow(message: str) -> str:
                 )
             reservation_state["step"] = "awaiting_people"
             return _tr(
-                f"{reply_prefix} Zabeleženo: {reservation_state['date']} za "
-                f"{reservation_state['nights']} nočitev. Za koliko oseb potrebujete sobo?"
+                f"{reply_prefix} Zabeleženo imam {reservation_state['date']} za "
+                f"{reservation_state['nights']} nočitev. Za koliko oseb bi to bilo?"
             )
         if detected == "table":
             reservation_state["type"] = "table"
             reservation_state["step"] = "awaiting_table_date"
             return _tr(
-                f"Super, rezervacija mize. Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)\n{table_intro_text()}"
+                f"Odlično, mizo rezerviramo z veseljem. Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)\n{table_intro_text()}"
             )
         reservation_state["step"] = "awaiting_type"
-        return _tr("Želite rezervirati sobo ali mizo za kosilo?")
+        return _tr("Kako vam lahko pomagam – rezervacija sobe ali mize za kosilo?")
 
     if reservation_state["step"] == "awaiting_type":
         choice = parse_reservation_type(message)
         if not choice:
             return _tr(
-                "Prosim povejte, ali rezervirate sobo ali mizo za kosilo. "
+                "Mi zaupate, ali rezervirate sobo ali mizo za kosilo? "
                 f"{room_intro_text()} / {table_intro_text()}"
             )
         reservation_state["type"] = choice
         if choice == "room":
             reservation_state["step"] = "awaiting_room_date"
             return _tr(
-                f"Odlično, rezervacija sobe. Za kateri datum prihoda? (DD.MM.YYYY)\n{room_intro_text()}"
+                f"Odlično, sobo uredimo. Za kateri datum prihoda razmišljate? (DD.MM.YYYY)\n{room_intro_text()}"
             )
         reservation_state["step"] = "awaiting_table_date"
         return _tr(
-            f"Super, rezervacija mize. Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)\n{table_intro_text()}"
+            f"Super, uredim mizo. Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)\n{table_intro_text()}"
         )
 
     if reservation_state["type"] == "room":
@@ -2376,7 +2418,7 @@ def handle_reservation_flow(message: str) -> str:
 
 def is_greeting(message: str) -> bool:
     lowered = message.lower()
-    return any(greeting in lowered for greeting in GREETINGS)
+    return any(greeting in lowered for greeting in GREETING_KEYWORDS)
 
 
 def append_today_hint(message: str, reply: str) -> str:
@@ -2413,6 +2455,8 @@ def build_effective_query(message: str) -> str:
 @router.post("", response_model=ChatResponse)
 def chat_endpoint(payload: ChatRequest) -> ChatResponse:
     global last_product_query, last_wine_query, last_info_query, last_menu_query, conversation_history
+    session_id = chat_session_id
+    needs_followup = False
 
     # zabeležimo user vprašanje v zgodovino (omejimo na zadnjih 6 parov)
     conversation_history.append({"role": "user", "content": payload.message})
@@ -2420,6 +2464,38 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         conversation_history = conversation_history[-12:]
 
     detected_lang = detect_language(payload.message)
+
+    def finalize(reply_text: str, intent_value: str, followup_flag: bool = False) -> ChatResponse:
+        nonlocal needs_followup
+        global conversation_history
+        final_reply = reply_text
+        flag = followup_flag or needs_followup or is_unknown_response(final_reply)
+        if flag:
+            final_reply = get_unknown_response(detected_lang)
+        conv_id = reservation_service.log_conversation(
+            session_id=session_id,
+            user_message=payload.message,
+            bot_response=final_reply,
+            intent=intent_value,
+            needs_followup=flag,
+        )
+        if flag:
+            unknown_question_state[session_id] = {"question": payload.message, "conv_id": conv_id}
+        conversation_history.append({"role": "assistant", "content": final_reply})
+        if len(conversation_history) > 12:
+            conversation_history = conversation_history[-12:]
+        return ChatResponse(reply=final_reply)
+
+    # če je prejšnji odgovor bil "ne vem" in uporabnik pošlje email
+    if session_id in unknown_question_state and is_email(payload.message):
+        state = unknown_question_state.pop(session_id)
+        email_value = payload.message.strip()
+        conv_id = state.get("conv_id")
+        if conv_id:
+            reservation_service.update_followup_email(conv_id, email_value)
+        reply = "Hvala! 📧 Vaš elektronski naslov sem si zabeležil. Odgovoril vam bom v najkrajšem možnem času."
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "followup_email", followup_flag=False)
 
     # aktivna rezervacija ima prednost
     if reservation_state["step"] is not None:
@@ -2429,10 +2505,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "reservation")
 
     intent = detect_intent(payload.message)
 
@@ -2443,10 +2516,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "goodbye")
 
     if intent == "reservation":
         reply = handle_reservation_flow(payload.message)
@@ -2455,10 +2525,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "reservation")
 
     # tedenska ponudba naj ima prednost pred vikend jedilnikom
     if intent == "weekly_menu":
@@ -2468,10 +2535,23 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = payload.message
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "weekly_menu")
+
+    if intent == "room_info":
+        reply = """Seveda! 😊 Imamo tri prijetne družinske sobe:
+
+🛏️ **Soba ALJAŽ** - soba z balkonom (2+2 osebi)
+🛏️ **Soba JULIJA** - družinska soba z balkonom (2 odrasla + 2 otroka)  
+🛏️ **Soba ANA** - družinska soba z dvema spalnicama (2 odrasla + 2 otroka)
+
+**Cena**: 50€/osebo/noč z zajtrkom
+**Večerja**: dodatnih 25€/osebo
+
+Sobe so klimatizirane, Wi-Fi je brezplačen. Prijava ob 14:00, odjava ob 10:00.
+
+Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "room_info")
 
     if intent == "room_pricing":
         reply = answer_room_pricing(payload.message)
@@ -2480,10 +2560,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = payload.message
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "room_pricing")
 
     if intent == "tourist_info":
         tourist_reply = answer_tourist_question(payload.message)
@@ -2505,10 +2582,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
             last_wine_query = None
             last_info_query = payload.message
             last_menu_query = False
-            conversation_history.append({"role": "assistant", "content": reply})
-            if len(conversation_history) > 12:
-                conversation_history = conversation_history[-12:]
-            return ChatResponse(reply=reply)
+            return finalize(reply, "tourist_info")
 
     month_hint = parse_month_from_text(payload.message) or parse_relative_month(payload.message)
     if month_hint is not None or is_menu_query(payload.message):
@@ -2518,10 +2592,7 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = True
         reply = maybe_translate(reply, detected_lang)
-        conversation_history.append({"role": "assistant", "content": reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=reply)
+        return finalize(reply, "menu")
 
     if intent == "product":
         reply = answer_product_question(payload.message)
@@ -2530,60 +2601,55 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "product")
 
-    elif intent == "product_followup":
-        combined = (
-            f"{last_product_query} {payload.message}"
-            if last_product_query
-            else payload.message
-        )
+    if intent == "product_followup":
+        combined = f"{last_product_query} {payload.message}" if last_product_query else payload.message
         reply = answer_product_question(combined)
         last_product_query = combined
         last_wine_query = None
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "product_followup")
 
-    elif intent == "reservation":
-        reply = handle_reservation_flow(payload.message)
-        last_product_query = None
-        last_info_query = None
-        last_menu_query = False
-        reply = maybe_translate(reply, detected_lang)
-
-    elif intent == "farm_info":
+    if intent == "farm_info":
         reply = answer_farm_info(payload.message)
         last_product_query = None
         last_wine_query = None
         last_info_query = payload.message
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "farm_info")
 
-    elif intent == "food_general":
+    if intent == "food_general":
         reply = answer_food_question(payload.message)
         last_product_query = None
         last_wine_query = None
         last_info_query = payload.message
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "food_general")
 
-    elif intent == "help":
+    if intent == "help":
         reply = get_help_response()
         last_product_query = None
         last_wine_query = None
         last_info_query = payload.message
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "help")
 
-    elif intent == "wine":
+    if intent == "wine":
         reply = answer_wine_question(payload.message)
         last_product_query = None
         last_wine_query = payload.message
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "wine")
 
-    elif intent == "wine_followup":
+    if intent == "wine_followup":
         combined = f"{last_wine_query} {payload.message}" if last_wine_query else payload.message
         reply = answer_wine_question(combined)
         last_wine_query = combined
@@ -2591,52 +2657,38 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         last_info_query = None
         last_menu_query = False
         reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "wine_followup")
 
-    elif intent == "weekly_menu":
-        reply = answer_weekly_menu(payload.message)
-        last_product_query = None
-        last_wine_query = None
-        last_info_query = payload.message
-        last_menu_query = False
-        reply = maybe_translate(reply, detected_lang)
+    try:
+        effective_query = build_effective_query(payload.message)
+        detected_lang = detect_language(payload.message)
 
+        if detected_lang == "en":
+            lang_hint = "\n\n[IMPORTANT: The user is writing in English. Respond in English.]"
+            effective_query = effective_query + lang_hint
+        elif detected_lang == "de":
+            lang_hint = "\n\n[IMPORTANT: The user is writing in German. Respond in German/Deutsch.]"
+            effective_query = effective_query + lang_hint
+
+        reply = generate_llm_answer(effective_query, history=conversation_history)
+        last_info_query = effective_query
+    except Exception:
+        reply = (
+            "Trenutno imam tehnične težave pri dostopu do podatkov. "
+            "Za natančne informacije prosim preverite www.kovacnik.com."
+        )
+        last_info_query = None
+    last_product_query = None
+    last_wine_query = None
+    last_menu_query = False
+
+    if intent == "default" and is_greeting(payload.message):
+        reply = get_greeting_response()
     else:
-        try:
-            effective_query = build_effective_query(payload.message)
-            detected_lang = detect_language(payload.message)
+        reply = append_today_hint(payload.message, reply)
 
-            if detected_lang == "en":
-                lang_hint = "\n\n[IMPORTANT: The user is writing in English. Respond in English.]"
-                effective_query = effective_query + lang_hint
-            elif detected_lang == "de":
-                lang_hint = "\n\n[IMPORTANT: The user is writing in German. Respond in German/Deutsch.]"
-                effective_query = effective_query + lang_hint
-
-            reply = generate_llm_answer(effective_query, history=conversation_history)
-            last_info_query = effective_query
-        except Exception:
-            reply = (
-                "Trenutno imam tehnične težave pri dostopu do podatkov. "
-                "Za natančne informacije prosim preverite www.kovacnik.com."
-            )
-            last_info_query = None
-        last_product_query = None
-        last_wine_query = None
-        last_menu_query = False
-
-        if intent == "default" and is_greeting(payload.message):
-            reply = get_greeting_response()
-        else:
-            reply = append_today_hint(payload.message, reply)
-
-        reply = maybe_translate(reply, detected_lang)
-
-    # zabeležimo assistant odgovor v zgodovino
-    conversation_history.append({"role": "assistant", "content": reply})
-    if len(conversation_history) > 12:
-        conversation_history = conversation_history[-12:]
-
-    return ChatResponse(reply=reply)
+    reply = maybe_translate(reply, detected_lang)
+    return finalize(reply, intent)
 WEEKLY_MENUS = {
     4: {
         "name": "4-HODNI DEGUSTACIJSKI MENI",

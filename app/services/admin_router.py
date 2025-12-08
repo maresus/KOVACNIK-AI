@@ -95,3 +95,10 @@ def check_availability(check: AvailabilityCheck) -> dict:
         return {"available": True, "suggested_location": location}
 
     return {"available": False, "message": "Neveljaven tip rezervacije"}
+
+
+@router.get("/conversations")
+def get_conversations(limit: int = 100, followup_only: bool = False):
+    """Vrne zadnje pogovore (opcijsko samo tiste, ki čakajo na followup)."""
+    conversations = service.get_conversations(limit=limit, needs_followup_only=followup_only)
+    return {"conversations": conversations}
