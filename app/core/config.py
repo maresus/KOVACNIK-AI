@@ -6,12 +6,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",  # Ignoriraj dodatne env spremenljivke
     )
     
     # Ime projekta (ni nujno v .env, ima default)
     project_name: str = Field(default="Kovačnik AI")
     
-    # OpenAI ključ – bere iz env spremenljivke OPENAI_API_KEY
+    # OpenAI ključ
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     
     # Database URL za PostgreSQL

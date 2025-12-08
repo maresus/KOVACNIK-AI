@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.product_service import find_products
 from app.services.reservation_service import ReservationService
+from app.services.email_service import send_guest_confirmation, send_admin_notification
 from app.rag.rag_engine import rag_engine
 from app.rag.knowledge_base import (
     CONTACT,
@@ -2137,6 +2138,21 @@ def _handle_room_reservation_impl(message: str) -> str:
             location="Sobe (dodelimo ob potrditvi)",
             note=note_text,
         )
+        # Pošlji email gostu in adminu
+        email_data = {
+            'name': reservation_state.get('name', ''),
+            'email': reservation_state.get('email', ''),
+            'phone': reservation_state.get('phone', ''),
+            'date': reservation_state.get('date', ''),
+            'nights': reservation_state.get('nights', 0),
+            'rooms': reservation_state.get('rooms', 0),
+            'people': reservation_state.get('people', 0),
+            'reservation_type': 'room',
+            'location': 'Sobe (dodelimo ob potrditvi)',
+            'note': note_text,
+        }
+        send_guest_confirmation(email_data)
+        send_admin_notification(email_data)
         email_preview = generate_confirmation_email(summary_state)
         human_summary = (
             f"Zabeležil sem rezervacijo sobe od {summary_state['date']} za {summary_state['nights']} nočitev "
@@ -2290,6 +2306,19 @@ def _handle_table_reservation_impl(message: str) -> str:
             phone=str(reservation_state["phone"]),
             email=reservation_state["email"],
         )
+        # Pošlji email gostu in adminu
+        email_data = {
+            'name': reservation_state.get('name', ''),
+            'email': reservation_state.get('email', ''),
+            'phone': reservation_state.get('phone', ''),
+            'date': reservation_state.get('date', ''),
+            'time': reservation_state.get('time', ''),
+            'people': reservation_state.get('people', 0),
+            'reservation_type': 'table',
+            'location': reservation_state.get('location', ''),
+        }
+        send_guest_confirmation(email_data)
+        send_admin_notification(email_data)
         email_preview = generate_confirmation_email(summary_state)
         human_summary = (
             f"Zabeležil sem rezervacijo mize za {summary_state['people']} oseb "

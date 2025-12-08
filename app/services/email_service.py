@@ -318,10 +318,16 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         
         # Pošlji
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        # Port 465 = SSL, Port 587 = TLS
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
         
         print(f"[EMAIL] Poslano: {subject} -> {to}")
         return True
