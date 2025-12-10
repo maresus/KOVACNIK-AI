@@ -70,12 +70,11 @@ class ReservationService:
         if self.use_postgres:
             conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
             return conn
-        else:
-            import sqlite3
+        import sqlite3
 
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            return conn
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _placeholder(self) -> str:
         return "%s" if self.use_postgres else "?"
@@ -83,6 +82,7 @@ class ReservationService:
     def _ensure_db(self) -> None:
         if self.use_postgres:
             conn = self._conn()
+            cur = None
             try:
                 cur = conn.cursor()
                 cur.execute(
@@ -122,7 +122,8 @@ class ReservationService:
                 )
                 conn.commit()
             finally:
-                cur.close()
+                if cur:
+                    cur.close()
                 conn.close()
         else:
             import sqlite3
@@ -147,9 +148,9 @@ class ReservationService:
                     status TEXT DEFAULT 'pending',
                     created_at TEXT NOT NULL,
                     source TEXT NOT NULL
-                    )
-                    """
                 )
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS conversations (
@@ -183,6 +184,8 @@ class ReservationService:
             if isinstance(row, dict):
                 count = list(row.values())[0]
             elif isinstance(row, (list, tuple)):
+                count = row[0]
+            elif hasattr(row, "__getitem__"):
                 count = row[0]
             else:
                 count = row

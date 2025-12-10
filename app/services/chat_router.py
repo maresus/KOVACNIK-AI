@@ -2614,7 +2614,15 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
             return finalize(reply, "tourist_info")
 
     month_hint = parse_month_from_text(payload.message) or parse_relative_month(payload.message)
-    if month_hint is not None or is_menu_query(payload.message):
+    if is_menu_query(payload.message):
+        reply = format_current_menu(month_override=month_hint)
+        last_product_query = None
+        last_wine_query = None
+        last_info_query = None
+        last_menu_query = True
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "menu")
+    if month_hint is not None and intent == "default":
         reply = format_current_menu(month_override=month_hint)
         last_product_query = None
         last_wine_query = None
