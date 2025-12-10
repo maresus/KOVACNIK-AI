@@ -22,6 +22,7 @@ from app.rag.chroma_service import answer_tourist_question, is_tourist_query
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 last_wine_query: Optional[str] = None
+SESSION_TIMEOUT_HOURS = 48
 PRODUCT_STEMS = {
     "salam",
     "klobas",
@@ -509,6 +510,7 @@ last_info_query: Optional[str] = None
 last_menu_query: bool = False
 conversation_history: list[dict[str, str]] = []
 last_shown_products: list[str] = []
+last_interaction: Optional[datetime] = None
 unknown_question_state: dict[str, dict[str, Any]] = {}
 chat_session_id: str = str(uuid.uuid4())[:8]
 MENU_INTROS = [
@@ -1739,6 +1741,22 @@ def reset_reservation_state() -> None:
     reservation_state["language"] = None
 
 
+def reset_conversation_context() -> None:
+    """Počisti začasne pogovorne podatke in ponastavi sejo."""
+    global conversation_history, last_product_query, last_wine_query, last_info_query, last_menu_query
+    global last_shown_products, chat_session_id, unknown_question_state, last_interaction
+    reset_reservation_state()
+    conversation_history = []
+    last_product_query = None
+    last_wine_query = None
+    last_info_query = None
+    last_menu_query = False
+    last_shown_products = []
+    unknown_question_state = {}
+    chat_session_id = str(uuid.uuid4())[:8]
+    last_interaction = None
+
+
 def generate_confirmation_email(state: dict[str, Optional[str | int]]) -> str:
     subject = "Zadeva: Rezervacija – Domačija Kovačnik"
     name = state.get("name") or "spoštovani"
@@ -2483,7 +2501,11 @@ def build_effective_query(message: str) -> str:
 
 @router.post("", response_model=ChatResponse)
 def chat_endpoint(payload: ChatRequest) -> ChatResponse:
-    global last_product_query, last_wine_query, last_info_query, last_menu_query, conversation_history
+    global last_product_query, last_wine_query, last_info_query, last_menu_query, conversation_history, last_interaction, chat_session_id
+    now = datetime.now()
+    if last_interaction and now - last_interaction > timedelta(hours=SESSION_TIMEOUT_HOURS):
+        reset_conversation_context()
+    last_interaction = now
     session_id = chat_session_id
     needs_followup = False
 
