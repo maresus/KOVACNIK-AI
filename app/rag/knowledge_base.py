@@ -76,7 +76,7 @@ def load_knowledge_chunks() -> list[KnowledgeChunk]:
 KNOWLEDGE_CHUNKS: List[KnowledgeChunk] = load_knowledge_chunks()
 
 CONTACT = {
-    "phone": "+386 41 123 456",
+    "phone": "02 601 54 00, 031 330 113",
     "email": "info@kovacnik.com",
 }
 

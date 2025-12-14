@@ -188,7 +188,7 @@ class ReservationService:
             elif hasattr(row, "__getitem__"):
                 count = row[0]
             else:
-                count = row
+                count = 0
             if count > 0 or not os.path.exists(self.csv_path):
                 return
         finally:

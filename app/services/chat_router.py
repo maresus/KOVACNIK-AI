@@ -169,8 +169,8 @@ reservation_service = ReservationService()
 FARM_INFO = {
     "name": "Turistična kmetija Kovačnik",
     "address": "Planica 9, 2313 Fram",
-    "phone": "+386 2 656 10 80",
-    "mobile": "+386 41 728 636",
+    "phone": "02 601 54 00",
+    "mobile": "031 330 113",
     "email": "info@kovacnik.com",
     "website": "www.kovacnik.com",
     "location_description": "Na pohorski strani, nad Framom, približno 15 min iz doline",
@@ -2115,21 +2115,16 @@ def _handle_room_reservation_impl(message: str) -> str:
                 email=reservation_state["email"],
                 location="Sobe (dodelimo ob potrditvi)",
             )
-            email_preview = generate_confirmation_email(summary_state)
-            human_summary = (
-                f"Zabeležil sem rezervacijo sobe od {summary_state['date']} za {summary_state['nights']} nočitev "
-                f"za {summary_state['people']} gostov"
-                + (f" ({summary_state.get('rooms')} sob)." if summary_state.get('rooms') else ".")
-                + " Prijava 14:00, odjava 10:00. "
-                "Zajtrk je vključen (8:00–9:00), večerja 18:00, ob ponedeljkih in torkih večerij ni. "
-                "Sobe so klimatizirane, Wi‑Fi je brezplačen. "
-                "Večerje: ne."
-            )
-            if warn:
-                human_summary += f" {warn}"
             saved_lang = reservation_state.get("language", "si")
             reset_reservation_state()
-            final_response = human_summary + "\n\n---\nPredlagan potrditveni e-mail:\n" + email_preview
+            final_response = (
+                "Odlično! 😊 Vaša rezervacija je zabeležena:\n"
+                f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči\n"
+                f"👥 Osebe: {summary_state.get('people')}\n"
+                f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}\n\n"
+                f"Potrditev smo poslali na {summary_state.get('email')}."
+                " Se vidimo pri Kovačniku! 🏡"
+            )
             return translate_response(final_response, saved_lang)
         return "Prosim odgovorite z Da ali Ne glede na večerje."
 
@@ -2171,29 +2166,18 @@ def _handle_room_reservation_impl(message: str) -> str:
         }
         send_guest_confirmation(email_data)
         send_admin_notification(email_data)
-        email_preview = generate_confirmation_email(summary_state)
-        human_summary = (
-            f"Zabeležil sem rezervacijo sobe od {summary_state['date']} za {summary_state['nights']} nočitev "
-            f"za {summary_state['people']} gostov"
-            + (f" ({summary_state['rooms']} sob)." if summary_state.get('rooms') else ".")
-            + " Prijava 14:00, odjava 10:00. "
-            "Zajtrk je vključen (8:00–9:00), večerja 18:00, ob ponedeljkih in torkih večerij ni. "
-            "Sobe so klimatizirane, Wi‑Fi je brezplačen. "
-            f"{dinner_note}."
-        )
-        warning = None
-        arrival = reservation_service._parse_date(summary_state.get("date") or "")
-        if arrival:
-            nights = int(summary_state.get("nights") or 1)
-            for offset in range(max(1, nights)):
-                if (arrival + timedelta(days=offset)).weekday() in {0, 1}:
-                    warning = "Opozorilo: večerje ob ponedeljkih in torkih ne strežemo."
-                    break
-        if warning:
-            human_summary += f" {warning}"
         saved_lang = reservation_state.get("language", "si")
         reset_reservation_state()
-        final_response = human_summary + "\n\n---\nPredlagan potrditveni e-mail:\n" + email_preview
+        lines = [
+            "Odlično! 😊 Vaša rezervacija je zabeležena:",
+            f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči",
+            f"👥 Osebe: {summary_state.get('people')}",
+            f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}",
+            f"🍽️ {dinner_note}",
+            "",
+            f"Potrditev smo poslali na {summary_state.get('email')}. Se vidimo pri Kovačniku! 🏡",
+        ]
+        final_response = "\n".join(lines)
         return translate_response(final_response, saved_lang)
 
     return "Nadaljujmo z rezervacijo sobe. Za kateri datum jo želite?"
@@ -2337,14 +2321,15 @@ def _handle_table_reservation_impl(message: str) -> str:
         }
         send_guest_confirmation(email_data)
         send_admin_notification(email_data)
-        email_preview = generate_confirmation_email(summary_state)
-        human_summary = (
-            f"Zabeležil sem rezervacijo mize za {summary_state['people']} oseb "
-            f"na datum {summary_state['date']} ob {summary_state['time']} ({summary_state.get('location')}). "
-            "Kuhinja ob sobotah in nedeljah deluje med 12:00 in 20:00, zadnji prihod na kosilo ob 15:00."
-        )
         reset_reservation_state()
-        return human_summary + "\n\n---\nPredlagan potrditveni e-mail:\n" + email_preview
+        final_response = (
+            "Super! 😊 Vaša rezervacija mize je zabeležena:\n"
+            f"📅 Datum: {summary_state.get('date')} ob {summary_state.get('time')}\n"
+            f"👥 Osebe: {summary_state.get('people')}\n"
+            f"🍽️ Jedilnica: {summary_state.get('location')}\n\n"
+            f"Potrditev smo poslali na {summary_state.get('email')}. Se vidimo! 🏡"
+        )
+        return final_response
 
     return "Nadaljujmo z rezervacijo mize. Kateri datum vas zanima?"
 

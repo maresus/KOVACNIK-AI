@@ -75,7 +75,7 @@ def _email_wrapper(content: str) -> str:
         <!-- Footer -->
         <div style="background:{BG_COLOR}; border:1px solid {BORDER_COLOR}; border-top:none; border-radius:0 0 14px 14px; padding:16px 24px; color:{MUTED_COLOR}; font-size:12px;">
             Domačija Kovačnik • <a href="https://kovacnik.com" style="color:{BRAND_COLOR}; text-decoration:none;">kovacnik.com</a>
-            <br>Planica 9, 2313 Fram • +386 2 656 10 80
+            <br>Planica 9, 2313 Fram • 02 601 54 00 • 031 330 113
         </div>
     </div>
 </body>
@@ -142,7 +142,7 @@ def _guest_room_confirmation_html(data: Dict[str, Any]) -> str:
     
     <p style="margin-top:18px; color:{MUTED_COLOR};">
         Rezervacijo bomo potrdili po preverjanju razpoložljivosti.<br>
-        Za spremembe ali preklic nas kontaktirajte na +386 2 656 10 80 ali info@kovacnik.com
+        Za spremembe ali preklic nas kontaktirajte na 02 601 54 00 ali info@kovacnik.com
     </p>
     """
     return _email_wrapper(content)
@@ -260,7 +260,7 @@ def _guest_confirmed_html(data: Dict[str, Any]) -> str:
     </p>
     
     <p style="color:{MUTED_COLOR};">
-        Za morebitne spremembe nas kontaktirajte na +386 2 656 10 80 ali info@kovacnik.com
+        Za morebitne spremembe nas kontaktirajte na 02 601 54 00 ali info@kovacnik.com
     </p>
     """
     return _email_wrapper(content)
