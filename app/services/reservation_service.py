@@ -80,6 +80,21 @@ class ReservationService:
         return "%s" if self.use_postgres else "?"
 
     def _ensure_db(self) -> None:
+        new_columns = [
+            ("rooms", "INTEGER"),
+            ("status", "TEXT DEFAULT 'pending'"),
+            ("admin_notes", "TEXT"),
+            ("confirmed_at", "TEXT"),
+            ("confirmed_by", "TEXT"),
+            ("guest_message", "TEXT"),
+            ("country", "TEXT"),
+            ("kids", "TEXT"),
+            ("kids_small", "TEXT"),
+            ("confirm_via", "TEXT"),
+            ("event_type", "TEXT"),
+            ("special_needs", "TEXT"),
+        ]
+
         if self.use_postgres:
             conn = self._conn()
             cur = None
@@ -102,7 +117,17 @@ class ReservationService:
                         note TEXT,
                         status TEXT DEFAULT 'pending',
                         created_at TEXT NOT NULL,
-                        source TEXT NOT NULL
+                        source TEXT NOT NULL,
+                        admin_notes TEXT,
+                        confirmed_at TEXT,
+                        confirmed_by TEXT,
+                        guest_message TEXT,
+                        country TEXT,
+                        kids TEXT,
+                        kids_small TEXT,
+                        confirm_via TEXT,
+                        event_type TEXT,
+                        special_needs TEXT
                     )
                     """
                 )
@@ -120,6 +145,11 @@ class ReservationService:
                     )
                     """
                 )
+                # dodaj manjkajoče stolpce na obstoječo tabelo (robustnost)
+                for col, definition in new_columns:
+                    cur.execute(
+                        f"ALTER TABLE reservations ADD COLUMN IF NOT EXISTS {col} {definition}"
+                    )
                 conn.commit()
             finally:
                 if cur:
@@ -147,7 +177,17 @@ class ReservationService:
                     note TEXT,
                     status TEXT DEFAULT 'pending',
                     created_at TEXT NOT NULL,
-                    source TEXT NOT NULL
+                    source TEXT NOT NULL,
+                    admin_notes TEXT,
+                    confirmed_at TEXT,
+                    confirmed_by TEXT,
+                    guest_message TEXT,
+                    country TEXT,
+                    kids TEXT,
+                    kids_small TEXT,
+                    confirm_via TEXT,
+                    event_type TEXT,
+                    special_needs TEXT
                 )
                 """
             )
@@ -168,10 +208,9 @@ class ReservationService:
             # dodaj manjkajoče stolpce za stare tabele
             info = conn.execute("PRAGMA table_info(reservations)").fetchall()
             existing_cols = {row[1] for row in info}
-            if "rooms" not in existing_cols:
-                conn.execute("ALTER TABLE reservations ADD COLUMN rooms INTEGER;")
-            if "status" not in existing_cols:
-                conn.execute("ALTER TABLE reservations ADD COLUMN status TEXT DEFAULT 'pending';")
+            for col, definition in new_columns:
+                if col not in existing_cols:
+                    conn.execute(f"ALTER TABLE reservations ADD COLUMN {col} {definition};")
             conn.commit()
             conn.close()
 
@@ -524,17 +563,28 @@ class ReservationService:
         email: Optional[str] = None,
         note: Optional[str] = None,
         status: str = "pending",
-    ) -> Dict[str, Any]:
+        admin_notes: Optional[str] = None,
+        confirmed_at: Optional[str] = None,
+        confirmed_by: Optional[str] = None,
+        guest_message: Optional[str] = None,
+        country: Optional[str] = None,
+        kids: Optional[str] = None,
+        kids_small: Optional[str] = None,
+        confirm_via: Optional[str] = None,
+        event_type: Optional[str] = None,
+        special_needs: Optional[str] = None,
+    ) -> int:
         created_at = datetime.now().isoformat()
         # Admin / telefon / API vnosi se avtomatsko potrdijo
         if source in ("admin", "phone", "api"):
             status = "confirmed"
         conn = self._conn()
         ph = self._placeholder()
-        placeholders = ", ".join([ph] * 14)
+        placeholders = ", ".join([ph] * 24)
         sql = (
             f"INSERT INTO reservations "
-            f"(date, nights, rooms, people, reservation_type, time, location, name, phone, email, note, status, created_at, source) "
+            f"(date, nights, rooms, people, reservation_type, time, location, name, phone, email, note, status, created_at, source, "
+            f"admin_notes, confirmed_at, confirmed_by, guest_message, country, kids, kids_small, confirm_via, event_type, special_needs) "
             f"VALUES ({placeholders})"
         )
         if self.use_postgres:
@@ -558,6 +608,16 @@ class ReservationService:
                     status,
                     created_at,
                     source,
+                    admin_notes,
+                    confirmed_at,
+                    confirmed_by,
+                    guest_message,
+                    country,
+                    kids,
+                    kids_small,
+                    confirm_via,
+                    event_type,
+                    special_needs,
                 ),
             )
             if self.use_postgres:
@@ -570,28 +630,11 @@ class ReservationService:
             cur.close()
             conn.close()
 
-        reservation_data = {
-            "id": new_id,
-            "date": date,
-            "nights": nights if nights is not None else "",
-            "rooms": rooms if rooms is not None else "",
-            "people": people,
-            "reservation_type": reservation_type,
-            "time": time or "",
-            "location": location or "",
-            "name": name or "",
-            "phone": phone or "",
-            "email": email or "",
-            "note": note or "",
-            "status": status,
-            "created_at": created_at,
-            "source": source,
-        }
-        return reservation_data
+        return int(new_id)
 
     def update_status(self, reservation_id: int, new_status: str) -> bool:
         """Posodobi status rezervacije. Vrne True če uspešno."""
-        if new_status not in ("pending", "confirmed", "cancelled"):
+        if new_status not in ("pending", "processing", "confirmed", "rejected", "cancelled"):
             return False
         conn = self._conn()
         ph = self._placeholder()
@@ -605,20 +648,90 @@ class ReservationService:
             cur.close()
             conn.close()
 
-    def read_reservations(self) -> list[Dict[str, Any]]:
+    def get_reservation(self, reservation_id: int) -> Optional[Dict[str, Any]]:
         conn = self._conn()
         try:
             cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT id, date, nights, rooms, people, reservation_type, time, location,
-                       name, phone, email, note, status, created_at, source
-                FROM reservations
-                ORDER BY created_at DESC
-                """
-            )
+            cur.execute("SELECT * FROM reservations WHERE id = " + self._placeholder(), (reservation_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            cur.close()
+            conn.close()
+
+    def read_reservations(
+        self,
+        limit: int = 100,
+        status: Optional[str] = None,
+        reservation_type: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> list[Dict[str, Any]]:
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            sql = "SELECT * FROM reservations"
+            params: list[Any] = []
+            conditions: list[str] = []
+            ph = self._placeholder()
+            if status:
+                conditions.append(f"status = {ph}")
+                params.append(status)
+            if reservation_type:
+                conditions.append(f"reservation_type = {ph}")
+                params.append(reservation_type)
+            if source:
+                conditions.append(f"source = {ph}")
+                params.append(source)
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
+            sql += " ORDER BY created_at DESC LIMIT " + str(int(limit))
+            cur.execute(sql, tuple(params))
             rows = cur.fetchall()
             return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
+    def update_reservation(self, reservation_id: int, **fields: Any) -> bool:
+        """Posodobi poljubna polja rezervacije (le tista, ki niso None)."""
+        allowed_fields = {
+            "status",
+            "date",
+            "nights",
+            "rooms",
+            "people",
+            "reservation_type",
+            "time",
+            "location",
+            "name",
+            "phone",
+            "email",
+            "note",
+            "admin_notes",
+            "confirmed_at",
+            "confirmed_by",
+            "guest_message",
+            "country",
+            "kids",
+            "kids_small",
+            "confirm_via",
+            "event_type",
+            "special_needs",
+        }
+        updates = {k: v for k, v in fields.items() if k in allowed_fields and v is not None}
+        if not updates:
+            return False
+        ph = self._placeholder()
+        set_parts = [f"{k} = {ph}" for k in updates.keys()]
+        params = list(updates.values())
+        params.append(reservation_id)
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            sql = f"UPDATE reservations SET {', '.join(set_parts)} WHERE id = {ph}"
+            cur.execute(sql, tuple(params))
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             cur.close()
             conn.close()
@@ -633,6 +746,7 @@ class ReservationService:
                 SELECT id, date, nights, rooms, people, reservation_type, time, location,
                        name, phone, email, note, status, created_at, source
                 FROM reservations
+                WHERE status NOT IN ('cancelled', 'rejected')
                 """
             )
             for row in cur.fetchall():
@@ -727,6 +841,16 @@ class ReservationService:
                     "status",
                     "created_at",
                     "source",
+                    "admin_notes",
+                    "confirmed_at",
+                    "confirmed_by",
+                    "guest_message",
+                    "country",
+                    "kids",
+                    "kids_small",
+                    "confirm_via",
+                    "event_type",
+                    "special_needs",
                 ]
             )
             for row in rows:
@@ -747,6 +871,16 @@ class ReservationService:
                         row.get("status", ""),
                         row.get("created_at", ""),
                         row.get("source", ""),
+                        row.get("admin_notes", ""),
+                        row.get("confirmed_at", ""),
+                        row.get("confirmed_by", ""),
+                        row.get("guest_message", ""),
+                        row.get("country", ""),
+                        row.get("kids", ""),
+                        row.get("kids_small", ""),
+                        row.get("confirm_via", ""),
+                        row.get("event_type", ""),
+                        row.get("special_needs", ""),
                     ]
                 )
         return backup_path

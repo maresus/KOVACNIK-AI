@@ -5,6 +5,7 @@ from app.core.config import Settings
 from app.services.chat_router import router as chat_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
+from app.services.webhook_router import router as webhook_router
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
@@ -46,6 +47,7 @@ def configure_routes() -> None:
     app.include_router(chat_router)
     app.include_router(reservation_router)
     app.include_router(admin_router)
+    app.include_router(webhook_router)
 
 configure_routes()
 

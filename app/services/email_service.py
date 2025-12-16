@@ -406,6 +406,14 @@ def send_reservation_rejected(data: Dict[str, Any]) -> bool:
     return _send_email(email, subject, html)
 
 
+def send_custom_message(to_email: str, subject: str, body: str) -> bool:
+    """Pošlje poljubno sporočilo gostu."""
+    if not to_email:
+        return False
+    html = _email_wrapper(f"<div style='white-space:pre-wrap;line-height:1.7'>{body}</div>")
+    return _send_email(to_email, subject, html)
+
+
 # ============================================================
 # TEST FUNCTION
 # ============================================================

@@ -1,793 +1,582 @@
 <!DOCTYPE html>
 <html lang="sl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kovačnik – Admin rezervacije</title>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card: #111827;
-      --muted: #94a3b8;
-      --accent: #fbbf24;
-      --accent-2: #22c55e;
-      --danger: #ef4444;
-      --border: #1f2937;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at 20% 20%, rgba(251,191,36,0.08), transparent 25%),
-                  radial-gradient(circle at 80% 0%, rgba(34,197,94,0.08), transparent 20%),
-                  var(--bg);
-      color: #e5e7eb;
-      min-height: 100vh;
-      padding: 24px;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-    h1 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
-    .sub { color: var(--muted); font-size: 0.95rem; margin-top: 4px; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-    }
-    .grid { display: grid; gap: 16px; }
-    .grid.stats { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-    .stat-title { color: var(--muted); font-size: 0.9rem; }
-    .stat-value { font-size: 1.8rem; font-weight: 700; margin-top: 4px; }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      color: #e5e7eb;
-      font-size: 0.85rem;
-    }
-    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
-    input, select, textarea, button {
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #0b1222;
-      color: #e5e7eb;
-      padding: 10px 12px;
-      font: inherit;
-    }
-    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
-    button {
-      cursor: pointer;
-      border: none;
-      background: linear-gradient(120deg, #fbbf24, #f59e0b);
-      color: #0f172a;
-      font-weight: 700;
-      box-shadow: 0 8px 20px rgba(251,191,36,0.25);
-      transition: transform 0.08s ease, box-shadow 0.08s ease;
-    }
-    button.secondary {
-      background: #1f2937;
-      color: #e5e7eb;
-      box-shadow: none;
-      border: 1px solid var(--border);
-    }
-    button:hover { transform: translateY(-1px); }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-    }
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      font-size: 0.95rem;
-    }
-    th { color: var(--muted); font-weight: 600; }
-    tr:hover td { background: rgba(255,255,255,0.02); }
-    .tag {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-    .tag-room { background: rgba(34,197,94,0.15); color: #34d399; }
-    .tag-table { background: rgba(56,189,248,0.15); color: #38bdf8; }
-    .tag-source { background: rgba(255,255,255,0.08); color: #e5e7eb; }
-    .tag-followup { background: rgba(251,191,36,0.18); color: #fbbf24; }
-    .note { color: var(--muted); font-size: 0.9rem; white-space: pre-wrap; }
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
-    textarea { min-height: 80px; resize: vertical; }
-    .danger { color: var(--danger); }
-    @media (max-width: 720px) {
-      header { flex-direction: column; align-items: flex-start; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Kovačnik</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .header {
+            background: #7b5e3b;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.5rem; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        /* Filtri */
+        .filters {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filters select, .filters input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .filter-btn {
+            padding: 8px 16px;
+            background: #7b5e3b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        /* Statistika */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-card .number { font-size: 2rem; font-weight: bold; color: #7b5e3b; }
+        .stat-card .label { color: #666; font-size: 0.9rem; }
+        
+        /* Tabela */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f9f9f9; font-weight: 600; color: #555; }
+        tr:hover { background: #fafafa; }
+        
+        /* Status badges */
+        .status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-processing { background: #cce5ff; color: #004085; }
+        .status-confirmed { background: #d4edda; color: #155724; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+        
+        /* Source badges */
+        .source {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        .source-chat { background: #e3f2fd; color: #1565c0; }
+        .source-wordpress_room { background: #f3e5f5; color: #7b1fa2; }
+        .source-wordpress_table { background: #e8f5e9; color: #2e7d32; }
+        
+        /* Akcije */
+        .actions { display: flex; gap: 8px; }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .btn-confirm { background: #28a745; color: white; }
+        .btn-reject { background: #dc3545; color: white; }
+        .btn-message { background: #17a2b8; color: white; }
+        .btn-edit { background: #6c757d; color: white; }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 500; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .form-group textarea { resize: vertical; min-height: 100px; }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Admin rezervacije</h1>
-      <div class="sub">Kovačnik · ročni vnos + pregled zasedenosti</div>
-    </div>
-    <div class="controls">
-      <button id="refreshBtn">Osveži</button>
-      <button id="backupBtn" class="secondary">Naredi backup CSV</button>
-    </div>
-  </header>
-
-  <div class="grid stats">
-    <div class="card">
-      <div class="stat-title">Skupaj</div>
-      <div class="stat-value" id="statTotal">–</div>
-      <div class="pill" id="statUpdated">---</div>
-    </div>
-    <div class="card">
-      <div class="stat-title">Sobe</div>
-      <div class="stat-value" id="statRooms">–</div>
-      <div class="pill">3 sobe (2+2)</div>
-    </div>
-    <div class="card">
-      <div class="stat-title">Mize</div>
-      <div class="stat-value" id="statTables">–</div>
-      <div class="pill">Sob / Ned, 12:00–20:00</div>
-    </div>
-    <div class="card">
-      <div class="stat-title">Vir</div>
-      <div class="stat-value" id="statSources">–</div>
-      <div class="pill">bot · telefon · admin</div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-      <div class="controls" style="margin-bottom:10px;">
-      <div class="controls" style="gap:6px; flex-wrap:wrap; margin-bottom:6px;">
-        <button type="button" class="secondary" id="tabAll">Vse</button>
-        <button type="button" class="secondary" id="tabRooms">Sobe</button>
-        <button type="button" class="secondary" id="tabTables">Mize</button>
-      </div>
-      <select id="filterType">
-        <option value="">Vse vrste</option>
-        <option value="room">Sobe</option>
-        <option value="table">Mize</option>
-      </select>
-      <select id="filterSource">
-        <option value="">Vsi viri</option>
-        <option value="chat">Bot</option>
-        <option value="api">API</option>
-        <option value="admin">Admin</option>
-        <option value="phone">Telefon</option>
-      </select>
-      <select id="filterStatus">
-        <option value="">Vsi statusi</option>
-        <option value="pending">V obdelavi</option>
-        <option value="confirmed">Potrjeno</option>
-        <option value="cancelled">Preklicano</option>
-      </select>
-      <input id="filterDate" type="text" placeholder="Datum (DD.MM.YYYY)" />
-      <input id="filterSearch" type="text" placeholder="Išči (ime, telefon, email, opombe)" style="flex:1; min-width:200px;" />
-    </div>
-    <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Tip</th>
-            <th>Datum</th>
-            <th>Lokacija</th>
-            <th>Nočitve / Ura</th>
-            <th>Sobe</th>
-            <th>Osebe</th>
-            <th>Kontakt</th>
-            <th>Opomba</th>
-            <th>Vir</th>
-            <th>Status</th>
-            <th>Akcije</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody">
-          <tr><td colspan="12">Nalaganje...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h2 style="margin-top:0; margin-bottom:12px;">Dodaj rezervacijo</h2>
-    <form id="addForm">
-      <div class="form-grid">
+    <div class="header">
+        <h1>🏠 Kovačnik - Admin Panel</h1>
         <div>
-          <label>Tip</label>
-          <select name="reservation_type" required id="typeSelect">
-            <option value="room">Soba</option>
-            <option value="table">Miza</option>
-          </select>
+            <span id="current-date"></span>
         </div>
-        <div>
-          <label>Datum (izberi ali vpiši)</label>
-          <input id="dateInput" name="date" type="date" required />
-        </div>
-        <div id="nightsField">
-          <label>Nočitve</label>
-          <input name="nights" type="number" min="1" placeholder="npr. 3" />
-        </div>
-        <div id="timeField" style="display:none;">
-          <label>Ura (HH:MM)</label>
-          <input name="time" type="text" placeholder="12:30" />
-        </div>
-        <div>
-          <label>Osebe</label>
-          <input name="people" type="number" min="1" placeholder="npr. 4" required />
-        </div>
-        <div id="roomSelectField">
-          <label>Tip sobe</label>
-          <select id="roomSelect" name="room_location">
-            <option value="Soba ALJAŽ">Soba ALJAŽ (2+2)</option>
-            <option value="Soba JULIJA">Soba JULIJA (2+2)</option>
-            <option value="Soba ANA">Soba ANA (2+2)</option>
-          </select>
-        </div>
-        <div id="roomsCountField">
-          <label>Število sob</label>
-          <input name="rooms" type="number" min="1" max="3" value="1" />
-        </div>
-        <div id="tableSelectField" style="display:none;">
-          <label>Jedilnica</label>
-          <select id="tableSelect" name="table_location">
-            <option value="" selected disabled>Izberi jedilnico</option>
-            <option value="Jedilnica Pri peči">Jedilnica Pri peči (15)</option>
-            <option value="Jedilnica Pri vrtu">Jedilnica Pri vrtu (35)</option>
-          </select>
-        </div>
-        <div>
-          <label>Ime in priimek</label>
-          <input name="name" type="text" placeholder="Ana Kovačnik" />
-        </div>
-        <div>
-          <label>Telefon</label>
-          <input name="phone" type="text" placeholder="041 123 123" />
-        </div>
-        <div>
-          <label>Email</label>
-          <input name="email" type="email" placeholder="gost@example.com" />
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <label>Opomba (alergije, posebnosti)</label>
-        <textarea name="note" placeholder="Alergije, otroški stolček, posebna hrana ..."></textarea>
-      </div>
-      <div class="controls" style="margin-top:12px;">
-        <select name="source">
-          <option value="admin">Admin</option>
-          <option value="phone">Telefon</option>
-          <option value="chat">Bot</option>
-          <option value="api">API</option>
-        </select>
-        <button type="submit">Shrani</button>
-      </div>
-      <div id="formMessage" class="sub"></div>
-    </form>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-      <div>
-        <h2 style="margin:0;">Pogovori</h2>
-        <div class="sub">Zadnji pogovori z botom, vključno z odprtimi follow-upi</div>
-      </div>
-      <div class="controls" style="flex-wrap:wrap; gap:8px;">
-        <label style="display:flex; align-items:center; gap:6px; font-size:0.9rem; color:var(--muted);">
-          <input type="checkbox" id="convFollowup" /> Čaka na odgovor
-        </label>
-        <input type="number" id="convLimit" value="50" min="10" max="500" style="width:90px;" />
-        <button type="button" id="convRefresh">Osveži pogovore</button>
-      </div>
     </div>
-    <div id="convStatus" class="sub" style="margin-top:8px;">—</div>
-    <div style="overflow-x:auto; margin-top:8px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Čas</th>
-            <th>Uporabnik</th>
-            <th>Bot</th>
-            <th>Intent</th>
-            <th>Email</th>
-            <th>Follow-up</th>
-          </tr>
-        </thead>
-        <tbody id="convBody">
-          <tr><td colspan="6">Nalaganje...</td></tr>
-        </tbody>
-      </table>
+    
+    <div class="container">
+        <!-- Statistika -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="number" id="stat-pending">0</div>
+                <div class="label">Čaka na obdelavo</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="stat-processing">0</div>
+                <div class="label">V obdelavi</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="stat-confirmed">0</div>
+                <div class="label">Potrjeno</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="stat-today">0</div>
+                <div class="label">Danes</div>
+            </div>
+        </div>
+        
+        <!-- Filtri -->
+        <div class="filters">
+            <select id="filter-status">
+                <option value="">Vsi statusi</option>
+                <option value="pending" selected>Čaka na obdelavo</option>
+                <option value="processing">V obdelavi</option>
+                <option value="confirmed">Potrjeno</option>
+                <option value="rejected">Zavrnjeno</option>
+            </select>
+            <select id="filter-type">
+                <option value="">Vse vrste</option>
+                <option value="room">Sobe</option>
+                <option value="table">Mize</option>
+            </select>
+            <select id="filter-source">
+                <option value="">Vsi viri</option>
+                <option value="chat">Chatbot</option>
+                <option value="wordpress_room">WP Sobe</option>
+                <option value="wordpress_table">WP Mize</option>
+            </select>
+            <input type="date" id="filter-date-from" placeholder="Od datuma">
+            <input type="date" id="filter-date-to" placeholder="Do datuma">
+            <button class="filter-btn" onclick="loadReservations()">Filtriraj</button>
+            <button class="filter-btn" style="background:#666" onclick="resetFilters()">Ponastavi</button>
+        </div>
+        
+        <!-- Tabela -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Datum</th>
+                        <th>Gost</th>
+                        <th>Kontakt</th>
+                        <th>Tip</th>
+                        <th>Podrobnosti</th>
+                        <th>Vir</th>
+                        <th>Status</th>
+                        <th>Akcije</th>
+                    </tr>
+                </thead>
+                <tbody id="reservations-table">
+                    <!-- Dinamično napolnjeno -->
+                </tbody>
+            </table>
+        </div>
     </div>
-  </div>
+    
+    <!-- Modal za urejanje -->
+    <div class="modal" id="edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Uredi rezervacijo #<span id="edit-id"></span></h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="edit-form">
+                <input type="hidden" id="edit-reservation-id">
+                
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="edit-status">
+                        <option value="pending">Čaka na obdelavo</option>
+                        <option value="processing">V obdelavi</option>
+                        <option value="confirmed">Potrjeno</option>
+                        <option value="rejected">Zavrnjeno</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Datum</label>
+                    <input type="text" id="edit-date">
+                </div>
+                
+                <div class="form-group">
+                    <label>Število oseb</label>
+                    <input type="number" id="edit-people">
+                </div>
+                
+                <div class="form-group">
+                    <label>Nočitve</label>
+                    <input type="number" id="edit-nights">
+                </div>
+                
+                <div class="form-group">
+                    <label>Lokacija / Soba</label>
+                    <input type="text" id="edit-location">
+                </div>
+                
+                <div class="form-group">
+                    <label>Interne opombe (gost ne vidi)</label>
+                    <textarea id="edit-admin-notes"></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn" style="background:#ccc;color:#333" onclick="closeModal()">Prekliči</button>
+                    <button type="submit" class="btn btn-confirm">Shrani</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal za pošiljanje sporočila -->
+    <div class="modal" id="message-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Pošlji sporočilo gostu</h2>
+                <button class="modal-close" onclick="closeMessageModal()">&times;</button>
+            </div>
+            <form id="message-form">
+                <input type="hidden" id="message-reservation-id">
+                <input type="hidden" id="message-email">
+                
+                <div class="form-group">
+                    <label>Prejemnik</label>
+                    <input type="text" id="message-to" readonly style="background:#f5f5f5">
+                </div>
+                
+                <div class="form-group">
+                    <label>Zadeva</label>
+                    <input type="text" id="message-subject" value="Vaša rezervacija - Kovačnik">
+                </div>
+                
+                <div class="form-group">
+                    <label>Sporočilo</label>
+                    <textarea id="message-body" rows="8">Pozdravljeni,
 
-  <script>
-    const tbody = document.getElementById("tableBody");
-    const statTotal = document.getElementById("statTotal");
-    const statRooms = document.getElementById("statRooms");
-    const statTables = document.getElementById("statTables");
-    const statSources = document.getElementById("statSources");
-    const statUpdated = document.getElementById("statUpdated");
-    const filterType = document.getElementById("filterType");
-    const filterSource = document.getElementById("filterSource");
-    const filterStatus = document.getElementById("filterStatus");
-    const filterDate = document.getElementById("filterDate");
-    const filterSearch = document.getElementById("filterSearch");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const backupBtn = document.getElementById("backupBtn");
-    const tabAll = document.getElementById("tabAll");
-    const tabRooms = document.getElementById("tabRooms");
-    const tabTables = document.getElementById("tabTables");
-    const form = document.getElementById("addForm");
-    const formMessage = document.getElementById("formMessage");
-    const typeSelect = document.getElementById("typeSelect");
-    const nightsField = document.getElementById("nightsField");
-    const timeField = document.getElementById("timeField");
-    const roomSelectField = document.getElementById("roomSelectField");
-    const tableSelectField = document.getElementById("tableSelectField");
-    const roomSelect = document.getElementById("roomSelect");
-    const tableSelect = document.getElementById("tableSelect");
-    const dateInput = document.getElementById("dateInput");
-    const roomsCountField = document.getElementById("roomsCountField");
-    const convBody = document.getElementById("convBody");
-    const convRefresh = document.getElementById("convRefresh");
-    const convFollowup = document.getElementById("convFollowup");
-    const convLimit = document.getElementById("convLimit");
-    const convStatus = document.getElementById("convStatus");
+glede vaše rezervacije za datum [DATUM]:
 
-    let reservations = [];
-    let conversations = [];
+[VAŠE SPOROČILO]
 
-    function formatDate(d) {
-      try {
-        return new Date(d).toLocaleString("sl-SI");
-      } catch {
-        return d;
-      }
-    }
+Lep pozdrav,
+Domačija Kovačnik</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="message-set-processing" checked>
+                        Nastavi status na "V obdelavi"
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn" style="background:#ccc;color:#333" onclick="closeMessageModal()">Prekliči</button>
+                    <button type="submit" class="btn btn-message">Pošlji</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    function sanitize(text) {
-      return (text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    function renderConversations(list) {
-      if (!list.length) {
-        convBody.innerHTML = "<tr><td colspan='6'>Ni zapisov.</td></tr>";
-        return;
-      }
-      convBody.innerHTML = list
-        .map(conv => {
-          const created = formatDate(conv.created_at || "");
-          const userMsg = sanitize(conv.user_message || "");
-          const botMsg = sanitize(conv.bot_response || "");
-          const intent = sanitize(conv.intent || "-");
-          const email = sanitize(conv.followup_email || "—");
-          const follow = conv.needs_followup
-            ? "<span class='tag tag-followup'>Čaka</span>"
-            : "<span class='tag tag-source'>OK</span>";
-          return `
-            <tr>
-              <td>${created}</td>
-              <td>${userMsg}</td>
-              <td>${botMsg}</td>
-              <td>${intent}</td>
-              <td>${email}</td>
-              <td>${follow}</td>
-            </tr>
-          `;
-        })
-        .join("");
-    }
-
-    function renderTable(list) {
-      if (!list.length) {
-        tbody.innerHTML = "<tr><td colspan='12'>Ni zapisov.</td></tr>";
-        return;
-      }
-      tbody.innerHTML = list
-        .map((r, idx) => {
-          const typeTag = r.reservation_type === "table"
-            ? "<span class='tag tag-table'>Miza</span>"
-            : "<span class='tag tag-room'>Soba</span>";
-          const sourceTag = `<span class="tag tag-source">${r.source || "?"}</span>`;
-          const nočitveUra = r.reservation_type === "table"
-            ? (r.time || "—")
-            : (r.nights || "—") + " noč.";
-          const contact = [r.name, r.phone, r.email].filter(Boolean).join(" · ") || "—";
-          const note = r.note ? `<div class="note">${r.note}</div>` : "";
-          const location = r.location
-            || (r.reservation_type === "table" ? "Jedilnica (ni izbrana)" : "Soba (ni izbrana)");
-          const payload = encodeURIComponent(JSON.stringify(r));
-          const roomsInfo = r.rooms ? `${r.rooms} sob(e)` : "—";
-          let statusTag = "";
-          let actionBtns = "";
-          const st = r.status || "pending";
-          if (st === "confirmed") {
-            statusTag = "<span class='tag' style='background: rgba(34,197,94,0.15); color:#34d399;'>POTRJENO</span>";
-            actionBtns = `<button class="secondary btn-cancel" data-id="${r.id}" style="font-size:0.8rem; padding:4px 8px;">Prekliči</button>`;
-          } else if (st === "cancelled") {
-            statusTag = "<span class='tag' style='background: rgba(239,68,68,0.15); color:#ef4444;'>PREKLICANO</span>";
-            actionBtns = `<button class="secondary btn-reopen" data-id="${r.id}" style="font-size:0.8rem; padding:4px 8px;">Ponovno odpri</button>`;
-          } else {
-            statusTag = "<span class='tag' style='background: rgba(251,191,36,0.15); color:#fbbf24;'>V OBDELAVI</span>";
-            actionBtns = `
-              <button class="btn-confirm" data-id="${r.id}" style="font-size:0.8rem; padding:4px 8px; margin-right:4px;">Potrdi</button>
-              <button class="secondary btn-cancel" data-id="${r.id}" style="font-size:0.8rem; padding:4px 8px;">Prekliči</button>
-            `;
-          }
-          return `
-            <tr>
-              <td>${idx + 1}</td>
-              <td>${typeTag}</td>
-              <td>${r.date || "?"}</td>
-              <td>${location}</td>
-              <td>${nočitveUra}</td>
-              <td>${roomsInfo}</td>
-              <td>${r.people || "?"}</td>
-              <td>${contact}</td>
-              <td>${note || "—"}</td>
-              <td>${sourceTag}</td>
-              <td>${statusTag}</td>
-              <td>
-                <button class="secondary" data-detail='${payload}' style="font-size:0.8rem; padding:4px 8px; margin-right:4px;">Pogled</button>
-                ${actionBtns}
-              </td>
-            </tr>
-          `;
-        })
-        .join("");
-
-      document.querySelectorAll("button[data-detail]").forEach(btn => {
-        btn.onclick = () => {
-          try {
-            const data = JSON.parse(decodeURIComponent(btn.getAttribute("data-detail")));
-            openModal(data);
-          } catch {}
-        };
-      });
-
-      document.querySelectorAll(".btn-confirm").forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.getAttribute("data-id");
-          await updateStatus(id, "confirmed");
-        };
-      });
-
-      document.querySelectorAll(".btn-cancel").forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.getAttribute("data-id");
-          if (confirm("Ali res želite preklicati to rezervacijo?")) {
-            await updateStatus(id, "cancelled");
-          }
-        };
-      });
-
-      document.querySelectorAll(".btn-reopen").forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.getAttribute("data-id");
-          await updateStatus(id, "pending");
-        };
-      });
-    }
-
-    function applyFilters() {
-      const t = filterType.value;
-      const s = filterSource.value;
-      const st = filterStatus.value;
-      const d = filterDate.value.trim().toLowerCase();
-      const q = filterSearch.value.trim().toLowerCase();
-
-      const filtered = reservations.filter(r => {
-        if (t && r.reservation_type !== t) return false;
-        if (s && (r.source || "").toLowerCase() !== s.toLowerCase()) return false;
-        if (st && (r.status || "pending") !== st) return false;
-        if (d && (r.date || "").toLowerCase().indexOf(d) === -1) return false;
-        if (q) {
-          const hay = [
-            r.name || "", r.phone || "", r.email || "",
-            r.note || "", r.location || ""
-          ].join(" ").toLowerCase();
-          if (!hay.includes(q)) return false;
+    <script>
+        const API_BASE = '/api/admin';
+        
+        // Trenutni datum
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('sl-SI');
+        
+        // Naloži rezervacije ob zagonu
+        document.addEventListener('DOMContentLoaded', loadReservations);
+        
+        async function loadReservations() {
+            const status = document.getElementById('filter-status').value;
+            const type = document.getElementById('filter-type').value;
+            const source = document.getElementById('filter-source').value;
+            
+            let url = `${API_BASE}/reservations?limit=100`;
+            if (status) url += `&status=${status}`;
+            if (type) url += `&type=${type}`;
+            if (source) url += `&source=${source}`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                renderReservations(data.reservations || []);
+                updateStats(data.stats || {});
+            } catch (e) {
+                console.error('Napaka pri nalaganju:', e);
+            }
         }
-        return true;
-      });
-      renderTable(filtered);
-    }
-
-    async function updateStatus(id, newStatus) {
-      try {
-        const res = await fetch(`/admin/reservations/${id}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus })
-        });
-        if (!res.ok) throw new Error("Napaka");
-        loadReservations();
-      } catch (err) {
-        alert("Napaka pri posodabljanju statusa");
-      }
-    }
-
-    async function loadReservations() {
-      tbody.innerHTML = "<tr><td colspan='12'>Nalaganje...</td></tr>";
-      try {
-        const res = await fetch("/reservations");
-        const data = await res.json();
-        reservations = data;
-        const total = reservations.length;
-        const rooms = reservations.filter(r => r.reservation_type === "room").length;
-        const tables = reservations.filter(r => r.reservation_type === "table").length;
-        const sources = [...new Set(reservations.map(r => r.source || "neznano"))];
-        const pending = reservations.filter(r => (r.status || "pending") === "pending").length;
-        const confirmed = reservations.filter(r => r.status === "confirmed").length;
-        const cancelled = reservations.filter(r => r.status === "cancelled").length;
-
-        statTotal.innerHTML = `${total} <span style="font-size:0.9rem; color:var(--muted);">(${pending} čaka)</span>`;
-        statRooms.textContent = rooms;
-        statTables.textContent = tables;
-        statSources.textContent = sources.length;
-        statUpdated.textContent = "Osveženo: " + new Date().toLocaleTimeString("sl-SI");
-        applyFilters();
-      } catch (err) {
-        tbody.innerHTML = "<tr><td colspan='12'>Napaka pri nalaganju.</td></tr>";
-      }
-    }
-
-    async function loadConversations() {
-      convStatus.textContent = "Nalaganje...";
-      const limit = Number(convLimit.value) || 50;
-      const followupOnly = convFollowup.checked ? "true" : "false";
-      try {
-        const res = await fetch(`/admin/conversations?limit=${limit}&followup_only=${followupOnly}`);
-        const data = await res.json();
-        conversations = data.conversations || [];
-        convStatus.textContent = `Prikazujem ${conversations.length}/${limit}${followupOnly === "true" ? " · čakajo na odgovor" : ""}`;
-        renderConversations(conversations);
-      } catch (err) {
-        convStatus.textContent = "Napaka pri nalaganju.";
-        convBody.innerHTML = "<tr><td colspan='6'>Napaka pri nalaganju.</td></tr>";
-      }
-    }
-
-    async function checkAndShowAvailability() {
-      const dateVal = dateInput.value;
-      const nightsVal = document.querySelector('input[name="nights"]').value;
-      const peopleVal = document.querySelector('input[name="people"]').value;
-
-      if (!dateVal || typeSelect.value !== "room") return;
-
-      let formattedDate = dateVal;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
-        const [y, m, d] = dateVal.split("-");
-        formattedDate = `${Number(d)}.${Number(m)}.${y}`;
-      }
-
-      try {
-        const res = await fetch("/admin/check-availability", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reservation_type: "room",
-            date: formattedDate,
-            nights: Number(nightsVal) || 2,
-            people: Number(peopleVal) || 2,
-            rooms: 1
-          })
-        });
-        const data = await res.json();
-
-        let availInfo = document.getElementById("availInfo");
-        if (!availInfo) {
-          availInfo = document.createElement("div");
-          availInfo.id = "availInfo";
-          availInfo.style.marginTop = "8px";
-          availInfo.style.padding = "8px";
-          availInfo.style.borderRadius = "8px";
-          availInfo.style.fontSize = "0.9rem";
-          roomSelectField.parentNode.insertBefore(availInfo, roomSelectField.nextSibling);
+        
+        function renderReservations(reservations) {
+            const tbody = document.getElementById('reservations-table');
+            
+            if (reservations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#999">Ni rezervacij</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = reservations.map(r => `
+                <tr>
+                    <td>#${r.id}</td>
+                    <td>
+                        <strong>${r.date || '-'}</strong>
+                        ${r.time ? '<br><small>' + r.time + '</small>' : ''}
+                        ${r.nights ? '<br><small>' + r.nights + ' noči</small>' : ''}
+                    </td>
+                    <td>
+                        <strong>${r.name || '-'}</strong>
+                        ${r.country ? '<br><small>' + r.country + '</small>' : ''}
+                    </td>
+                    <td>
+                        ${r.email ? '<a href="mailto:' + r.email + '">' + r.email + '</a>' : '-'}
+                        ${r.phone ? '<br><small>' + r.phone + '</small>' : ''}
+                    </td>
+                    <td>
+                        ${r.reservation_type === 'room' ? '🛏️ Soba' : '🍽️ Miza'}
+                    </td>
+                    <td>
+                        <small>
+                            ${r.people ? r.people + ' oseb' : ''}
+                            ${r.location ? '<br>' + r.location : ''}
+                            ${r.note ? '<br><em>' + r.note + '</em>' : ''}
+                        </small>
+                    </td>
+                    <td><span class="source source-${r.source}">${formatSource(r.source)}</span></td>
+                    <td><span class="status status-${r.status}">${formatStatus(r.status)}</span></td>
+                    <td class="actions">
+                        ${r.status === 'pending' || r.status === 'processing' ? `
+                            <button class="btn btn-confirm" onclick="confirmReservation(${r.id})">✅</button>
+                            <button class="btn btn-reject" onclick="rejectReservation(${r.id})">❌</button>
+                        ` : ''}
+                        <button class="btn btn-message" onclick="openMessageModal(${r.id}, '${r.email}', '${r.name}', '${r.date}')">✉️</button>
+                        <button class="btn btn-edit" onclick="openEditModal(${JSON.stringify(r).replace(/"/g, '&quot;')})">✏️</button>
+                    </td>
+                </tr>
+            `).join('');
         }
-
-        if (data.available && data.free_rooms) {
-          availInfo.style.background = "rgba(34,197,94,0.1)";
-          availInfo.style.color = "#34d399";
-          availInfo.innerHTML = `✓ Proste sobe: <b>${data.free_rooms.join(", ")}</b>`;
-        } else {
-          availInfo.style.background = "rgba(239,68,68,0.1)";
-          availInfo.style.color = "#ef4444";
-          availInfo.innerHTML = `⚠️ ${data.message}`;
+        
+        function formatStatus(status) {
+            const map = {
+                'pending': 'Čaka',
+                'processing': 'V obdelavi',
+                'confirmed': 'Potrjeno',
+                'rejected': 'Zavrnjeno'
+            };
+            return map[status] || status;
         }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    filterType.addEventListener("change", applyFilters);
-    filterSource.addEventListener("change", applyFilters);
-    filterStatus.addEventListener("change", applyFilters);
-    filterDate.addEventListener("input", applyFilters);
-    filterSearch.addEventListener("input", applyFilters);
-    refreshBtn.addEventListener("click", loadReservations);
-    tabAll.addEventListener("click", () => { filterType.value = ""; applyFilters(); });
-    tabRooms.addEventListener("click", () => { filterType.value = "room"; applyFilters(); });
-    tabTables.addEventListener("click", () => { filterType.value = "table"; applyFilters(); });
-    convRefresh.addEventListener("click", loadConversations);
-    convFollowup.addEventListener("change", loadConversations);
-    convLimit.addEventListener("change", loadConversations);
-
-    backupBtn.addEventListener("click", async () => {
-      backupBtn.disabled = true;
-      backupBtn.textContent = "Backup...";
-      try {
-        const res = await fetch("/admin/backup", { method: "POST" });
-        const data = await res.json();
-        backupBtn.textContent = "Backup OK";
-        setTimeout(() => { backupBtn.textContent = "Naredi backup CSV"; backupBtn.disabled = false; }, 1200);
-      } catch (e) {
-        backupBtn.textContent = "Napaka";
-        setTimeout(() => { backupBtn.textContent = "Naredi backup CSV"; backupBtn.disabled = false; }, 1200);
-      }
-    });
-
-    typeSelect.addEventListener("change", () => {
-      const isTable = typeSelect.value === "table";
-      nightsField.style.display = isTable ? "none" : "block";
-      timeField.style.display = isTable ? "block" : "none";
-      roomSelectField.style.display = isTable ? "none" : "block";
-      tableSelectField.style.display = isTable ? "block" : "none";
-      roomsCountField.style.display = isTable ? "none" : "block";
-    });
-
-    dateInput.addEventListener("change", checkAndShowAvailability);
-    document.querySelector('input[name="nights"]').addEventListener("change", checkAndShowAvailability);
-    document.querySelector('input[name="people"]').addEventListener("change", checkAndShowAvailability);
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      formMessage.textContent = "";
-      formMessage.classList.remove("danger");
-
-      const formData = new FormData(form);
-      const payload = Object.fromEntries(formData.entries());
-
-      // normaliziraj datum
-      if (payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
-        const [y, m, d] = payload.date.split("-");
-        payload.date = `${Number(d)}.${Number(m)}.${y}`;
-      }
-      payload.people = Number(payload.people || 0);
-      payload.nights = payload.nights ? Number(payload.nights) : null;
-      payload.rooms = payload.rooms ? Number(payload.rooms) : null;
-
-      if (payload.reservation_type === "table") {
-        payload.nights = null;
-        payload.location = tableSelect.value || null;
-        payload.rooms = null;
-      } else {
-        payload.time = null;
-        payload.location = roomSelect.value;
-      }
-
-      // NOVO: Preveri razpoložljivost PRED shranjevanjem
-      try {
-        const checkPayload = {
-          reservation_type: payload.reservation_type,
-          date: payload.date,
-          nights: payload.nights,
-          people: payload.people,
-          rooms: payload.rooms,
-          time: payload.time
-        };
-
-        const checkRes = await fetch("/admin/check-availability", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(checkPayload)
-        });
-        const checkData = await checkRes.json();
-
-        if (!checkData.available) {
-          const proceed = confirm(
-            `⚠️ OPOZORILO: ${checkData.message}\n\n` +
-            `Ali kljub temu želite shraniti rezervacijo?`
-          );
-          if (!proceed) {
-            formMessage.textContent = "Rezervacija preklicana.";
-            return;
-          }
+        
+        function formatSource(source) {
+            const map = {
+                'chat': 'Chatbot',
+                'wordpress_room': 'WP Soba',
+                'wordpress_table': 'WP Miza'
+            };
+            return map[source] || source;
         }
-      } catch (err) {
-        console.error("Napaka pri preverjanju:", err);
-      }
-
-      ["time","location","name","phone","email","note"].forEach(k => {
-        if (payload[k] === "") payload[k] = null;
-      });
-
-      try {
-        const res = await fetch("/reservations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+        
+        function updateStats(stats) {
+            document.getElementById('stat-pending').textContent = stats.pending || 0;
+            document.getElementById('stat-processing').textContent = stats.processing || 0;
+            document.getElementById('stat-confirmed').textContent = stats.confirmed || 0;
+            document.getElementById('stat-today').textContent = stats.today || 0;
+        }
+        
+        function resetFilters() {
+            document.getElementById('filter-status').value = 'pending';
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-source').value = '';
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            loadReservations();
+        }
+        
+        // AKCIJE
+        async function confirmReservation(id) {
+            if (!confirm('Potrdi rezervacijo #' + id + '?')) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/reservations/${id}/confirm`, { method: 'POST' });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('Rezervacija potrjena! Email poslan gostu.');
+                    loadReservations();
+                } else {
+                    alert('Napaka: ' + (data.error || 'Neznana napaka'));
+                }
+            } catch (e) {
+                alert('Napaka pri potrjevanju');
+            }
+        }
+        
+        async function rejectReservation(id) {
+            if (!confirm('Zavrni rezervacijo #' + id + '? Gostu bo poslan email.')) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/reservations/${id}/reject`, { method: 'POST' });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('Rezervacija zavrnjena. Email poslan gostu.');
+                    loadReservations();
+                } else {
+                    alert('Napaka: ' + (data.error || 'Neznana napaka'));
+                }
+            } catch (e) {
+                alert('Napaka pri zavrnitvi');
+            }
+        }
+        
+        // EDIT MODAL
+        function openEditModal(reservation) {
+            document.getElementById('edit-id').textContent = reservation.id;
+            document.getElementById('edit-reservation-id').value = reservation.id;
+            document.getElementById('edit-status').value = reservation.status || 'pending';
+            document.getElementById('edit-date').value = reservation.date || '';
+            document.getElementById('edit-people').value = reservation.people || '';
+            document.getElementById('edit-nights').value = reservation.nights || '';
+            document.getElementById('edit-location').value = reservation.location || '';
+            document.getElementById('edit-admin-notes').value = reservation.admin_notes || '';
+            document.getElementById('edit-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('edit-modal').classList.remove('active');
+        }
+        
+        document.getElementById('edit-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-reservation-id').value;
+            
+            const data = {
+                status: document.getElementById('edit-status').value,
+                date: document.getElementById('edit-date').value,
+                people: parseInt(document.getElementById('edit-people').value) || null,
+                nights: parseInt(document.getElementById('edit-nights').value) || null,
+                location: document.getElementById('edit-location').value,
+                admin_notes: document.getElementById('edit-admin-notes').value,
+            };
+            
+            try {
+                const res = await fetch(`${API_BASE}/reservations/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.ok) {
+                    closeModal();
+                    loadReservations();
+                } else {
+                    alert('Napaka: ' + (result.error || 'Neznana napaka'));
+                }
+            } catch (e) {
+                alert('Napaka pri shranjevanju');
+            }
         });
-        if (!res.ok) throw new Error("Napaka pri shranjevanju");
-        formMessage.textContent = "✓ Rezervacija shranjena.";
-        form.reset();
-        typeSelect.value = "room";
-        typeSelect.dispatchEvent(new Event("change"));
-        loadReservations();
-      } catch (err) {
-        formMessage.textContent = "Napaka pri shranjevanju.";
-        formMessage.classList.add("danger");
-      }
-    });
-
-    loadReservations();
-    // privzeti datum na današnji dan
-    if (dateInput) {
-      const today = new Date();
-      const iso = today.toISOString().split("T")[0];
-      dateInput.value = iso;
-    }
-    loadConversations();
-
-    // Modal za podrobnosti
-    const modal = document.createElement("div");
-    modal.style.position = "fixed";
-    modal.style.inset = "0";
-    modal.style.background = "rgba(0,0,0,0.6)";
-    modal.style.display = "none";
-    modal.style.alignItems = "center";
-    modal.style.justifyContent = "center";
-    modal.style.zIndex = "999";
-    modal.innerHTML = `
-      <div style="background:#0b1222; border:1px solid var(--border); border-radius:14px; padding:20px; max-width:480px; width:90%; color:#e5e7eb; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
-        <h3 style="margin-top:0;">Podrobnosti rezervacije</h3>
-        <div id="modalContent" style="line-height:1.5;"></div>
-        <div class="controls" style="margin-top:12px; justify-content:flex-end;">
-          <button id="closeModal" class="secondary">Zapri</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    modal.querySelector("#closeModal").onclick = () => modal.style.display = "none";
-
-    function openModal(data) {
-      const mc = modal.querySelector("#modalContent");
-      const lines = [
-        `<b>Tip:</b> ${data.reservation_type === "table" ? "Miza" : "Soba"}`,
-        `<b>Datum:</b> ${data.date || "-"}`,
-        data.reservation_type === "table"
-          ? `<b>Ura:</b> ${data.time || "-"}`
-          : `<b>Nočitve:</b> ${data.nights || "-"}`,
-        `<b>Osebe:</b> ${data.people || "-"}`,
-        `<b>Lokacija:</b> ${data.location || (data.reservation_type === "table" ? "Jedilnica (ni izbrana)" : "Soba (ni izbrana)")}`,
-        data.reservation_type === "room"
-          ? `<b>Št. sob:</b> ${data.rooms || "-"}`
-          : "",
-        `<b>Ime:</b> ${data.name || "-"}`,
-        `<b>Telefon:</b> ${data.phone || "-"}`,
-        `<b>Email:</b> ${data.email || "-"}`,
-        `<b>Opomba:</b> ${data.note || "-"}`,
-        `<b>Vir:</b> ${data.source || "-"}`,
-        `<b>Ustvarjeno:</b> ${data.created_at || "-"}`
-      ];
-      mc.innerHTML = lines.map(l => `<div>${l}</div>`).join("");
-      modal.style.display = "flex";
-    }
-  </script>
+        
+        // MESSAGE MODAL
+        function openMessageModal(id, email, name, date) {
+            document.getElementById('message-reservation-id').value = id;
+            document.getElementById('message-email').value = email;
+            document.getElementById('message-to').value = name + ' <' + email + '>';
+            
+            // Posodobi template z datumom
+            const body = document.getElementById('message-body');
+            body.value = body.value.replace('[DATUM]', date || '');
+            
+            document.getElementById('message-modal').classList.add('active');
+        }
+        
+        function closeMessageModal() {
+            document.getElementById('message-modal').classList.remove('active');
+        }
+        
+        document.getElementById('message-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                reservation_id: document.getElementById('message-reservation-id').value,
+                email: document.getElementById('message-email').value,
+                subject: document.getElementById('message-subject').value,
+                body: document.getElementById('message-body').value,
+                set_processing: document.getElementById('message-set-processing').checked,
+            };
+            
+            try {
+                const res = await fetch(`${API_BASE}/send-message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.ok) {
+                    alert('Sporočilo poslano!');
+                    closeMessageModal();
+                    loadReservations();
+                } else {
+                    alert('Napaka: ' + (result.error || 'Neznana napaka'));
+                }
+            } catch (e) {
+                alert('Napaka pri pošiljanju');
+            }
+        });
+    </script>
 </body>
 </html>
