@@ -503,6 +503,9 @@ def _blank_reservation_state() -> dict[str, Optional[str | int]]:
         "nights": None,
         "rooms": None,
         "people": None,
+        "adults": None,
+        "kids": None,
+        "kids_ages": None,
         "name": None,
         "phone": None,
         "email": None,
@@ -1120,6 +1123,57 @@ def extract_people_count(message: str) -> Optional[int]:
             return int(nums[-1])
         return sum(int(n) for n in nums)
     return int(nums[0])
+
+
+def parse_people_count(message: str) -> dict[str, Optional[str | int]]:
+    """
+    Vrne slovar: {total, adults, kids, ages}
+    Podpira formate:
+      - "4 osebe"
+      - "2+2" ali "2 + 2"
+      - "2 odrasla + 2 otroka"
+      - "2 odrasla, 2 otroka (3 in 7 let)"
+    """
+    result: dict[str, Optional[str | int]] = {"total": None, "adults": None, "kids": None, "ages": None}
+    ages_match = re.search(r"\(([^)]*let[^)]*)\)", message)
+    if ages_match:
+        result["ages"] = ages_match.group(1).strip()
+
+    plus_match = re.search(r"(\d+)\s*\+\s*(\d+)", message)
+    if plus_match:
+        adults = int(plus_match.group(1))
+        kids = int(plus_match.group(2))
+        result["adults"] = adults
+        result["kids"] = kids
+        result["total"] = adults + kids
+        return result
+
+    adults_match = re.search(r"(\d+)\s*odrasl", message, re.IGNORECASE)
+    kids_match = re.search(r"(\d+)\s*otrok", message, re.IGNORECASE)
+    if adults_match:
+        result["adults"] = int(adults_match.group(1))
+    if kids_match:
+        result["kids"] = int(kids_match.group(1))
+    if result["adults"] is not None or result["kids"] is not None:
+        result["total"] = (result["adults"] or 0) + (result["kids"] or 0)
+        return result
+
+    total_match = re.search(r"(\d+)\s*oseb", message, re.IGNORECASE)
+    if total_match:
+        result["total"] = int(total_match.group(1))
+        return result
+
+    digits = re.findall(r"\d+", message)
+    if len(digits) == 1:
+        result["total"] = int(digits[0])
+    elif len(digits) == 2:
+        adults = int(digits[0])
+        kids = int(digits[1])
+        result["adults"] = adults
+        result["kids"] = kids
+        result["total"] = adults + kids
+
+    return result
 
 
 def extract_nights(message: str) -> Optional[int]:
@@ -1950,6 +2004,50 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
     reservation_state = state
     step = reservation_state["step"]
 
+    def proceed_after_people() -> str:
+        people_val = int(reservation_state.get("people") or 0)
+        reservation_state["rooms"] = max(1, (people_val + 3) // 4)
+        available, alternative = reservation_service.check_room_availability(
+            reservation_state["date"] or "",
+            reservation_state["nights"] or 0,
+            people_val,
+            reservation_state["rooms"],
+        )
+        if not available:
+            reservation_state["step"] = "awaiting_room_date"
+            free_now = reservation_service.available_rooms(
+                reservation_state["date"] or "",
+                reservation_state["nights"] or 0,
+            )
+            free_text = ""
+            if free_now:
+                free_text = f" Trenutno so na ta termin proste: {', '.join(free_now)} (vsaka 2+2)."
+            suggestion = (
+                f"Najbližji prost termin je {alternative}. Sporočite, ali vam ustreza, ali podajte drug datum."
+                if alternative
+                else "Prosim izberite drug datum ali manjšo skupino."
+            )
+            return f"V izbranem terminu nimamo dovolj prostih sob.{free_text} {suggestion}"
+        # ponudi izbiro sobe, če je več prostih
+        free_rooms = reservation_service.available_rooms(
+            reservation_state["date"] or "",
+            reservation_state["nights"] or 0,
+        )
+        needed = reservation_state["rooms"] or 1
+        if free_rooms and len(free_rooms) > needed:
+            reservation_state["available_locations"] = free_rooms
+            reservation_state["step"] = "awaiting_room_location"
+            names = ", ".join(free_rooms)
+            return f"Proste imamo: {names}. Katero bi želeli (lahko tudi več, npr. 'ALJAZ in ANA')?"
+        # auto-assign
+        if free_rooms:
+            chosen = free_rooms[:needed]
+            reservation_state["location"] = ", ".join(chosen)
+        else:
+            reservation_state["location"] = "Sobe (dodelimo ob potrditvi)"
+        reservation_state["step"] = "awaiting_name"
+        return "Odlično. Kako se glasi ime in priimek nosilca rezervacije?"
+
     if step == "awaiting_room_date":
         date_candidate = extract_date(message)
         nights_candidate = extract_nights(message)
@@ -2026,53 +2124,45 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
                 reservation_state["nights"] = new_nights
                 # nadaljuj vprašanje za osebe
                 return f"Popravljeno na {new_nights} nočitev. Za koliko oseb (odrasli + otroci skupaj)?"
-        people = extract_people_count(message)
-        if people is None or people <= 0:
+        parsed = parse_people_count(message)
+        total = parsed["total"]
+        if not total or total <= 0:
             return "Koliko vas bo? (npr. '2 odrasla in 1 otrok' ali '3 osebe')"
-        if people > 12:
+        if total > 12:
             return "Na voljo so tri sobe (vsaka 2+2). Za več kot 12 oseb nas prosim kontaktirajte na email."
-        reservation_state["people"] = people
-        reservation_state["rooms"] = max(1, (people + 3) // 4)
-        available, alternative = reservation_service.check_room_availability(
-            reservation_state["date"] or "",
-            reservation_state["nights"] or 0,
-            people,
-            reservation_state["rooms"],
-        )
-        if not available:
-            reservation_state["step"] = "awaiting_room_date"
-            free_now = reservation_service.available_rooms(
-                reservation_state["date"] or "",
-                reservation_state["nights"] or 0,
-            )
-            free_text = ""
-            if free_now:
-                free_text = f" Trenutno so na ta termin proste: {', '.join(free_now)} (vsaka 2+2)."
-            suggestion = (
-                f"Najbližji prost termin je {alternative}. Sporočite, ali vam ustreza, ali podajte drug datum."
-                if alternative
-                else "Prosim izberite drug datum ali manjšo skupino."
-            )
-            return f"V izbranem terminu nimamo dovolj prostih sob.{free_text} {suggestion}"
-        # ponudi izbiro sobe, če je več prostih
-        free_rooms = reservation_service.available_rooms(
-            reservation_state["date"] or "",
-            reservation_state["nights"] or 0,
-        )
-        needed = reservation_state["rooms"] or 1
-        if free_rooms and len(free_rooms) > needed:
-            reservation_state["available_locations"] = free_rooms
-            reservation_state["step"] = "awaiting_room_location"
-            names = ", ".join(free_rooms)
-            return f"Proste imamo: {names}. Katero bi želeli (lahko tudi več, npr. 'ALJAZ in ANA')?"
-        # auto-assign
-        if free_rooms:
-            chosen = free_rooms[:needed]
-            reservation_state["location"] = ", ".join(chosen)
-        else:
-            reservation_state["location"] = "Sobe (dodelimo ob potrditvi)"
-        reservation_state["step"] = "awaiting_name"
-        return "Odlično. Kako se glasi ime in priimek nosilca rezervacije?"
+        reservation_state["people"] = total
+        reservation_state["adults"] = parsed["adults"]
+        reservation_state["kids"] = parsed["kids"]
+        reservation_state["kids_ages"] = parsed["ages"]
+        if parsed["kids"] is None and parsed["adults"] is None:
+            reservation_state["step"] = "awaiting_kids_info"
+            return "Imate otroke? Koliko in koliko so stari?"
+        if parsed["kids"] and not parsed["ages"]:
+            reservation_state["step"] = "awaiting_kids_ages"
+            return "Koliko so stari otroci?"
+        return proceed_after_people()
+
+    if step == "awaiting_kids_info":
+        text = message.lower()
+        if any(word in text for word in ["ne", "brez", "ni", "nimam"]):
+            reservation_state["kids"] = 0
+            reservation_state["kids_ages"] = ""
+            return proceed_after_people()
+        parsed = parse_people_count(message)
+        if parsed["kids"] is not None:
+            reservation_state["kids"] = parsed["kids"]
+            if reservation_state.get("adults") is None and parsed["adults"] is not None:
+                reservation_state["adults"] = parsed["adults"]
+        if parsed["ages"]:
+            reservation_state["kids_ages"] = parsed["ages"]
+        if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
+            reservation_state["step"] = "awaiting_kids_ages"
+            return "Koliko so stari otroci?"
+        return proceed_after_people()
+
+    if step == "awaiting_kids_ages":
+        reservation_state["kids_ages"] = message.strip()
+        return proceed_after_people()
 
     if step == "awaiting_room_location":
         options = reservation_state.get("available_locations") or []
@@ -2173,6 +2263,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
                 phone=str(reservation_state["phone"]),
                 email=reservation_state["email"],
                 location="Sobe (dodelimo ob potrditvi)",
+                kids=reservation_state.get("kids_ages", ""),
             )
             saved_lang = reservation_state.get("language", "si")
             reset_reservation_state(state)
@@ -2209,6 +2300,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             email=reservation_state["email"],
             location="Sobe (dodelimo ob potrditvi)",
             note=note_text,
+            kids=reservation_state.get("kids_ages", ""),
         )
         # Pošlji email gostu in adminu
         email_data = {
@@ -2252,39 +2344,8 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
     reservation_state = state
     step = reservation_state["step"]
 
-    if step == "awaiting_table_date":
-        proposed = extract_date(message) or ""
-        if not proposed:
-            return "Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)"
-        ok, error_message = reservation_service.validate_table_rules(proposed, "12:00")
-        if not ok:
-            reservation_state["date"] = None
-            return error_message + " Bi poslali datum sobote ali nedelje v obliki DD.MM.YYYY?"
-        reservation_state["date"] = proposed
-        reservation_state["step"] = "awaiting_table_time"
-        return "Ob kateri uri bi želeli mizo? (12:00–20:00, zadnji prihod na kosilo 15:00)"
-
-    if step == "awaiting_table_time":
-        desired_time = extract_time(message) or message.strip()
-        ok, error_message = reservation_service.validate_table_rules(
-            reservation_state["date"] or "", desired_time
-        )
-        if not ok:
-            reservation_state["step"] = "awaiting_table_date"
-            reservation_state["date"] = None
-            reservation_state["time"] = None
-            return error_message + " Poskusiva z novim datumom (sobota/nedelja, DD.MM.YYYY)."
-        reservation_state["time"] = reservation_service._parse_time(desired_time)
-        reservation_state["step"] = "awaiting_table_people"
-        return "Za koliko oseb pripravimo mizo?"
-
-    if step == "awaiting_table_people":
-        people = extract_people_count(message)
-        if people is None or people <= 0:
-            return "Prosim sporočite število oseb (npr. '6 oseb')."
-        if people > 35:
-            return "Za večje skupine nad 35 oseb nas prosim kontaktirajte za dogovor o razporeditvi."
-        reservation_state["people"] = people
+    def proceed_after_table_people() -> str:
+        people = int(reservation_state.get("people") or 0)
         available, location, suggestions = reservation_service.check_table_availability(
             reservation_state["date"] or "",
             reservation_state["time"] or "",
@@ -2321,6 +2382,73 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
         reservation_state["available_locations"] = possible
         reservation_state["step"] = "awaiting_table_location"
         return "Imamo prosto v: " + " ali ".join(possible) + ". Kje bi želeli sedeti?"
+
+    if step == "awaiting_table_date":
+        proposed = extract_date(message) or ""
+        if not proposed:
+            return "Za kateri datum (sobota/nedelja)? (DD.MM.YYYY)"
+        ok, error_message = reservation_service.validate_table_rules(proposed, "12:00")
+        if not ok:
+            reservation_state["date"] = None
+            return error_message + " Bi poslali datum sobote ali nedelje v obliki DD.MM.YYYY?"
+        reservation_state["date"] = proposed
+        reservation_state["step"] = "awaiting_table_time"
+        return "Ob kateri uri bi želeli mizo? (12:00–20:00, zadnji prihod na kosilo 15:00)"
+
+    if step == "awaiting_table_time":
+        desired_time = extract_time(message) or message.strip()
+        ok, error_message = reservation_service.validate_table_rules(
+            reservation_state["date"] or "", desired_time
+        )
+        if not ok:
+            reservation_state["step"] = "awaiting_table_date"
+            reservation_state["date"] = None
+            reservation_state["time"] = None
+            return error_message + " Poskusiva z novim datumom (sobota/nedelja, DD.MM.YYYY)."
+        reservation_state["time"] = reservation_service._parse_time(desired_time)
+        reservation_state["step"] = "awaiting_table_people"
+        return "Za koliko oseb pripravimo mizo?"
+
+    if step == "awaiting_kids_info":
+        text = message.lower()
+        if any(word in text for word in ["ne", "brez", "ni", "nimam"]):
+            reservation_state["kids"] = 0
+            reservation_state["kids_ages"] = ""
+            return proceed_after_table_people()
+        parsed = parse_people_count(message)
+        if parsed["kids"] is not None:
+            reservation_state["kids"] = parsed["kids"]
+            if reservation_state.get("adults") is None and parsed["adults"] is not None:
+                reservation_state["adults"] = parsed["adults"]
+        if parsed["ages"]:
+            reservation_state["kids_ages"] = parsed["ages"]
+        if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
+            reservation_state["step"] = "awaiting_kids_ages"
+            return "Koliko so stari otroci?"
+        return proceed_after_table_people()
+
+    if step == "awaiting_kids_ages":
+        reservation_state["kids_ages"] = message.strip()
+        return proceed_after_table_people()
+
+    if step == "awaiting_table_people":
+        parsed = parse_people_count(message)
+        people = parsed["total"]
+        if people is None or people <= 0:
+            return "Prosim sporočite število oseb (npr. '6 oseb')."
+        if people > 35:
+            return "Za večje skupine nad 35 oseb nas prosim kontaktirajte za dogovor o razporeditvi."
+        reservation_state["people"] = people
+        reservation_state["adults"] = parsed["adults"]
+        reservation_state["kids"] = parsed["kids"]
+        reservation_state["kids_ages"] = parsed["ages"]
+        if parsed["kids"] is None and parsed["adults"] is None:
+            reservation_state["step"] = "awaiting_kids_info"
+            return "Imate otroke? Koliko in koliko so stari?"
+        if parsed["kids"] and not parsed["ages"]:
+            reservation_state["step"] = "awaiting_kids_ages"
+            return "Koliko so stari otroci?"
+        return proceed_after_table_people()
 
     if step == "awaiting_table_location":
         choice = message.strip().lower()
@@ -2369,6 +2497,7 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
             name=str(reservation_state["name"]),
             phone=str(reservation_state["phone"]),
             email=reservation_state["email"],
+            kids=reservation_state.get("kids_ages", ""),
         )
         # Pošlji email gostu in adminu
         email_data = {
