@@ -25,6 +25,7 @@ class ReservationUpdate(BaseModel):
     nights: Optional[int] = None
     location: Optional[str] = None
     admin_notes: Optional[str] = None
+    kids: Optional[str] = None
 
 
 class SendMessageRequest(BaseModel):
@@ -78,7 +79,24 @@ def update_reservation(reservation_id: int, data: ReservationUpdate):
         nights=data.nights,
         location=data.location,
         admin_notes=data.admin_notes,
+        kids=data.kids,
     )
+    if not ok:
+        raise HTTPException(status_code=404, detail="Rezervacija ni najdena")
+    return {"ok": True}
+
+
+@router.patch("/api/admin/reservations/{reservation_id}")
+def patch_reservation(reservation_id: int, data: ReservationUpdate):
+    """Partial update rezervacije (status, admin_notes, kids)."""
+    fields = {
+        "status": data.status,
+        "admin_notes": data.admin_notes,
+        "kids": data.kids,
+    }
+    if data.status == "confirmed":
+        fields["confirmed_at"] = datetime.now().isoformat()
+    ok = service.update_reservation(reservation_id, **fields)
     if not ok:
         raise HTTPException(status_code=404, detail="Rezervacija ni najdena")
     return {"ok": True}
@@ -126,4 +144,3 @@ def send_message(data: SendMessageRequest):
             guest_message=data.body,
         )
     return {"ok": True}
-

@@ -140,6 +140,9 @@ def _guest_room_confirmation_html(data: Dict[str, Any]) -> str:
         Večerja ob 18:00 (ponedeljki in torki brez večerij).
     </p>
     
+    <p><strong>POMEMBNO:</strong> To je povpraševanje, ne potrjena rezervacija.<br>
+    Potrditev boste prejeli po pregledu.</p>
+    
     <p style="margin-top:18px; color:{MUTED_COLOR};">
         Rezervacijo bomo potrdili po preverjanju razpoložljivosti.<br>
         Za spremembe ali preklic nas kontaktirajte na 02 601 54 00 ali info@kovacnik.com
@@ -177,6 +180,9 @@ def _guest_table_confirmation_html(data: Dict[str, Any]) -> str:
     <p style="margin-top:18px;">
         Več o naši ponudbi: <a href="https://kovacnik.com/vikend-ponudba/" style="color:{BRAND_COLOR};">kovacnik.com/vikend-ponudba</a>
     </p>
+    
+    <p><strong>POMEMBNO:</strong> To je povpraševanje, ne potrjena rezervacija.<br>
+    Potrditev boste prejeli po pregledu.</p>
     
     <p style="margin-top:18px; color:{MUTED_COLOR};">
         Rezervacijo bomo potrdili po preverjanju razpoložljivosti.<br>

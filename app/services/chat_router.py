@@ -2272,8 +2272,9 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
                 f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči\n"
                 f"👥 Osebe: {summary_state.get('people')}\n"
                 f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}\n\n"
-                f"Potrditev smo poslali na {summary_state.get('email')}."
-                " Se vidimo pri Kovačniku! 🏡"
+                "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
+                "Odgovorili vam bomo v najkrajšem možnem času.\n"
+                "Preverite tudi SPAM/VSILJENO POŠTO."
             )
             return translate_response(final_response, saved_lang)
         return "Prosim odgovorite z Da ali Ne glede na večerje."
@@ -2326,7 +2327,9 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}",
             f"🍽️ {dinner_note}",
             "",
-            f"Potrditev smo poslali na {summary_state.get('email')}. Se vidimo pri Kovačniku! 🏡",
+            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.",
+            "Odgovorili vam bomo v najkrajšem možnem času.",
+            "Preverite tudi SPAM/VSILJENO POŠTO.",
         ]
         final_response = "\n".join(lines)
         return translate_response(final_response, saved_lang)
@@ -2518,7 +2521,9 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
             f"📅 Datum: {summary_state.get('date')} ob {summary_state.get('time')}\n"
             f"👥 Osebe: {summary_state.get('people')}\n"
             f"🍽️ Jedilnica: {summary_state.get('location')}\n\n"
-            f"Potrditev smo poslali na {summary_state.get('email')}. Se vidimo! 🏡"
+            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
+            "Odgovorili vam bomo v najkrajšem možnem času.\n"
+            "Preverite tudi SPAM/VSILJENO POŠTO."
         )
         return final_response
 
