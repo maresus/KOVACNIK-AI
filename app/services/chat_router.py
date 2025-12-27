@@ -42,56 +42,66 @@ PRODUCT_STEMS = {
     "bunk",
 }
 RESERVATION_START_PHRASES = {
-    # slovensko
-    "rad bi rezerviral",
-    "rad bi rezervirala",
-    "želim rezervirati",
-    "bi rezerviral",
-    "bi rezervirala",
-    "prosim rezervacijo",
-    "prosim rezervirajte",
-    "booking",
-    "rezervacija mize",
+    # slovensko - sobe
     "rezervacija sobe",
-    "rezervacija nočitve",
+    "rad bi rezerviral sobo",
+    "rad bi rezervirala sobo",
+    "želim rezervirati sobo",
+    "bi rezerviral sobo",
+    "bi rezervirala sobo",
+    "rezerviral bi sobo",
+    "rezerviraj sobo",
+    "rabim sobo",
+    "iščem sobo",
+    "sobo prosim",
+    "prenočitev",
+    "nastanitev",
+    "nočitev",
+    # slovensko - mize
+    "rezervacija mize",
+    "rad bi rezerviral mizo",
+    "rad bi rezervirala mizo",
     "mizo bi",
-    "sobo bi",
+    "mizo za",
+    "mize za",
     "rezerviram mizo",
-    "rezerviram sobo",
-    "rezerviral bi mizo",
     "rezervirala bi mizo",
-    # angleško
+    "rezerviral bi mizo",
+    "kosilo",
+    "večerja",
+    # angleško - sobe
+    "book a room",
+    "booking",
     "i want to book",
     "i would like to book",
     "i'd like to book",
-    "book a room",
+    "room reservation",
+    "i need a room",
+    "accommodation",
+    "stay for",
+    # angleško - mize
     "book a table",
-    "reserve a room",
-    "reserve a table",
-    "reservation please",
-    "make a reservation",
-    "can i book",
-    "can i reserve",
-    "do you have rooms",
-    "do you have a table",
-    "available rooms",
-    "room available",
-    "table for",
-    # nemško
+    "table reservation",
+    "lunch reservation",
+    "dinner reservation",
+    # nemško - sobe
+    "zimmer reservieren",
+    "ich möchte ein zimmer",
     "ich möchte buchen",
     "ich möchte reservieren",
     "ich will buchen",
-    "ich will reservieren",
-    "zimmer buchen",
-    "zimmer reservieren",
-    "tisch buchen",
+    "übernachtung",
+    "unterkunft",
+    "buchen",
+    # nemško - mize
     "tisch reservieren",
-    "reservierung bitte",
-    "eine reservierung",
-    "haben sie zimmer",
-    "haben sie einen tisch",
-    "zimmer frei",
-    "tisch frei",
+    "mittagessen",
+    "abendessen",
+    # italijansko - sobe
+    "prenotare una camera",
+    "prenotazione",
+    "camera",
+    "alloggio",
 }
 INFO_KEYWORDS = {
     "kje",
@@ -697,18 +707,28 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     if state["step"] is not None:
         return "reservation"
 
+    # Rezervacija - fuzzy match (tudi s tipkarskimi napakami)
+    rezerv_patterns = ["rezerv", "rezev", "rezer", "book", "buking", "bokking"]
+    soba_patterns = ["sobo", "sobe", "soba", "room"]
+    miza_patterns = ["mizo", "mize", "miza", "table"]
+    has_rezerv = any(p in lower_message for p in rezerv_patterns)
+    has_soba = any(p in lower_message for p in soba_patterns)
+    has_miza = any(p in lower_message for p in miza_patterns)
+    if has_rezerv and (has_soba or has_miza or "nočitev" in lower_message or "nocitev" in lower_message):
+        return "reservation"
+
     # goodbye/hvala
     if is_goodbye(message):
         return "goodbye"
+
+    # 2) začetek rezervacije
+    if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
+        return "reservation"
 
     # SOBE - posebej pred rezervacijo
     sobe_keywords = ["sobe", "soba", "sobo", "nastanitev", "prenočitev", "nočitev nočitve", "rooms", "room", "accommodation"]
     if any(kw in lower_message for kw in sobe_keywords) and "rezerv" not in lower_message and "book" not in lower_message:
         return "room_info"
-    
-    # 2) začetek rezervacije
-    if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
-        return "reservation"
 
     # vino intent
     if any(keyword in lower_message for keyword in WINE_KEYWORDS):
@@ -1176,6 +1196,52 @@ def parse_people_count(message: str) -> dict[str, Optional[str | int]]:
     return result
 
 
+def advance_after_room_people(reservation_state: dict[str, Optional[str | int]]) -> str:
+    """Premakne flow po tem, ko poznamo število oseb."""
+    people_val = int(reservation_state.get("people") or 0)
+    reservation_state["rooms"] = max(1, (people_val + 3) // 4)
+    available, alternative = reservation_service.check_room_availability(
+        reservation_state["date"] or "",
+        reservation_state["nights"] or 0,
+        people_val,
+        reservation_state["rooms"],
+    )
+    if not available:
+        reservation_state["step"] = "awaiting_room_date"
+        free_now = reservation_service.available_rooms(
+            reservation_state["date"] or "",
+            reservation_state["nights"] or 0,
+        )
+        free_text = ""
+        if free_now:
+            free_text = f" Trenutno so na ta termin proste: {', '.join(free_now)} (vsaka 2+2)."
+        suggestion = (
+            f"Najbližji prost termin je {alternative}. Sporočite, ali vam ustreza, ali podajte drug datum."
+            if alternative
+            else "Prosim izberite drug datum ali manjšo skupino."
+        )
+        return f"V izbranem terminu nimamo dovolj prostih sob.{free_text} {suggestion}"
+    # ponudi izbiro sobe, če je več prostih
+    free_rooms = reservation_service.available_rooms(
+        reservation_state["date"] or "",
+        reservation_state["nights"] or 0,
+    )
+    needed = reservation_state["rooms"] or 1
+    if free_rooms and len(free_rooms) > needed:
+        reservation_state["available_locations"] = free_rooms
+        reservation_state["step"] = "awaiting_room_location"
+        names = ", ".join(free_rooms)
+        return f"Proste imamo: {names}. Katero bi želeli (lahko tudi več, npr. 'ALJAZ in ANA')?"
+    # auto-assign
+    if free_rooms:
+        chosen = free_rooms[:needed]
+        reservation_state["location"] = ", ".join(chosen)
+    else:
+        reservation_state["location"] = "Sobe (dodelimo ob potrditvi)"
+    reservation_state["step"] = "awaiting_name"
+    return "Odlično. Kako se glasi ime in priimek nosilca rezervacije?"
+
+
 def extract_nights(message: str) -> Optional[int]:
     """Ekstraktira število nočitev iz sporočila."""
     cleaned = re.sub(r"\d{1,2}\.\d{1,2}\.\d{2,4}", " ", message)
@@ -1200,6 +1266,28 @@ def extract_nights(message: str) -> Optional[int]:
             num = int(nums[0])
             if 1 <= num <= 30:
                 return num
+
+    # 4) števila z besedo (eno, dve, tri, štiri ...)
+    word_map = {
+        "ena": 1,
+        "eno": 1,
+        "en": 1,
+        "dve": 2,
+        "dva": 2,
+        "tri": 3,
+        "štiri": 4,
+        "stiri": 4,
+        "pet": 5,
+        "šest": 6,
+        "sest": 6,
+        "sedem": 7,
+        "osem": 8,
+        "devet": 9,
+        "deset": 10,
+    }
+    for word, num in word_map.items():
+        if re.search(rf"\\b{word}\\b", cleaned, re.IGNORECASE):
+            return num
 
     return None
 
@@ -2004,50 +2092,6 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
     reservation_state = state
     step = reservation_state["step"]
 
-    def proceed_after_people() -> str:
-        people_val = int(reservation_state.get("people") or 0)
-        reservation_state["rooms"] = max(1, (people_val + 3) // 4)
-        available, alternative = reservation_service.check_room_availability(
-            reservation_state["date"] or "",
-            reservation_state["nights"] or 0,
-            people_val,
-            reservation_state["rooms"],
-        )
-        if not available:
-            reservation_state["step"] = "awaiting_room_date"
-            free_now = reservation_service.available_rooms(
-                reservation_state["date"] or "",
-                reservation_state["nights"] or 0,
-            )
-            free_text = ""
-            if free_now:
-                free_text = f" Trenutno so na ta termin proste: {', '.join(free_now)} (vsaka 2+2)."
-            suggestion = (
-                f"Najbližji prost termin je {alternative}. Sporočite, ali vam ustreza, ali podajte drug datum."
-                if alternative
-                else "Prosim izberite drug datum ali manjšo skupino."
-            )
-            return f"V izbranem terminu nimamo dovolj prostih sob.{free_text} {suggestion}"
-        # ponudi izbiro sobe, če je več prostih
-        free_rooms = reservation_service.available_rooms(
-            reservation_state["date"] or "",
-            reservation_state["nights"] or 0,
-        )
-        needed = reservation_state["rooms"] or 1
-        if free_rooms and len(free_rooms) > needed:
-            reservation_state["available_locations"] = free_rooms
-            reservation_state["step"] = "awaiting_room_location"
-            names = ", ".join(free_rooms)
-            return f"Proste imamo: {names}. Katero bi želeli (lahko tudi več, npr. 'ALJAZ in ANA')?"
-        # auto-assign
-        if free_rooms:
-            chosen = free_rooms[:needed]
-            reservation_state["location"] = ", ".join(chosen)
-        else:
-            reservation_state["location"] = "Sobe (dodelimo ob potrditvi)"
-        reservation_state["step"] = "awaiting_name"
-        return "Odlično. Kako se glasi ime in priimek nosilca rezervacije?"
-
     if step == "awaiting_room_date":
         date_candidate = extract_date(message)
         nights_candidate = extract_nights(message)
@@ -2140,14 +2184,14 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
         if parsed["kids"] and not parsed["ages"]:
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
-        return proceed_after_people()
+        return advance_after_room_people(reservation_state)
 
     if step == "awaiting_kids_info":
         text = message.lower()
         if any(word in text for word in ["ne", "brez", "ni", "nimam"]):
             reservation_state["kids"] = 0
             reservation_state["kids_ages"] = ""
-            return proceed_after_people()
+            return advance_after_room_people(reservation_state)
         parsed = parse_people_count(message)
         if parsed["kids"] is not None:
             reservation_state["kids"] = parsed["kids"]
@@ -2158,11 +2202,11 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
         if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
-        return proceed_after_people()
+        return advance_after_room_people(reservation_state)
 
     if step == "awaiting_kids_ages":
         reservation_state["kids_ages"] = message.strip()
-        return proceed_after_people()
+        return advance_after_room_people(reservation_state)
 
     if step == "awaiting_room_location":
         options = reservation_state.get("available_locations") or []
@@ -2580,6 +2624,12 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
             prefilled_nights = None
             if "nočit" in message.lower() or "nocit" in message.lower() or "noči" in message.lower():
                 prefilled_nights = extract_nights(message)
+            prefilled_people = parse_people_count(message)
+            if prefilled_people.get("total"):
+                reservation_state["people"] = prefilled_people["total"]
+                reservation_state["adults"] = prefilled_people["adults"]
+                reservation_state["kids"] = prefilled_people["kids"]
+                reservation_state["kids_ages"] = prefilled_people["ages"]
             if prefilled_date:
                 reservation_state["date"] = prefilled_date
             reply_prefix = "Super, z veseljem uredim rezervacijo sobe. 😊"
@@ -2608,6 +2658,15 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
                 return _tr(
                     f"{reply_prefix} Koliko nočitev načrtujete? (min. 3 v jun/jul/avg, sicer 2)"
                 )
+            if reservation_state.get("people"):
+                if reservation_state.get("kids") is None and reservation_state.get("adults") is None:
+                    reservation_state["step"] = "awaiting_kids_info"
+                    return _tr("Imate otroke? Koliko in koliko so stari?")
+                if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
+                    reservation_state["step"] = "awaiting_kids_ages"
+                    return _tr("Koliko so stari otroci?")
+                reply = advance_after_room_people(reservation_state)
+                return _tr(reply)
             reservation_state["step"] = "awaiting_people"
             return _tr(
                 f"{reply_prefix} Zabeleženo imam {reservation_state['date']} za "

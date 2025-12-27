@@ -16,22 +16,43 @@ REPLY=$(curl -sf -X POST "$BASE_URL/chat" \
   -d '{"session_id":"smoke-test","message":"Pozdravljeni"}')
 echo "$REPLY" | grep -q "reply" && echo "✅ Chat OK"
 
-# Test 3: Reservation asks about kids when only total given
-echo "Test 3: Kids prompt from total..."
+# Test 3: Reservation EN
+echo "Test 3: Reservation EN..."
+REPLY_EN=$(curl -sf -X POST "$BASE_URL/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"smoke-en","message":"I want to book a room"}')
+echo "$REPLY_EN" | grep -qi "datum" && echo "✅ Reservation EN OK"
+
+# Test 4: Reservation DE
+echo "Test 4: Reservation DE..."
+REPLY_DE=$(curl -sf -X POST "$BASE_URL/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"smoke-de","message":"Zimmer reservieren"}')
+echo "$REPLY_DE" | grep -qi "datum" && echo "✅ Reservation DE OK"
+
+# Test 5: Reservation typo SL
+echo "Test 5: Reservation typo SL..."
+REPLY_TYPO=$(curl -sf -X POST "$BASE_URL/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"smoke-typo","message":"rad bi rezerivral sobo"}')
+echo "$REPLY_TYPO" | grep -qi "datum" && echo "✅ Reservation typo OK"
+
+# Test 6: Reservation asks about kids when only total given
+echo "Test 6: Kids prompt from total..."
 REPLY_TOTAL=$(curl -sf -X POST "$BASE_URL/chat" \
   -H "Content-Type: application/json" \
   -d '{"session_id":"kids-total","message":"Rad bi rezerviral sobo 12.7.2026 za 4 osebe"}')
 echo "$REPLY_TOTAL" | grep -qi "otrok" && echo "✅ Kids prompt OK"
 
-# Test 4: Reservation asks ages when split given
-echo "Test 4: Kids ages prompt..."
+# Test 7: Reservation asks ages when split given
+echo "Test 7: Kids ages prompt..."
 REPLY_SPLIT=$(curl -sf -X POST "$BASE_URL/chat" \
   -H "Content-Type: application/json" \
   -d '{"session_id":"kids-split","message":"Rezervacija mize 13.7.2026 ob 13:00 za 2+2"}')
 echo "$REPLY_SPLIT" | grep -qi "stari otroci" && echo "✅ Kids ages prompt OK"
 
-# Test 5: Reservation + product escape
-echo "Test 5: Reservation with product interjection..."
+# Test 8: Reservation + product escape
+echo "Test 8: Reservation with product interjection..."
 SESSION="smoke-res-table"
 curl -sf -X POST "$BASE_URL/chat" \
   -H "Content-Type: application/json" \
@@ -41,8 +62,8 @@ REPLY2=$(curl -sf -X POST "$BASE_URL/chat" \
   -d "{\"session_id\":\"$SESSION\",\"message\":\"Imate marmelade?\"}")
 echo "$REPLY2" | grep -qi "marmelad" && echo "✅ Product answer during reservation OK"
 
-# Test 6: Admin reservations
-echo "Test 6: Admin reservations..."
+# Test 9: Admin reservations
+echo "Test 9: Admin reservations..."
 curl -sf "$BASE_URL/api/admin/reservations" | grep -q "reservations" && echo "✅ Admin OK"
 
 echo ""
