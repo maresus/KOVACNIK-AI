@@ -1,7 +1,10 @@
 import os
+import time
+import hmac
+import hashlib
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from app.services.email_service import send_admin_notification
@@ -9,7 +12,10 @@ from app.services.reservation_service import ReservationService
 
 router = APIRouter(prefix="/api/webhook", tags=["webhook"])
 
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "kovacnik_webhook_secret_2024")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX = 30  # requests per window per IP
+rate_limit_log: dict[str, list[float]] = {}
 
 
 class WordPressReservation(BaseModel):
@@ -43,10 +49,32 @@ class WordPressReservation(BaseModel):
 
 
 @router.post("/reservation")
-def receive_wordpress_reservation(data: WordPressReservation, x_webhook_secret: str = Header(None)):
+async def receive_wordpress_reservation(
+    request: Request,
+    data: WordPressReservation,
+    x_webhook_signature: str = Header(None),
+    x_webhook_secret: str = Header(None),
+):
     """Prejme rezervacijo iz WordPress vtičnika in jo shrani kot pending."""
-    if x_webhook_secret != WEBHOOK_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    # rate limit per IP
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    history = rate_limit_log.get(ip, [])
+    history = [ts for ts in history if now - ts < RATE_LIMIT_WINDOW]
+    if len(history) >= RATE_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="Too Many Requests")
+    history.append(now)
+    rate_limit_log[ip] = history
+
+    # signature verification (skip if secret not set)
+    secret = WEBHOOK_SECRET or ""
+    if secret:
+        raw_body = await request.body()
+        computed = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        expected_sig = f"sha256={computed}"
+        provided = x_webhook_signature or x_webhook_secret  # backward compat
+        if not provided or not hmac.compare_digest(provided, expected_sig):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     service = ReservationService()
     res_id = service.create_reservation(
@@ -84,4 +112,3 @@ def receive_wordpress_reservation(data: WordPressReservation, x_webhook_secret: 
     )
 
     return {"status": "ok", "reservation_id": res_id}
-
