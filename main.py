@@ -1,11 +1,17 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from pathlib import Path
+
 from app.core.config import Settings
 from app.services.chat_router import router as chat_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
 from app.services.webhook_router import router as webhook_router
+
+# Naloži .env v okolje ob zagonu (za SMTP ipd.)
+load_dotenv()
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
