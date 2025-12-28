@@ -706,7 +706,19 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
 
     # 1) nadaljevanje rezervacije ima vedno prednost
     if state["step"] is not None:
+        if is_menu_query(message):
+            return "menu"
+        if is_hours_question(message):
+            return "farm_info"
         return "reservation"
+
+    # vprašanja o odpiralnem času / zajtrk/večerja
+    if is_hours_question(message):
+        return "farm_info"
+
+    # koliko sob imate -> info, ne rezervacija
+    if re.search(r"koliko\s+soba", lower_message) or re.search(r"koliko\s+sob", lower_message):
+        return "room_info"
 
     # jedilnik / meni naj ne sproži rezervacije
     if is_menu_query(message):
@@ -804,14 +816,24 @@ def format_products(query: str) -> str:
 def answer_product_question(message: str) -> str:
     """Odgovarja na vprašanja o izdelkih z linki do spletne trgovine."""
     from app.rag.knowledge_base import KNOWLEDGE_CHUNKS
-    
+
     lowered = message.lower()
-    
+
     # Določi kategorijo
     category = None
     if "marmelad" in lowered or "džem" in lowered or "dzem" in lowered:
         category = "marmelad"
-    elif "liker" in lowered or "žganj" in lowered or "zganj" in lowered or "tepkovec" in lowered:
+    elif (
+        "liker" in lowered
+        or "žganj" in lowered
+        or "zganj" in lowered
+        or "žgan" in lowered
+        or "zgan" in lowered
+        or "žgane" in lowered
+        or "zganje" in lowered
+        or "tepkovec" in lowered
+        or "borovni" in lowered
+    ):
         category = "liker"
     elif "bunk" in lowered:
         category = "bunka"
@@ -838,6 +860,8 @@ def answer_product_question(message: str) -> str:
         
         if category:
             if category == "marmelad" and ("marmelad" in url_lower or "marmelad" in title_lower):
+                if "paket" in url_lower or "paket" in title_lower:
+                    continue
                 results.append(c)
             elif category == "liker" and ("liker" in url_lower or "tepkovec" in url_lower):
                 results.append(c)
@@ -872,6 +896,13 @@ def answer_product_question(message: str) -> str:
             break
     
     if not unique:
+        if category == "marmelad":
+            return (
+                "Imamo več domačih marmelad (npr. božična, jagodna, borovničeva). "
+                "Celoten izbor si lahko ogledate v spletni trgovini: https://kovacnik.com/kovacnikova-spletna-trgovina/."
+            )
+        if category == "liker":
+            return "Na voljo je domač borovničev liker (13 €) ter nekaj drugih domačih likerjev. Če želiš seznam, mi povej, ali raje pokličeš."
         return "Trenutno v bazi ne najdem konkretnih izdelkov za to vprašanje. Predlagam, da pobrskaš po spletni trgovini: https://kovacnik.com/kovacnikova-spletna-trgovina/."
     
     # Formatiraj odgovor
@@ -912,6 +943,36 @@ def is_product_query(message: str) -> bool:
 def is_info_query(message: str) -> bool:
     lowered = message.lower()
     return any(keyword in lowered for keyword in INFO_KEYWORDS)
+
+
+def is_hours_question(message: str) -> bool:
+    lowered = message.lower()
+    patterns = [
+        "odprti",
+        "odprt",
+        "odpiralni",
+        "obratovalni",
+        "obratujete",
+        "do kdaj",
+        "kdaj lahko pridem",
+        "kdaj ste",
+        "kateri uri",
+        "kosilo ob",
+        "kosilo do",
+        "kosila",
+        "zajtrk",
+        "breakfast",
+        "večerj",
+        "vecerj",
+        "prijava",
+        "odjava",
+        "check-in",
+        "check out",
+        "kosilo",
+        "večerja",
+        "vecerja",
+    ]
+    return any(pat in lowered for pat in patterns)
 
 
 def is_menu_query(message: str) -> bool:
@@ -1005,7 +1066,7 @@ def answer_farm_info(message: str) -> str:
         return "Imamo prijazne zajčke, ki jih lahko obiskovalci božajo. Ob obisku povejte, pa vas usmerimo do njih."
 
     if any(word in lowered for word in ["ogled", "tour", "voden", "vodenje", "guid", "sprehod po kmetiji"]):
-        return "Organiziranih vodenih ogledov nimamo, ob obisku pa vam z veseljem pokažemo živali in kmetijo, če si to želite."
+        return "Organiziranih vodenih ogledov pri nas ni. Ob obisku se lahko samostojno sprehodite in vprašate osebje, če želite videti živali."
 
     if any(word in lowered for word in ["navodila", "pot", "pot do", "pridem", "priti", "pot do vas", "avtom"]):
         return FARM_INFO["directions"]["from_maribor"]
@@ -1041,6 +1102,14 @@ def answer_farm_info(message: str) -> str:
         activities = "; ".join(FARM_INFO["activities"])
         return f"Pri nas in v okolici lahko: {activities}."
 
+    if is_hours_question(message):
+        return (
+            "Kosila: sobota/nedelja 12:00-20:00 (zadnji prihod 15:00). "
+            "Zajtrk: 8:00–9:00 (za goste sob). "
+            "Prijava 15:00–20:00, odjava do 11:00. "
+            "Večerje za goste po dogovoru (pon/torki kuhinja zaprta)."
+        )
+
     return (
         f"{FARM_INFO['name']} | Naslov: {FARM_INFO['address']} | Tel: {FARM_INFO['phone']} | "
         f"Email: {FARM_INFO['email']} | Splet: {FARM_INFO['website']}"
@@ -1048,6 +1117,12 @@ def answer_farm_info(message: str) -> str:
 
 
 def answer_food_question(message: str) -> str:
+    lowered = message.lower()
+    if "alerg" in lowered or "gob" in lowered or "glive" in lowered:
+        return (
+          "Alergije uredimo brez težav. Ob rezervaciji zapiši alergije (npr. brez gob) ali povej osebju ob prihodu, da lahko prilagodimo jedi. "
+          "Želiš, da označim alergije v tvoji rezervaciji?"
+        )
     return (
         "Pripravljamo tradicionalne pohorske jedi iz lokalnih sestavin.\n"
         "Vikend kosila (sob/ned): 36€ odrasli, otroci 4–12 let -50%, vključuje predjed, juho, glavno jed, priloge in sladico.\n"
@@ -3000,9 +3075,8 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
         return finalize(reply, "product")
 
     if intent == "product_followup":
-        combined = f"{last_product_query} {payload.message}" if last_product_query else payload.message
-        reply = answer_product_question(combined)
-        last_product_query = combined
+        reply = answer_product_question(payload.message)
+        last_product_query = payload.message
         last_wine_query = None
         last_info_query = None
         last_menu_query = False
