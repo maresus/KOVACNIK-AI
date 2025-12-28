@@ -708,6 +708,10 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     if state["step"] is not None:
         return "reservation"
 
+    # jedilnik / meni naj ne sproži rezervacije
+    if is_menu_query(message):
+        return "menu"
+
     # Rezervacija - fuzzy match (tudi s tipkarskimi napakami)
     rezerv_patterns = ["rezerv", "rezev", "rezer", "book", "buking", "bokking"]
     soba_patterns = ["sobo", "sobe", "soba", "room"]
@@ -996,6 +1000,12 @@ def next_menu_intro() -> str:
 
 def answer_farm_info(message: str) -> str:
     lowered = message.lower()
+
+    if any(word in lowered for word in ["zajc", "zajček", "zajcka", "zajčki", "kunec", "zajce"]):
+        return "Imamo prijazne zajčke, ki jih lahko obiskovalci božajo. Ob obisku povejte, pa vas usmerimo do njih."
+
+    if any(word in lowered for word in ["ogled", "tour", "voden", "vodenje", "guid", "sprehod po kmetiji"]):
+        return "Organiziranih vodenih ogledov nimamo, ob obisku pa vam z veseljem pokažemo živali in kmetijo, če si to želite."
 
     if any(word in lowered for word in ["navodila", "pot", "pot do", "pridem", "priti", "pot do vas", "avtom"]):
         return FARM_INFO["directions"]["from_maribor"]
