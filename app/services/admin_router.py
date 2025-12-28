@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, Response
@@ -12,10 +12,74 @@ from app.services.email_service import (
     send_reservation_confirmed,
     send_reservation_rejected,
 )
-from app.services.reservation_service import ReservationService
+from app.services.reservation_service import ROOMS, TOTAL_TABLE_CAPACITY, ReservationService
 
 router = APIRouter(tags=["admin"])
 service = ReservationService()
+
+ROOM_IDS = {r["id"] for r in ROOMS}
+
+
+def _normalize_room_id(room: Optional[str]) -> Optional[str]:
+    if not room:
+        return None
+    upper = room.strip().upper()
+    for rid in ROOM_IDS:
+        if rid in upper or upper in rid:
+            return rid
+    return None
+
+
+def _parse_ddmmyyyy(date_str: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime(date_str.strip(), "%d.%m.%Y")
+    except Exception:
+        return None
+
+
+def _reservation_days(date_str: str, nights: Optional[int]) -> list[datetime]:
+    nights_int = 1
+    try:
+        nights_int = int(nights or 1)
+    except Exception:
+        # poskusi izvleči prvo število iz niza (npr. "5 noči")
+        import re
+
+        m = re.search(r"\d+", str(nights or ""))
+        if m:
+            try:
+                nights_int = int(m.group(0))
+            except Exception:
+                nights_int = 1
+    if nights_int <= 0:
+        nights_int = 1
+    start = _parse_ddmmyyyy(date_str)
+    if not start:
+        return []
+    return [start + timedelta(days=i) for i in range(nights_int)]
+
+
+def _room_conflicts(reservation_id: int, room_id: str, date_str: str, nights: Optional[int]) -> list[str]:
+    """Vrne seznam datumov (dd.mm.yyyy) kjer je soba že zasedena."""
+    occupied: list[str] = []
+    days = _reservation_days(date_str, nights)
+    if not days:
+        return occupied
+    other_reservations = service.read_reservations(limit=1000, reservation_type="room")
+    for r in other_reservations:
+        if r.get("id") == reservation_id:
+            continue
+        status = r.get("status")
+        if status not in {"confirmed", "processing"}:
+            continue
+        other_room = _normalize_room_id(r.get("location"))
+        if other_room != room_id:
+            continue
+        other_days = _reservation_days(r.get("date", ""), r.get("nights"))
+        overlaps = {d.date() for d in days} & {d.date() for d in other_days}
+        if overlaps:
+            occupied.extend(sorted({d.strftime("%d.%m.%Y") for d in overlaps}))
+    return occupied
 
 
 class ReservationUpdate(BaseModel):
@@ -34,6 +98,31 @@ class SendMessageRequest(BaseModel):
     subject: str
     body: str
     set_processing: bool = True
+
+
+class ConfirmReservationRequest(BaseModel):
+    room: Optional[str] = None
+    location: Optional[str] = None
+
+
+class AdminCreateReservation(BaseModel):
+    date: str
+    people: int
+    reservation_type: str
+    source: str = "admin"
+    nights: Optional[int] = None
+    rooms: Optional[int] = None
+    time: Optional[str] = None
+    location: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    note: Optional[str] = None
+    admin_notes: Optional[str] = None
+    kids: Optional[str] = None
+    kids_small: Optional[str] = None
+    event_type: Optional[str] = None
+    special_needs: Optional[str] = None
 
 
 @router.get("/admin", response_class=HTMLResponse)
@@ -97,6 +186,17 @@ def get_reservations(
 @router.put("/api/admin/reservations/{reservation_id}")
 def update_reservation(reservation_id: int, data: ReservationUpdate):
     """Posodobi rezervacijo."""
+    existing = service.get_reservation(reservation_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Rezervacija ni najdena")
+    res_type = existing.get("reservation_type")
+    location = data.location
+    valid_rooms = {"", None, "ALJAZ", "JULIJA", "ANA"}
+    valid_tables = {"Pri peči", "Pri vrtu"}
+    if res_type == "room" and location is not None and location not in valid_rooms:
+        raise HTTPException(status_code=400, detail="Neveljavna soba")
+    if res_type == "table" and location is not None and location not in valid_tables:
+        raise HTTPException(status_code=400, detail="Neveljavna jedilnica")
     ok = service.update_reservation(
         reservation_id,
         status=data.status,
@@ -129,20 +229,32 @@ def patch_reservation(reservation_id: int, data: ReservationUpdate):
 
 
 @router.post("/api/admin/reservations/{reservation_id}/confirm")
-def confirm_reservation(reservation_id: int):
-    """Potrdi rezervacijo in pošlje email gostu."""
+def confirm_reservation(reservation_id: int, data: Optional[ConfirmReservationRequest] = None):
+    """Potrdi rezervacijo, preveri zasedenost sobe in pošlje email gostu."""
     res = service.get_reservation(reservation_id)
     if not res:
         raise HTTPException(status_code=404, detail="Rezervacija ni najdena")
+    requested_room = _normalize_room_id((data.room if data else None) or res.get("location"))
+    requested_location = (data.location if data else None) or res.get("location")
+    if res.get("reservation_type") == "room":
+        if not requested_room:
+            raise HTTPException(status_code=400, detail="Soba mora biti izbrana.")
+        conflicts = _room_conflicts(reservation_id, requested_room, res.get("date", ""), res.get("nights"))
+        if conflicts:
+            return {"success": False, "warning": f"Soba {requested_room} je zasedena: {', '.join(conflicts)}"}
+    else:
+        requested_room = None
+
     service.update_reservation(
         reservation_id,
         status="confirmed",
         confirmed_at=datetime.now().isoformat(),
         confirmed_by=os.getenv("ADMIN_EMAIL", "info@kovacnik.com"),
+        location=requested_room or requested_location,
     )
     res = service.get_reservation(reservation_id) or res
     send_reservation_confirmed(res)
-    return {"ok": True}
+    return {"success": True, "email_sent": True, "room": requested_room or requested_location}
 
 
 @router.post("/api/admin/reservations/{reservation_id}/reject")
@@ -154,7 +266,7 @@ def reject_reservation(reservation_id: int):
     service.update_reservation(reservation_id, status="rejected")
     res = service.get_reservation(reservation_id) or res
     send_reservation_rejected(res)
-    return {"ok": True}
+    return {"success": True, "email_sent": True}
 
 
 @router.post("/api/admin/send-message")
@@ -259,3 +371,113 @@ def export_reservations(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=reservations.csv"},
     )
+
+
+@router.get("/api/admin/calendar/rooms")
+def calendar_rooms(month: int, year: int):
+    """Vrne zasedenost sob po dnevih z ločenimi pending/confirmed."""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Neveljaven mesec")
+    days: dict[str, dict[str, list[str]]] = {}
+    reservations = service.read_reservations(limit=1000, reservation_type="room")
+    for r in reservations:
+        status = r.get("status")
+        if status not in {"pending", "processing", "confirmed"}:
+            continue
+        room_id = _normalize_room_id(r.get("location"))
+        if not room_id:
+            continue
+        for day in _reservation_days(r.get("date", ""), r.get("nights")):
+            if day.month != month or day.year != year:
+                continue
+            key = day.strftime("%Y-%m-%d")
+            bucket = "confirmed" if status == "confirmed" else "pending"
+            entry = days.setdefault(key, {"confirmed": [], "pending": []})
+            if room_id not in entry[bucket]:
+                entry[bucket].append(room_id)
+    return {"days": days}
+
+
+@router.get("/api/admin/calendar/tables")
+def calendar_tables(month: int, year: int):
+    """Zasedenost miz po dnevih in urah."""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Neveljaven mesec")
+    calendar: dict[str, dict[str, Any]] = {}
+    reservations = service.read_reservations(limit=1000, reservation_type="table")
+    for r in reservations:
+        status = r.get("status")
+        if status in {"rejected", "cancelled"}:
+            continue
+        day = _parse_ddmmyyyy(r.get("date", ""))
+        if not day or day.month != month or day.year != year:
+            continue
+        iso = day.strftime("%Y-%m-%d")
+        people = 0
+        try:
+            people = int(r.get("people") or 0)
+        except Exception:
+            people = 0
+        entry = calendar.setdefault(iso, {"total_people": 0, "capacity": TOTAL_TABLE_CAPACITY, "reservations": []})
+        entry["total_people"] += people
+        entry["reservations"].append(
+            {
+                "time": r.get("time"),
+                "people": people,
+                "name": r.get("name"),
+                "status": status,
+                "location": r.get("location"),
+            }
+        )
+    return calendar
+
+
+@router.post("/api/admin/reservations")
+def create_admin_reservation(data: AdminCreateReservation):
+    """Ročno dodajanje rezervacije (admin)."""
+    warning: Optional[str] = None
+    valid_rooms = {"", None, "ALJAZ", "JULIJA", "ANA"}
+    valid_tables = {"Pri peči", "Pri vrtu"}
+    location = _normalize_room_id(data.location) if data.reservation_type == "room" else data.location
+
+    if data.reservation_type == "room":
+        if location not in valid_rooms:
+            raise HTTPException(status_code=400, detail="Neveljavna soba")
+    if data.reservation_type == "table":
+        if location and location not in valid_tables:
+            raise HTTPException(status_code=400, detail="Neveljavna jedilnica")
+
+    if data.reservation_type == "room" and location:
+        conflicts = _room_conflicts(0, location, data.date, data.nights)
+        if conflicts:
+            warning = f"Soba {location} je zasedena: {', '.join(conflicts)}"
+    if data.reservation_type == "table" and data.time:
+        ok, suggested_location, suggestions = service.check_table_availability(data.date, data.time, data.people)
+        if not ok:
+            warning = "Kapaciteta je polna za izbrano uro."
+            if suggestions:
+                warning += f" Predlogi: {', '.join(suggestions)}"
+        if suggested_location and not data.location:
+            location = suggested_location
+
+    new_id = service.create_reservation(
+        date=data.date,
+        nights=data.nights,
+        rooms=data.rooms,
+        people=data.people,
+        reservation_type=data.reservation_type,
+        time=data.time,
+        location=location,
+        name=data.name,
+        phone=data.phone,
+        email=data.email,
+        note=data.note,
+        status="confirmed",
+        admin_notes=data.admin_notes,
+        kids=data.kids,
+        kids_small=data.kids_small,
+        source="admin",
+        event_type=data.event_type,
+        special_needs=data.special_needs,
+    )
+    return {"success": True, "id": new_id, "warning": warning}
