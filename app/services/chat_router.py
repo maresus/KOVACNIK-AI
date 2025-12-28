@@ -514,8 +514,8 @@ def _blank_reservation_state() -> dict[str, Optional[str | int]]:
         "rooms": None,
         "people": None,
         "adults": None,
-        "kids": None,
-        "kids_ages": None,
+        "kids": None,  # število otrok
+        "kids_ages": None,  # starosti otrok
         "name": None,
         "phone": None,
         "email": None,
@@ -523,6 +523,7 @@ def _blank_reservation_state() -> dict[str, Optional[str | int]]:
         "available_locations": None,
         "language": None,
         "dinner_people": None,
+        "note": None,
     }
 
 
@@ -1192,6 +1193,61 @@ def parse_people_count(message: str) -> dict[str, Optional[str | int]]:
         result["adults"] = adults
         result["kids"] = kids
         result["total"] = adults + kids
+
+    return result
+
+
+def parse_kids_response(message: str) -> dict[str, Optional[str | int]]:
+    """
+    Parsira odgovor na vprašanje o otrocih.
+    Podpira formate:
+    - "2 otroka, 8 in 6 let"
+    - "2...8 in 6"
+    - "2, stari 8 in 6"
+    - "da, 2 otroka"
+    - "2 (8 in 6 let)"
+    - "nimam" / "ne" / "brez"
+    """
+    result: dict[str, Optional[str | int]] = {"kids": None, "ages": None}
+    text = message.lower().strip()
+
+    if any(w in text for w in ["ne", "nimam", "brez", "0"]):
+        result["kids"] = 0
+        result["ages"] = ""
+        return result
+
+    numbers = re.findall(r"\d+", message)
+    if numbers:
+        result["kids"] = int(numbers[0])
+
+    ages_patterns = [
+        r"(\d+)\s*(?:in|,|&)\s*(\d+)\s*let",
+        r"star[ia]?\s+(\d+)\s*(?:in|,|&)?\s*(\d+)?",
+        r"let[^0-9]*(\d+)",
+    ]
+    for pattern in ages_patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            groups = [g for g in match.groups() if g]
+            if groups:
+                result["ages"] = " in ".join(groups) + " let"
+                break
+
+    if not result["ages"] and len(numbers) > 1:
+        age_nums = numbers[1:]
+        result["ages"] = " in ".join(age_nums) + " let"
+
+    if not result["ages"]:
+        dots_match = re.search(r"(\d+)\.+(\d+)", message)
+        if dots_match:
+            result["kids"] = int(dots_match.group(1))
+            rest = message[dots_match.end():]
+            rest_nums = re.findall(r"\d+", rest)
+            if rest_nums:
+                all_ages = [dots_match.group(2)] + rest_nums
+                result["ages"] = " in ".join(all_ages) + " let"
+            else:
+                result["ages"] = dots_match.group(2) + " let"
 
     return result
 
@@ -2192,13 +2248,11 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             reservation_state["kids"] = 0
             reservation_state["kids_ages"] = ""
             return advance_after_room_people(reservation_state)
-        parsed = parse_people_count(message)
-        if parsed["kids"] is not None:
-            reservation_state["kids"] = parsed["kids"]
-            if reservation_state.get("adults") is None and parsed["adults"] is not None:
-                reservation_state["adults"] = parsed["adults"]
-        if parsed["ages"]:
-            reservation_state["kids_ages"] = parsed["ages"]
+        kids_parsed = parse_kids_response(message)
+        if kids_parsed["kids"] is not None:
+            reservation_state["kids"] = kids_parsed["kids"]
+        if kids_parsed["ages"]:
+            reservation_state["kids_ages"] = kids_parsed["ages"]
         if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
@@ -2207,6 +2261,68 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
     if step == "awaiting_kids_ages":
         reservation_state["kids_ages"] = message.strip()
         return advance_after_room_people(reservation_state)
+
+    if step == "awaiting_note":
+        skip_words = {"ne", "nic", "nič", "nimam", "brez"}
+        note_text = "" if any(word in message.lower() for word in skip_words) else message.strip()
+        reservation_state["note"] = note_text
+        summary_state = reservation_state.copy()
+        dinner_note = ""
+        if reservation_state.get("dinner_people"):
+            dinner_note = f"Večerje: {reservation_state.get('dinner_people')} oseb (25€/oseba)"
+        reservation_service.create_reservation(
+            date=reservation_state["date"] or "",
+            people=int(reservation_state["people"] or 0),
+            reservation_type="room",
+            source="chat",
+            nights=int(reservation_state["nights"] or 0),
+            rooms=int(reservation_state["rooms"] or 0),
+            name=str(reservation_state["name"]),
+            phone=str(reservation_state["phone"]),
+            email=reservation_state["email"],
+            location="Sobe (dodelimo ob potrditvi)",
+            note=note_text or dinner_note,
+            kids=str(reservation_state.get("kids") or ""),
+            kids_small=str(reservation_state.get("kids_ages") or ""),
+        )
+        email_data = {
+            'name': reservation_state.get('name', ''),
+            'email': reservation_state.get('email', ''),
+            'phone': reservation_state.get('phone', ''),
+            'date': reservation_state.get('date', ''),
+            'nights': reservation_state.get('nights', 0),
+            'rooms': reservation_state.get('rooms', 0),
+            'people': reservation_state.get('people', 0),
+            'reservation_type': 'room',
+            'location': 'Sobe (dodelimo ob potrditvi)',
+            'note': note_text or dinner_note,
+            'kids': reservation_state.get('kids', ''),
+            'kids_ages': reservation_state.get('kids_ages', ''),
+        }
+        send_guest_confirmation(email_data)
+        send_admin_notification(email_data)
+        saved_lang = reservation_state.get("language", "si")
+        reset_reservation_state(state)
+        lines = [
+            "Odlično! 😊 Vaša rezervacija je zabeležena:",
+            f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči",
+            f"👥 Osebe: {summary_state.get('people')}",
+            f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}",
+        ]
+        if dinner_note:
+            lines.append(f"🍽️ {dinner_note}")
+        if note_text:
+            lines.append(f"📝 Opombe: {note_text}")
+        lines.extend(
+            [
+                "",
+                "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.",
+                "Odgovorili vam bomo v najkrajšem možnem času.",
+                "Preverite tudi SPAM/VSILJENO POŠTO.",
+            ]
+        )
+        final_response = "\n".join(lines)
+        return translate_response(final_response, saved_lang)
 
     if step == "awaiting_room_location":
         options = reservation_state.get("available_locations") or []
@@ -2294,33 +2410,8 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             return follow
         if any(word in answer for word in negative):
             reservation_state["dinner_people"] = 0
-            reservation_state["step"] = None
-            summary_state = reservation_state.copy()
-            reservation_service.create_reservation(
-                date=reservation_state["date"] or "",
-                people=int(reservation_state["people"] or 0),
-                reservation_type="room",
-                source="chat",
-                nights=int(reservation_state["nights"] or 0),
-                rooms=int(reservation_state["rooms"] or 0),
-                name=str(reservation_state["name"]),
-                phone=str(reservation_state["phone"]),
-                email=reservation_state["email"],
-                location="Sobe (dodelimo ob potrditvi)",
-                kids=reservation_state.get("kids_ages", ""),
-            )
-            saved_lang = reservation_state.get("language", "si")
-            reset_reservation_state(state)
-            final_response = (
-                "Odlično! 😊 Vaša rezervacija je zabeležena:\n"
-                f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči\n"
-                f"👥 Osebe: {summary_state.get('people')}\n"
-                f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}\n\n"
-                "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
-                "Odgovorili vam bomo v najkrajšem možnem času.\n"
-                "Preverite tudi SPAM/VSILJENO POŠTO."
-            )
-            return translate_response(final_response, saved_lang)
+            reservation_state["step"] = "awaiting_note"
+            return "Želite še kaj sporočiti? (posebne želje, alergije, praznovanje...)"
         return "Prosim odgovorite z Da ali Ne glede na večerje."
 
     if step == "awaiting_dinner_count":
@@ -2329,54 +2420,8 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             return "Prosim povejte za koliko oseb želite večerje (število)."
         count = int(digits[0])
         reservation_state["dinner_people"] = count
-        reservation_state["step"] = None
-        dinner_note = f"Večerje: {count} oseb (25€/oseba)"
-        summary_state = reservation_state.copy()
-        note_text = dinner_note
-        reservation_service.create_reservation(
-            date=reservation_state["date"] or "",
-            people=int(reservation_state["people"] or 0),
-            reservation_type="room",
-            source="chat",
-            nights=int(reservation_state["nights"] or 0),
-            rooms=int(reservation_state["rooms"] or 0),
-            name=str(reservation_state["name"]),
-            phone=str(reservation_state["phone"]),
-            email=reservation_state["email"],
-            location="Sobe (dodelimo ob potrditvi)",
-            note=note_text,
-            kids=reservation_state.get("kids_ages", ""),
-        )
-        # Pošlji email gostu in adminu
-        email_data = {
-            'name': reservation_state.get('name', ''),
-            'email': reservation_state.get('email', ''),
-            'phone': reservation_state.get('phone', ''),
-            'date': reservation_state.get('date', ''),
-            'nights': reservation_state.get('nights', 0),
-            'rooms': reservation_state.get('rooms', 0),
-            'people': reservation_state.get('people', 0),
-            'reservation_type': 'room',
-            'location': 'Sobe (dodelimo ob potrditvi)',
-            'note': note_text,
-        }
-        send_guest_confirmation(email_data)
-        send_admin_notification(email_data)
-        saved_lang = reservation_state.get("language", "si")
-        reset_reservation_state(state)
-        lines = [
-            "Odlično! 😊 Vaša rezervacija je zabeležena:",
-            f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči",
-            f"👥 Osebe: {summary_state.get('people')}",
-            f"🛏️ Soba: {summary_state.get('location') or 'Sobe (dodelimo ob potrditvi)'}",
-            f"🍽️ {dinner_note}",
-            "",
-            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.",
-            "Odgovorili vam bomo v najkrajšem možnem času.",
-            "Preverite tudi SPAM/VSILJENO POŠTO.",
-        ]
-        final_response = "\n".join(lines)
-        return translate_response(final_response, saved_lang)
+        reservation_state["step"] = "awaiting_note"
+        return "Želite še kaj sporočiti? (posebne želje, alergije, praznovanje...)"
 
     return "Nadaljujmo z rezervacijo sobe. Za kateri datum jo želite?"
 
@@ -2462,13 +2507,11 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
             reservation_state["kids"] = 0
             reservation_state["kids_ages"] = ""
             return proceed_after_table_people()
-        parsed = parse_people_count(message)
-        if parsed["kids"] is not None:
-            reservation_state["kids"] = parsed["kids"]
-            if reservation_state.get("adults") is None and parsed["adults"] is not None:
-                reservation_state["adults"] = parsed["adults"]
-        if parsed["ages"]:
-            reservation_state["kids_ages"] = parsed["ages"]
+        kids_parsed = parse_kids_response(message)
+        if kids_parsed["kids"] is not None:
+            reservation_state["kids"] = kids_parsed["kids"]
+        if kids_parsed["ages"]:
+            reservation_state["kids_ages"] = kids_parsed["ages"]
         if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
@@ -2477,6 +2520,55 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
     if step == "awaiting_kids_ages":
         reservation_state["kids_ages"] = message.strip()
         return proceed_after_table_people()
+
+    if step == "awaiting_note":
+        skip_words = {"ne", "nic", "nič", "nimam", "brez"}
+        note_text = "" if any(word in message.lower() for word in skip_words) else message.strip()
+        reservation_state["note"] = note_text
+        summary_state = reservation_state.copy()
+        reservation_service.create_reservation(
+            date=reservation_state["date"] or "",
+            people=int(reservation_state["people"] or 0),
+            reservation_type="table",
+            source="chat",
+            time=reservation_state["time"],
+            location=reservation_state["location"],
+            name=str(reservation_state["name"]),
+            phone=str(reservation_state["phone"]),
+            email=reservation_state["email"],
+            note=note_text,
+            kids=str(reservation_state.get("kids") or ""),
+            kids_small=str(reservation_state.get("kids_ages") or ""),
+            event_type=reservation_state.get("event_type"),
+        )
+        # Pošlji email gostu in adminu
+        email_data = {
+            'name': reservation_state.get('name', ''),
+            'email': reservation_state.get('email', ''),
+            'phone': reservation_state.get('phone', ''),
+            'date': reservation_state.get('date', ''),
+            'time': reservation_state.get('time', ''),
+            'people': reservation_state.get('people', 0),
+            'reservation_type': 'table',
+            'location': reservation_state.get('location', ''),
+            'note': note_text,
+            'kids': reservation_state.get('people_kids', ''),
+            'kids_ages': reservation_state.get('kids_ages', ''),
+        }
+        send_guest_confirmation(email_data)
+        send_admin_notification(email_data)
+        reset_reservation_state(state)
+        final_response = (
+            "Super! 😊 Vaša rezervacija mize je zabeležena:\n"
+            f"📅 Datum: {summary_state.get('date')} ob {summary_state.get('time')}\n"
+            f"👥 Osebe: {summary_state.get('people')}\n"
+            f"🍽️ Jedilnica: {summary_state.get('location')}\n"
+            f"{'📝 Opombe: ' + note_text if note_text else ''}\n\n"
+            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
+            "Odgovorili vam bomo v najkrajšem možnem času.\n"
+            "Preverite tudi SPAM/VSILJENO POŠTO."
+        )
+        return final_response
 
     if step == "awaiting_table_people":
         parsed = parse_people_count(message)
@@ -2533,43 +2625,8 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
         if "@" not in email or "." not in email:
             return "Prosim vpišite veljaven e-poštni naslov (npr. info@primer.si)."
         reservation_state["email"] = email
-        summary_state = reservation_state.copy()
-        reservation_service.create_reservation(
-            date=reservation_state["date"] or "",
-            people=int(reservation_state["people"] or 0),
-            reservation_type="table",
-            source="chat",
-            time=reservation_state["time"],
-            location=reservation_state["location"],
-            name=str(reservation_state["name"]),
-            phone=str(reservation_state["phone"]),
-            email=reservation_state["email"],
-            kids=reservation_state.get("kids_ages", ""),
-        )
-        # Pošlji email gostu in adminu
-        email_data = {
-            'name': reservation_state.get('name', ''),
-            'email': reservation_state.get('email', ''),
-            'phone': reservation_state.get('phone', ''),
-            'date': reservation_state.get('date', ''),
-            'time': reservation_state.get('time', ''),
-            'people': reservation_state.get('people', 0),
-            'reservation_type': 'table',
-            'location': reservation_state.get('location', ''),
-        }
-        send_guest_confirmation(email_data)
-        send_admin_notification(email_data)
-        reset_reservation_state(state)
-        final_response = (
-            "Super! 😊 Vaša rezervacija mize je zabeležena:\n"
-            f"📅 Datum: {summary_state.get('date')} ob {summary_state.get('time')}\n"
-            f"👥 Osebe: {summary_state.get('people')}\n"
-            f"🍽️ Jedilnica: {summary_state.get('location')}\n\n"
-            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
-            "Odgovorili vam bomo v najkrajšem možnem času.\n"
-            "Preverite tudi SPAM/VSILJENO POŠTO."
-        )
-        return final_response
+        reservation_state["step"] = "awaiting_note"
+        return "Želite še kaj sporočiti? (posebne želje, alergije, praznovanje...)"
 
     return "Nadaljujmo z rezervacijo mize. Kateri datum vas zanima?"
 

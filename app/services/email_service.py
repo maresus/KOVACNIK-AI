@@ -121,10 +121,12 @@ def _guest_room_confirmation_html(data: Dict[str, Any]) -> str:
         'Datum prihoda': data.get('date', ''),
         'Število nočitev': str(data.get('nights', '')),
         'Število oseb': str(data.get('people', '')),
+        'Otroci': f"{data.get('kids', '')} otrok ({data.get('kids_ages', '')})" if data.get('kids') else "",
         'Število sob': str(data.get('rooms', '')),
         'Soba': data.get('location', ''),
         'Kontakt': data.get('phone', ''),
         'Email': data.get('email', ''),
+        'Opombe': data.get('note', ''),
     })}
     
     <p style="margin-top:18px;">
@@ -162,9 +164,11 @@ def _guest_table_confirmation_html(data: Dict[str, Any]) -> str:
         'Datum': data.get('date', ''),
         'Ura prihoda': data.get('time', ''),
         'Število oseb': str(data.get('people', '')),
+        'Otroci': f"{data.get('kids', '')} otrok ({data.get('kids_ages', '')})" if data.get('kids') else "",
         'Jedilnica': data.get('location', ''),
         'Kontakt': data.get('phone', ''),
         'Email': data.get('email', ''),
+        'Opombe': data.get('note', ''),
     })}
     
     <p style="margin-top:18px;">

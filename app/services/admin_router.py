@@ -1,10 +1,10 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from app.services.email_service import (
@@ -52,9 +52,35 @@ def get_reservations(
     status: Optional[str] = None,
     type: Optional[str] = None,
     source: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
 ):
     """Vrne seznam rezervacij s filtri ter osnovno statistiko."""
     reservations = service.read_reservations(limit=limit, status=status, reservation_type=type, source=source)
+
+    def _parse_date(date_str: str) -> Optional[datetime]:
+        for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y"):
+            try:
+                return datetime.strptime(date_str, fmt)
+            except (ValueError, TypeError):
+                continue
+        return None
+
+    if date_from or date_to:
+        start = _parse_date(date_from) if date_from else None
+        end = _parse_date(date_to) if date_to else None
+        filtered = []
+        for r in reservations:
+            d = _parse_date(r.get("date", ""))
+            if not d:
+                filtered.append(r)
+                continue
+            if start and d < start:
+                continue
+            if end and d > end:
+                continue
+            filtered.append(r)
+        reservations = filtered
 
     all_res = service.read_reservations(limit=1000)
     today_prefix = datetime.now().strftime("%Y-%m-%d")
@@ -144,3 +170,92 @@ def send_message(data: SendMessageRequest):
             guest_message=data.body,
         )
     return {"ok": True}
+
+
+@router.get("/api/admin/stats")
+def get_stats():
+    """Agregirani podatki za dashboard."""
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    week_ago = datetime.now() - timedelta(days=7)
+    month_ago = datetime.now().replace(day=1)
+    res_list = service.read_reservations(limit=1000)
+
+    def parse_created(r) -> Optional[datetime]:
+        try:
+            return datetime.fromisoformat(str(r.get("created_at", "")))
+        except Exception:
+            return None
+
+    counts = {
+        "danes": 0,
+        "ta_teden": 0,
+        "ta_mesec": 0,
+        "po_statusu": {"pending": 0, "processing": 0, "confirmed": 0, "rejected": 0},
+        "po_tipu": {"room": 0, "table": 0},
+    }
+    for r in res_list:
+        created = parse_created(r)
+        if created:
+            if str(r.get("created_at", "")).startswith(today_prefix):
+                counts["danes"] += 1
+            if created >= week_ago:
+                counts["ta_teden"] += 1
+            if created >= month_ago:
+                counts["ta_mesec"] += 1
+        status = r.get("status")
+        if status in counts["po_statusu"]:
+            counts["po_statusu"][status] += 1
+        rtype = r.get("reservation_type")
+        if rtype in counts["po_tipu"]:
+            counts["po_tipu"][rtype] += 1
+    return counts
+
+
+@router.get("/api/admin/export")
+def export_reservations(
+    status: Optional[str] = None,
+    type: Optional[str] = None,
+    source: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Izvoz rezervacij v CSV (uporabi iste filtre kot /reservations)."""
+    data = get_reservations(limit=1000, status=status, type=type, source=source, date_from=date_from, date_to=date_to)
+    reservations = data.get("reservations", [])
+    headers = [
+        "id",
+        "date",
+        "time",
+        "nights",
+        "rooms",
+        "people",
+        "kids",
+        "kids_small",
+        "reservation_type",
+        "name",
+        "email",
+        "phone",
+        "location",
+        "note",
+        "status",
+        "source",
+        "created_at",
+    ]
+    lines = [",".join(headers)]
+    for r in reservations:
+        row = []
+        for h in headers:
+            val = r.get(h, "")
+            if val is None:
+                val = ""
+            cell = str(val).replace('"', '""')
+            if any(c in cell for c in [",", "\n", '"']):
+                cell = f'"{cell}"'
+            row.append(cell)
+        lines.append(",".join(row))
+    csv_content = "\n".join(lines)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=reservations.csv"},
+    )

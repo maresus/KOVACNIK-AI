@@ -1,582 +1,537 @@
 <!DOCTYPE html>
 <html lang="sl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Kovačnik</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-        }
-        .header {
-            background: #7b5e3b;
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header h1 { font-size: 1.5rem; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        
-        /* Filtri */
-        .filters {
-            background: white;
-            padding: 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .filters select, .filters input {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .filter-btn {
-            padding: 8px 16px;
-            background: #7b5e3b;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        
-        /* Statistika */
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .stat-card {
-            background: white;
-            padding: 16px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        .stat-card .number { font-size: 2rem; font-weight: bold; color: #7b5e3b; }
-        .stat-card .label { color: #666; font-size: 0.9rem; }
-        
-        /* Tabela */
-        .table-container {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f9f9f9; font-weight: 600; color: #555; }
-        tr:hover { background: #fafafa; }
-        
-        /* Status badges */
-        .status {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .status-pending { background: #fff3cd; color: #856404; }
-        .status-processing { background: #cce5ff; color: #004085; }
-        .status-confirmed { background: #d4edda; color: #155724; }
-        .status-rejected { background: #f8d7da; color: #721c24; }
-        
-        /* Source badges */
-        .source {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-        }
-        .source-chat { background: #e3f2fd; color: #1565c0; }
-        .source-wordpress_room { background: #f3e5f5; color: #7b1fa2; }
-        .source-wordpress_table { background: #e8f5e9; color: #2e7d32; }
-        
-        /* Akcije */
-        .actions { display: flex; gap: 8px; }
-        .btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .btn-confirm { background: #28a745; color: white; }
-        .btn-reject { background: #dc3545; color: white; }
-        .btn-message { background: #17a2b8; color: white; }
-        .btn-edit { background: #6c757d; color: white; }
-        
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #999;
-        }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; margin-bottom: 4px; font-weight: 500; }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        .form-group textarea { resize: vertical; min-height: 100px; }
-        .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kovačnik – Rezervacije</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #7b5e3b;
+      --bg: #f5f4f1;
+      --card: #fff;
+      --muted: #7a7a7a;
+      --border: #e6e2da;
+      --shadow: 0 10px 30px rgba(0,0,0,0.06);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: #1b1f1a;
+      line-height: 1.6;
+      padding-bottom: 32px;
+    }
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+    .title { font-size: 1.3rem; font-weight: 700; display: flex; gap: 10px; align-items: center; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; }
+    .chip { background: #f2ede6; color: #5b4327; padding: 6px 10px; border-radius: 999px; font-weight: 600; }
+    .btn {
+      border: none;
+      cursor: pointer;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      transition: transform 0.05s ease, box-shadow 0.2s ease;
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(123,94,59,0.25);
+    }
+    .btn.secondary { background: #f1ede5; color: #4b3a28; box-shadow: none; }
+    .btn:hover { transform: translateY(-1px); }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: var(--card);
+      padding: 14px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 6px;
+    }
+    .stat .label { color: var(--muted); font-size: 0.9rem; }
+    .stat .value { font-size: 1.8rem; font-weight: 700; color: var(--brand); }
+    .stat .hint { color: var(--muted); font-size: 0.85rem; }
+
+    /* Filters */
+    .filters {
+      background: var(--card);
+      padding: 14px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .filter-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    select, input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 14px;
+    }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    /* Table */
+    .table-wrap {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 960px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f0ede8; vertical-align: top; }
+    th { background: #faf8f4; font-size: 13px; color: #5f5a54; font-weight: 700; }
+    tbody tr:hover { background: #f9f7f2; }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-pending { background: #fff4d6; color: #8a6500; }
+    .status-confirmed { background: #d7f2dd; color: #226536; }
+    .status-rejected { background: #fbe0e0; color: #9a1f1f; }
+    .status-processing { background: #e3ecff; color: #2f54a3; }
+    .type-room { color: #50351e; }
+    .type-table { color: #134f2b; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .tooltip { max-width: 240px; }
+    .btn-inline {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      color: #4b3a28;
+    }
+    .btn-inline.danger { color: #b3261e; border-color: #f3c7c2; }
+    .btn-inline.success { color: #1f7a3c; border-color: #b7e3c6; }
+
+    /* Modal */
+    .modal {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.35);
+      z-index: 1000;
+      padding: 16px;
+    }
+    .modal.active { display: flex; }
+    .modal-body {
+      background: #fff;
+      border-radius: 16px;
+      max-width: 720px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: auto;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 12px;
+    }
+    .modal-title { font-size: 1.2rem; font-weight: 700; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .form-group { display: grid; gap: 6px; }
+    label { font-weight: 600; font-size: 13px; color: #3b2d1e; }
+    textarea { min-height: 90px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+    @media (max-width: 960px) {
+      table { min-width: 0; }
+      th, td { font-size: 13px; }
+      .table-wrap { overflow-x: auto; }
+    }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🏠 Kovačnik - Admin Panel</h1>
-        <div>
-            <span id="current-date"></span>
-        </div>
+  <div class="page">
+    <header>
+      <div>
+        <div class="title">🏠 Kovačnik - Rezervacije</div>
+        <div class="subtitle" id="current-date"></div>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" onclick="exportCsv()">📥 Izvozi CSV</button>
+        <button class="btn" onclick="loadAll()">🔄 Osveži podatke</button>
+      </div>
+    </header>
+
+    <div class="stats" id="stats-cards">
+      <div class="stat"><div class="label">Danes</div><div class="value" id="stat-danes">0</div><div class="hint">Rezervacije</div></div>
+      <div class="stat"><div class="label">Ta teden</div><div class="value" id="stat-teden">0</div><div class="hint">Rezervacije</div></div>
+      <div class="stat"><div class="label">Ta mesec</div><div class="value" id="stat-mesec">0</div><div class="hint">Rezervacije</div></div>
+      <div class="stat"><div class="label">Potrjenih</div><div class="value" id="stat-confirmed">0</div></div>
+      <div class="stat"><div class="label">Čaka</div><div class="value" id="stat-pending">0</div></div>
+      <div class="stat"><div class="label">🛏️ Sobe</div><div class="value" id="stat-room">0</div></div>
+      <div class="stat"><div class="label">🍽️ Mize</div><div class="value" id="stat-table">0</div></div>
     </div>
-    
-    <div class="container">
-        <!-- Statistika -->
-        <div class="stats">
-            <div class="stat-card">
-                <div class="number" id="stat-pending">0</div>
-                <div class="label">Čaka na obdelavo</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" id="stat-processing">0</div>
-                <div class="label">V obdelavi</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" id="stat-confirmed">0</div>
-                <div class="label">Potrjeno</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" id="stat-today">0</div>
-                <div class="label">Danes</div>
-            </div>
-        </div>
-        
-        <!-- Filtri -->
-        <div class="filters">
-            <select id="filter-status">
-                <option value="">Vsi statusi</option>
-                <option value="pending" selected>Čaka na obdelavo</option>
-                <option value="processing">V obdelavi</option>
-                <option value="confirmed">Potrjeno</option>
-                <option value="rejected">Zavrnjeno</option>
+
+    <div class="filters">
+      <div class="filter-row">
+        <select id="filter-status">
+          <option value="">Vsi statusi</option>
+          <option value="pending" selected>Čaka</option>
+          <option value="processing">V obdelavi</option>
+          <option value="confirmed">Potrjeno</option>
+          <option value="rejected">Zavrnjeno</option>
+        </select>
+        <select id="filter-type">
+          <option value="">Vsi tipi</option>
+          <option value="room">Sobe</option>
+          <option value="table">Mize</option>
+        </select>
+        <select id="filter-source">
+          <option value="">Vsi viri</option>
+          <option value="chat">Chatbot</option>
+          <option value="wordpress_room">WP Sobe</option>
+          <option value="wordpress_table">WP Mize</option>
+        </select>
+        <input type="date" id="filter-date-from" />
+        <input type="date" id="filter-date-to" />
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="loadAll()">Filtriraj</button>
+        <button class="btn secondary" onclick="resetFilters()">Ponastavi</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Datum</th>
+            <th>Gost</th>
+            <th>Kontakt</th>
+            <th>Tip</th>
+            <th>Osebe</th>
+            <th>Otroci</th>
+            <th>Soba/Čas</th>
+            <th>Opombe</th>
+            <th>Status</th>
+            <th>Akcije</th>
+          </tr>
+        </thead>
+        <tbody id="reservations-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-body">
+      <div class="modal-title">Uredi rezervacijo #<span id="edit-id"></span></div>
+      <form id="edit-form">
+        <input type="hidden" id="edit-reservation-id" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="edit-status">
+              <option value="pending">Čaka</option>
+              <option value="processing">V obdelavi</option>
+              <option value="confirmed">Potrjeno</option>
+              <option value="rejected">Zavrnjeno</option>
             </select>
-            <select id="filter-type">
-                <option value="">Vse vrste</option>
-                <option value="room">Sobe</option>
-                <option value="table">Mize</option>
+          </div>
+          <div class="form-group">
+            <label>Tip</label>
+            <select id="edit-type">
+              <option value="room">Soba</option>
+              <option value="table">Miza</option>
             </select>
-            <select id="filter-source">
-                <option value="">Vsi viri</option>
-                <option value="chat">Chatbot</option>
-                <option value="wordpress_room">WP Sobe</option>
-                <option value="wordpress_table">WP Mize</option>
-            </select>
-            <input type="date" id="filter-date-from" placeholder="Od datuma">
-            <input type="date" id="filter-date-to" placeholder="Do datuma">
-            <button class="filter-btn" onclick="loadReservations()">Filtriraj</button>
-            <button class="filter-btn" style="background:#666" onclick="resetFilters()">Ponastavi</button>
+          </div>
+          <div class="form-group">
+            <label>Datum</label>
+            <input type="text" id="edit-date" />
+          </div>
+          <div class="form-group">
+            <label>Čas (mize)</label>
+            <input type="text" id="edit-time" />
+          </div>
+          <div class="form-group">
+            <label>Nočitve</label>
+            <input type="number" id="edit-nights" />
+          </div>
+          <div class="form-group">
+            <label>Sobe</label>
+            <input type="number" id="edit-rooms" />
+          </div>
+          <div class="form-group">
+            <label>Osebe</label>
+            <input type="number" id="edit-people" />
+          </div>
+          <div class="form-group">
+            <label>Otroci (št.)</label>
+            <input type="text" id="edit-kids" />
+          </div>
+          <div class="form-group">
+            <label>Starost otrok</label>
+            <input type="text" id="edit-kids-ages" />
+          </div>
+          <div class="form-group">
+            <label>Soba / Lokacija</label>
+            <input type="text" id="edit-location" />
+          </div>
+          <div class="form-group">
+            <label>Ime</label>
+            <input type="text" id="edit-name" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="edit-email" />
+          </div>
+          <div class="form-group">
+            <label>Telefon</label>
+            <input type="text" id="edit-phone" />
+          </div>
+          <div class="form-group">
+            <label>Opombe</label>
+            <textarea id="edit-note"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Admin opombe</label>
+            <textarea id="edit-admin-notes"></textarea>
+          </div>
         </div>
-        
-        <!-- Tabela -->
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Datum</th>
-                        <th>Gost</th>
-                        <th>Kontakt</th>
-                        <th>Tip</th>
-                        <th>Podrobnosti</th>
-                        <th>Vir</th>
-                        <th>Status</th>
-                        <th>Akcije</th>
-                    </tr>
-                </thead>
-                <tbody id="reservations-table">
-                    <!-- Dinamično napolnjeno -->
-                </tbody>
-            </table>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" onclick="closeModal()">Prekliči</button>
+          <button type="submit" class="btn">💾 Shrani</button>
         </div>
+      </form>
     </div>
-    
-    <!-- Modal za urejanje -->
-    <div class="modal" id="edit-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Uredi rezervacijo #<span id="edit-id"></span></h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <form id="edit-form">
-                <input type="hidden" id="edit-reservation-id">
-                
-                <div class="form-group">
-                    <label>Status</label>
-                    <select id="edit-status">
-                        <option value="pending">Čaka na obdelavo</option>
-                        <option value="processing">V obdelavi</option>
-                        <option value="confirmed">Potrjeno</option>
-                        <option value="rejected">Zavrnjeno</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Datum</label>
-                    <input type="text" id="edit-date">
-                </div>
-                
-                <div class="form-group">
-                    <label>Število oseb</label>
-                    <input type="number" id="edit-people">
-                </div>
-                
-                <div class="form-group">
-                    <label>Nočitve</label>
-                    <input type="number" id="edit-nights">
-                </div>
-                
-                <div class="form-group">
-                    <label>Lokacija / Soba</label>
-                    <input type="text" id="edit-location">
-                </div>
-                
-                <div class="form-group">
-                    <label>Interne opombe (gost ne vidi)</label>
-                    <textarea id="edit-admin-notes"></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn" style="background:#ccc;color:#333" onclick="closeModal()">Prekliči</button>
-                    <button type="submit" class="btn btn-confirm">Shrani</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal za pošiljanje sporočila -->
-    <div class="modal" id="message-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Pošlji sporočilo gostu</h2>
-                <button class="modal-close" onclick="closeMessageModal()">&times;</button>
-            </div>
-            <form id="message-form">
-                <input type="hidden" id="message-reservation-id">
-                <input type="hidden" id="message-email">
-                
-                <div class="form-group">
-                    <label>Prejemnik</label>
-                    <input type="text" id="message-to" readonly style="background:#f5f5f5">
-                </div>
-                
-                <div class="form-group">
-                    <label>Zadeva</label>
-                    <input type="text" id="message-subject" value="Vaša rezervacija - Kovačnik">
-                </div>
-                
-                <div class="form-group">
-                    <label>Sporočilo</label>
-                    <textarea id="message-body" rows="8">Pozdravljeni,
+  </div>
 
-glede vaše rezervacije za datum [DATUM]:
+  <script>
+    const API_BASE = '/api/admin';
 
-[VAŠE SPOROČILO]
+    const qs = id => document.getElementById(id);
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('sl-SI', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' });
 
-Lep pozdrav,
-Domačija Kovačnik</textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="message-set-processing" checked>
-                        Nastavi status na "V obdelavi"
-                    </label>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="btn" style="background:#ccc;color:#333" onclick="closeMessageModal()">Prekliči</button>
-                    <button type="submit" class="btn btn-message">Pošlji</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAll();
+      setInterval(loadStats, 60000);
+    });
 
-    <script>
-        const API_BASE = '/api/admin';
-        
-        // Trenutni datum
-        document.getElementById('current-date').textContent = new Date().toLocaleDateString('sl-SI');
-        
-        // Naloži rezervacije ob zagonu
-        document.addEventListener('DOMContentLoaded', loadReservations);
-        
-        async function loadReservations() {
-            const status = document.getElementById('filter-status').value;
-            const type = document.getElementById('filter-type').value;
-            const source = document.getElementById('filter-source').value;
-            
-            let url = `${API_BASE}/reservations?limit=100`;
-            if (status) url += `&status=${status}`;
-            if (type) url += `&type=${type}`;
-            if (source) url += `&source=${source}`;
-            
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-                renderReservations(data.reservations || []);
-                updateStats(data.stats || {});
-            } catch (e) {
-                console.error('Napaka pri nalaganju:', e);
-            }
-        }
-        
-        function renderReservations(reservations) {
-            const tbody = document.getElementById('reservations-table');
-            
-            if (reservations.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#999">Ni rezervacij</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = reservations.map(r => `
-                <tr>
-                    <td>#${r.id}</td>
-                    <td>
-                        <strong>${r.date || '-'}</strong>
-                        ${r.time ? '<br><small>' + r.time + '</small>' : ''}
-                        ${r.nights ? '<br><small>' + r.nights + ' noči</small>' : ''}
-                    </td>
-                    <td>
-                        <strong>${r.name || '-'}</strong>
-                        ${r.country ? '<br><small>' + r.country + '</small>' : ''}
-                    </td>
-                    <td>
-                        ${r.email ? '<a href="mailto:' + r.email + '">' + r.email + '</a>' : '-'}
-                        ${r.phone ? '<br><small>' + r.phone + '</small>' : ''}
-                    </td>
-                    <td>
-                        ${r.reservation_type === 'room' ? '🛏️ Soba' : '🍽️ Miza'}
-                    </td>
-                    <td>
-                        <small>
-                            ${r.people ? r.people + ' oseb' : ''}
-                            ${r.location ? '<br>' + r.location : ''}
-                            ${r.note ? '<br><em>' + r.note + '</em>' : ''}
-                        </small>
-                    </td>
-                    <td><span class="source source-${r.source}">${formatSource(r.source)}</span></td>
-                    <td><span class="status status-${r.status}">${formatStatus(r.status)}</span></td>
-                    <td class="actions">
-                        ${r.status === 'pending' || r.status === 'processing' ? `
-                            <button class="btn btn-confirm" onclick="confirmReservation(${r.id})">✅</button>
-                            <button class="btn btn-reject" onclick="rejectReservation(${r.id})">❌</button>
-                        ` : ''}
-                        <button class="btn btn-message" onclick="openMessageModal(${r.id}, '${r.email}', '${r.name}', '${r.date}')">✉️</button>
-                        <button class="btn btn-edit" onclick="openEditModal(${JSON.stringify(r).replace(/"/g, '&quot;')})">✏️</button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-        
-        function formatStatus(status) {
-            const map = {
-                'pending': 'Čaka',
-                'processing': 'V obdelavi',
-                'confirmed': 'Potrjeno',
-                'rejected': 'Zavrnjeno'
-            };
-            return map[status] || status;
-        }
-        
-        function formatSource(source) {
-            const map = {
-                'chat': 'Chatbot',
-                'wordpress_room': 'WP Soba',
-                'wordpress_table': 'WP Miza'
-            };
-            return map[source] || source;
-        }
-        
-        function updateStats(stats) {
-            document.getElementById('stat-pending').textContent = stats.pending || 0;
-            document.getElementById('stat-processing').textContent = stats.processing || 0;
-            document.getElementById('stat-confirmed').textContent = stats.confirmed || 0;
-            document.getElementById('stat-today').textContent = stats.today || 0;
-        }
-        
-        function resetFilters() {
-            document.getElementById('filter-status').value = 'pending';
-            document.getElementById('filter-type').value = '';
-            document.getElementById('filter-source').value = '';
-            document.getElementById('filter-date-from').value = '';
-            document.getElementById('filter-date-to').value = '';
-            loadReservations();
-        }
-        
-        // AKCIJE
-        async function confirmReservation(id) {
-            if (!confirm('Potrdi rezervacijo #' + id + '?')) return;
-            
-            try {
-                const res = await fetch(`${API_BASE}/reservations/${id}/confirm`, { method: 'POST' });
-                const data = await res.json();
-                if (data.ok) {
-                    alert('Rezervacija potrjena! Email poslan gostu.');
-                    loadReservations();
-                } else {
-                    alert('Napaka: ' + (data.error || 'Neznana napaka'));
-                }
-            } catch (e) {
-                alert('Napaka pri potrjevanju');
-            }
-        }
-        
-        async function rejectReservation(id) {
-            if (!confirm('Zavrni rezervacijo #' + id + '? Gostu bo poslan email.')) return;
-            
-            try {
-                const res = await fetch(`${API_BASE}/reservations/${id}/reject`, { method: 'POST' });
-                const data = await res.json();
-                if (data.ok) {
-                    alert('Rezervacija zavrnjena. Email poslan gostu.');
-                    loadReservations();
-                } else {
-                    alert('Napaka: ' + (data.error || 'Neznana napaka'));
-                }
-            } catch (e) {
-                alert('Napaka pri zavrnitvi');
-            }
-        }
-        
-        // EDIT MODAL
-        function openEditModal(reservation) {
-            document.getElementById('edit-id').textContent = reservation.id;
-            document.getElementById('edit-reservation-id').value = reservation.id;
-            document.getElementById('edit-status').value = reservation.status || 'pending';
-            document.getElementById('edit-date').value = reservation.date || '';
-            document.getElementById('edit-people').value = reservation.people || '';
-            document.getElementById('edit-nights').value = reservation.nights || '';
-            document.getElementById('edit-location').value = reservation.location || '';
-            document.getElementById('edit-admin-notes').value = reservation.admin_notes || '';
-            document.getElementById('edit-modal').classList.add('active');
-        }
-        
-        function closeModal() {
-            document.getElementById('edit-modal').classList.remove('active');
-        }
-        
-        document.getElementById('edit-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const id = document.getElementById('edit-reservation-id').value;
-            
-            const data = {
-                status: document.getElementById('edit-status').value,
-                date: document.getElementById('edit-date').value,
-                people: parseInt(document.getElementById('edit-people').value) || null,
-                nights: parseInt(document.getElementById('edit-nights').value) || null,
-                location: document.getElementById('edit-location').value,
-                admin_notes: document.getElementById('edit-admin-notes').value,
-            };
-            
-            try {
-                const res = await fetch(`${API_BASE}/reservations/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                if (result.ok) {
-                    closeModal();
-                    loadReservations();
-                } else {
-                    alert('Napaka: ' + (result.error || 'Neznana napaka'));
-                }
-            } catch (e) {
-                alert('Napaka pri shranjevanju');
-            }
-        });
-        
-        // MESSAGE MODAL
-        function openMessageModal(id, email, name, date) {
-            document.getElementById('message-reservation-id').value = id;
-            document.getElementById('message-email').value = email;
-            document.getElementById('message-to').value = name + ' <' + email + '>';
-            
-            // Posodobi template z datumom
-            const body = document.getElementById('message-body');
-            body.value = body.value.replace('[DATUM]', date || '');
-            
-            document.getElementById('message-modal').classList.add('active');
-        }
-        
-        function closeMessageModal() {
-            document.getElementById('message-modal').classList.remove('active');
-        }
-        
-        document.getElementById('message-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const data = {
-                reservation_id: document.getElementById('message-reservation-id').value,
-                email: document.getElementById('message-email').value,
-                subject: document.getElementById('message-subject').value,
-                body: document.getElementById('message-body').value,
-                set_processing: document.getElementById('message-set-processing').checked,
-            };
-            
-            try {
-                const res = await fetch(`${API_BASE}/send-message`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                if (result.ok) {
-                    alert('Sporočilo poslano!');
-                    closeMessageModal();
-                    loadReservations();
-                } else {
-                    alert('Napaka: ' + (result.error || 'Neznana napaka'));
-                }
-            } catch (e) {
-                alert('Napaka pri pošiljanju');
-            }
-        });
-    </script>
+    async function loadAll() {
+      await Promise.all([loadStats(), loadReservations()]);
+    }
+
+    function resetFilters() {
+      qs('filter-status').value = 'pending';
+      qs('filter-type').value = '';
+      qs('filter-source').value = '';
+      qs('filter-date-from').value = '';
+      qs('filter-date-to').value = '';
+      loadAll();
+    }
+
+    function buildQuery() {
+      const status = qs('filter-status').value;
+      const type = qs('filter-type').value;
+      const source = qs('filter-source').value;
+      const date_from = qs('filter-date-from').value;
+      const date_to = qs('filter-date-to').value;
+      const params = new URLSearchParams();
+      params.set('limit', '200');
+      if (status) params.set('status', status);
+      if (type) params.set('type', type);
+      if (source) params.set('source', source);
+      if (date_from) params.set('date_from', date_from);
+      if (date_to) params.set('date_to', date_to);
+      return params.toString();
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}/stats`);
+        const data = await res.json();
+        qs('stat-danes').textContent = data.danes ?? 0;
+        qs('stat-teden').textContent = data.ta_teden ?? 0;
+        qs('stat-mesec').textContent = data.ta_mesec ?? 0;
+        qs('stat-confirmed').textContent = data.po_statusu?.confirmed ?? 0;
+        qs('stat-pending').textContent = data.po_statusu?.pending ?? 0;
+        qs('stat-room').textContent = data.po_tipu?.room ?? 0;
+        qs('stat-table').textContent = data.po_tipu?.table ?? 0;
+      } catch (e) {
+        console.error('Stats error', e);
+      }
+    }
+
+    async function loadReservations() {
+      const query = buildQuery();
+      try {
+        const res = await fetch(`${API_BASE}/reservations?${query}`);
+        const data = await res.json();
+        renderReservations(data.reservations || []);
+      } catch (e) {
+        console.error('Load reservations error', e);
+      }
+    }
+
+    function renderReservations(list) {
+      const tbody = qs('reservations-table');
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:${'#8a8378'}">Ni rezervacij</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = list.map(r => `
+        <tr>
+          <td>#${r.id}</td>
+          <td>
+            <strong>${r.date || '-'}</strong>
+            ${r.nights ? `<div class="muted">${r.nights} noči</div>` : ''}
+            ${r.time ? `<div class="muted">${r.time}</div>` : ''}
+          </td>
+          <td>
+            <div><strong>${r.name || '-'}</strong></div>
+            ${r.country ? `<div class="muted">${r.country}</div>` : ''}
+          </td>
+          <td>
+            ${r.email ? `<a href="mailto:${r.email}">${r.email}</a>` : '-'}
+            ${r.phone ? `<div class="muted">${r.phone}</div>` : ''}
+          </td>
+          <td>${r.reservation_type === 'room' ? '🛏️ Soba' : '🍽️ Miza'}</td>
+          <td>
+            ${r.people || '-'}${r.rooms ? `, ${r.rooms} sob` : ''}
+            ${r.kids ? `<div class="muted">${r.kids} otrok</div>` : ''}
+          </td>
+          <td>${r.kids_small || '-'}</td>
+          <td>${r.location || r.time || '-'}</td>
+          <td title="${r.note || ''}" class="tooltip">${r.note ? (r.note.length > 35 ? r.note.slice(0,35)+'…' : r.note) : '-'}</td>
+          <td>${renderStatus(r.status)}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-inline success" onclick="confirmReservation(${r.id})">✅</button>
+            <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
+            <button class="btn-inline" onclick="openEdit(${encodeURIComponent(JSON.stringify(r))})">✏️</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderStatus(status) {
+      const cls = status ? `status-${status}` : '';
+      const label = status === 'pending' ? 'Čaka' :
+                    status === 'confirmed' ? 'Potrjeno' :
+                    status === 'rejected' ? 'Zavrnjeno' :
+                    status === 'processing' ? 'V obdelavi' : status || '-';
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    async function confirmReservation(id) {
+      await fetch(`${API_BASE}/reservations/${id}/confirm`, { method: 'POST' });
+      loadAll();
+    }
+    async function rejectReservation(id) {
+      await fetch(`${API_BASE}/reservations/${id}/reject`, { method: 'POST' });
+      loadAll();
+    }
+
+    function openEdit(dataStr) {
+      const r = JSON.parse(decodeURIComponent(dataStr));
+      qs('edit-id').textContent = r.id;
+      qs('edit-reservation-id').value = r.id;
+      qs('edit-status').value = r.status || 'pending';
+      qs('edit-type').value = r.reservation_type || 'room';
+      qs('edit-date').value = r.date || '';
+      qs('edit-time').value = r.time || '';
+      qs('edit-nights').value = r.nights || '';
+      qs('edit-rooms').value = r.rooms || '';
+      qs('edit-people').value = r.people || '';
+      qs('edit-kids').value = r.kids || '';
+      qs('edit-kids-ages').value = r.kids_small || '';
+      qs('edit-location').value = r.location || '';
+      qs('edit-name').value = r.name || '';
+      qs('edit-email').value = r.email || '';
+      qs('edit-phone').value = r.phone || '';
+      qs('edit-note').value = r.note || '';
+      qs('edit-admin-notes').value = r.admin_notes || '';
+      qs('edit-modal').classList.add('active');
+    }
+    function closeModal() { qs('edit-modal').classList.remove('active'); }
+
+    qs('edit-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = qs('edit-reservation-id').value;
+      const payload = {
+        status: qs('edit-status').value,
+        date: qs('edit-date').value,
+        time: qs('edit-time').value,
+        nights: parseInt(qs('edit-nights').value || '0') || null,
+        rooms: parseInt(qs('edit-rooms').value || '0') || null,
+        people: parseInt(qs('edit-people').value || '0') || null,
+        kids: qs('edit-kids').value || null,
+        kids_small: qs('edit-kids-ages').value || null,
+        location: qs('edit-location').value || null,
+        name: qs('edit-name').value || null,
+        email: qs('edit-email').value || null,
+        phone: qs('edit-phone').value || null,
+        note: qs('edit-note').value || null,
+        admin_notes: qs('edit-admin-notes').value || null,
+        reservation_type: qs('edit-type').value,
+      };
+      await fetch(`${API_BASE}/reservations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal();
+      loadAll();
+    });
+
+    async function exportCsv() {
+      const query = buildQuery();
+      const res = await fetch(`${API_BASE}/export?${query}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reservations.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+  </script>
 </body>
 </html>
