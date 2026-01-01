@@ -81,7 +81,7 @@ def _detect_product_intent(text: str) -> Optional[str]:
         return "marmelada"
     if any(w in text for w in ["liker", "žgan", "zgan", "borovnič", "orehov", "tepk"]):
         return "liker"
-    if "bunka" in text:
+    if any(w in text for w in ["bunka", "salama", "klobas", "klobasa"]):
         return "bunka"
     if any(w in text for w in ["izdelek", "trgovin", "katalog", "prodajate"]):
         return "izdelki_splosno"
@@ -89,9 +89,6 @@ def _detect_product_intent(text: str) -> Optional[str]:
 
 
 def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
-    if has_active_booking:
-        return "BOOKING_CONTINUE"
-
     booking_tokens = {
         "rezerv",
         "rezev",
@@ -152,6 +149,15 @@ def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
     has_room = any(tok in text for tok in room_tokens)
     has_table = any(tok in text for tok in table_tokens)
 
+    # Med aktivno rezervacijo: če jasno pove nov tip (soba/miza), začni novo,
+    # sicer nadaljuj obstoječi flow.
+    if has_active_booking:
+        if has_booking and has_room:
+            return "BOOKING_ROOM"
+        if has_booking and has_table:
+            return "BOOKING_TABLE"
+        return "BOOKING_CONTINUE"
+
     # Za sprožitev bookinga zahtevamo namig na rezervacijo (booking_tokens)
     if has_booking and has_room:
         return "BOOKING_ROOM"
@@ -191,11 +197,11 @@ def route_message(
 
     # is_interrupt: med aktivnim bookingom, a sprašuje info/product
     is_interrupt = False
-    if has_active_booking and intent == "BOOKING_CONTINUE":
-        pass
-    elif has_active_booking and (info_key or product_key):
+    if has_active_booking and (info_key or product_key):
         is_interrupt = True
         intent = "INFO" if info_key else "PRODUCT"
+    elif has_active_booking and intent == "BOOKING_CONTINUE":
+        pass
     elif info_key or product_key:
         intent = "INFO" if info_key else "PRODUCT"
 
