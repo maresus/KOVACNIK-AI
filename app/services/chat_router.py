@@ -298,6 +298,30 @@ def get_info_response(key: str) -> str:
         return random.choice(INFO_RESPONSES_VARIANTS[key])
     return INFO_RESPONSES.get(key, "Kako vam lahko pomagam?")
 
+# Mini RAG fallback za neznane info/product
+def get_mini_rag_answer(question: str) -> Optional[str]:
+    chunks = search_knowledge(question, top_k=1)
+    if not chunks:
+        return None
+    chunk = chunks[0]
+    snippet = chunk.paragraph.strip()
+    if len(snippet) > 500:
+        snippet = snippet[:500].rsplit(". ", 1)[0] + "."
+    url_line = f"\n\nVeč: {chunk.url}" if chunk.url else ""
+    return f"{snippet}{url_line}"
+
+UNKNOWN_RESPONSES = [
+    "Tega odgovora nimam pri roki. Pišite na info@kovacnik.com in vam pomagamo.",
+    "Nisem prepričana o tem podatku. Prosím, napišite na info@kovacnik.com in bomo preverili.",
+    "Trenutno nimam točne informacije. Pošljite nam email na info@kovacnik.com.",
+    "Žal nimam odgovora. Najbolje, da nam pišete na info@kovacnik.com.",
+    "Tole moram preveriti. Pišite na info@kovacnik.com in vam odgovorimo.",
+    "Nimam tega zapisanega. Lahko prosim pošljete vprašanje na info@kovacnik.com?",
+    "Za to nimam podatka. Kontaktirajte nas na info@kovacnik.com in bomo pogledali.",
+    "Hvala za vprašanje, nimam pa odgovora pri roki. Pišite na info@kovacnik.com.",
+    "To vprašanje je specifično, prosim napišite na info@kovacnik.com in skupaj najdemo odgovor.",
+    "Tu mi manjka podatek. Email: info@kovacnik.com — z veseljem preverimo.",
+]
 # Fiksni zaključek rezervacije
 RESERVATION_PENDING_MESSAGE = """
 ✅ **Vaše povpraševanje je PREJETO** in čaka na potrditev.
@@ -3653,6 +3677,11 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         )
         if reply_v2:
             return finalize(reply_v2, decision.get("routing", {}).get("intent", "v2"), followup_flag=False)
+        # Če nič ne ujame, priznaj neznano in ponudi email
+        if state.get("step") is None:
+            reply = random.choice(UNKNOWN_RESPONSES)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "info_unknown", followup_flag=False)
     # Info ali produkt med aktivno rezervacijo: odgovor + nadaljevanje
     info_during = handle_info_during_booking(payload.message, state)
     if info_during:
@@ -3681,7 +3710,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
 
     # Guard: info-only vprašanja naj ne sprožijo rezervacije
     if state["step"] is None and is_info_only_question(payload.message):
-        reply = "Tega odgovora nimam pri roki. Pišite na info@kovacnik.com in bomo skupaj našli pot do prave informacije."
+        reply = random.choice(UNKNOWN_RESPONSES)
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "info_only", followup_flag=False)
 
