@@ -277,6 +277,45 @@
       <div class="stat"><div class="label">🍽️ Mize</div><div class="value" id="stat-table">0</div></div>
     </div>
 
+    <div class="filters">
+      <div class="filter-row">
+        <select id="filter-status">
+          <option value="">Vsi statusi</option>
+          <option value="pending">Čaka</option>
+          <option value="processing">V obdelavi</option>
+          <option value="confirmed">Potrjeno</option>
+          <option value="rejected">Zavrnjeno</option>
+        </select>
+        <select id="filter-type">
+          <option value="">Vsi tipi</option>
+          <option value="room">Sobe</option>
+          <option value="table">Mize</option>
+        </select>
+        <select id="filter-source">
+          <option value="">Vsi viri</option>
+          <option value="chat">Chatbot</option>
+          <option value="wordpress_room">WP Sobe</option>
+          <option value="wordpress_table">WP Mize</option>
+        </select>
+        <input type="date" id="filter-date-from" />
+        <input type="date" id="filter-date-to" />
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="loadAll()">Filtriraj</button>
+        <button class="btn secondary" onclick="resetFilters()">Ponastavi</button>
+        <div class="inline-actions" style="gap:6px;">
+          <span style="color:#7a7a7a;">Hitra obdobja:</span>
+          <button class="btn secondary" type="button" onclick="setRangeDays(14)">14 dni</button>
+          <button class="btn secondary" type="button" onclick="setRangeDays(30)">30 dni</button>
+          <button class="btn secondary" type="button" onclick="setRangeDays(90)">90 dni</button>
+        </div>
+        <label style="display:inline-flex; align-items:center; gap:6px; color:#7a7a7a;">
+          <input type="checkbox" id="auto-refresh-toggle" onclick="toggleAutoRefresh(this.checked)" />
+          Auto osveži (30s)
+        </label>
+      </div>
+  </div>
+
   <div class="month-picker">
     <label for="month-select">Mesec:</label>
     <select id="month-select" onchange="selectMonth(this.value)">
@@ -297,13 +336,6 @@
     <input id="year-input" type="number" style="width:100px;" value="">
     <button class="btn secondary" onclick="applyMonthYear()">Nastavi</button>
   </div>
-
-  <div class="inline-actions">
-    <button class="btn" onclick="openNewRoom()">+ Nova rezervacija sobe</button>
-    <button class="btn secondary" onclick="openNewTable()">+ Nova rezervacija mize</button>
-  </div>
-
-  <div id="pending-container" class="card" style="margin-top:12px;"></div>
 
   <div id="room-calendar-block" class="card" style="margin-top: 20px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -348,6 +380,13 @@
     </div>
   </div>
 
+  <div class="inline-actions">
+    <button class="btn" onclick="openNewRoom()">+ Nova rezervacija sobe</button>
+    <button class="btn secondary" onclick="openNewTable()">+ Nova rezervacija mize</button>
+  </div>
+
+  <div id="reservations-container"></div>
+
   <div id="day-sidebar" class="card" style="margin-top: 12px; display: none;">
     <h4 id="sidebar-date">Izberi dan</h4>
     <div id="sidebar-content"></div>
@@ -358,86 +397,7 @@
     <div id="table-sidebar-content"></div>
   </div>
 
-  <div class="card" style="margin-top:16px;">
-    <h3>Vse rezervacije</h3>
-    <div class="filters">
-      <div class="filter-row">
-        <select id="filter-status">
-          <option value="">Vsi statusi</option>
-          <option value="pending">Čaka</option>
-          <option value="processing">V obdelavi</option>
-          <option value="confirmed">Potrjeno</option>
-          <option value="rejected">Zavrnjeno</option>
-        </select>
-        <select id="filter-type">
-          <option value="">Vsi tipi</option>
-          <option value="room">Sobe</option>
-          <option value="table">Mize</option>
-        </select>
-        <select id="filter-source">
-          <option value="">Vsi viri</option>
-          <option value="chat">Chatbot</option>
-          <option value="wordpress_room">WP Sobe</option>
-          <option value="wordpress_table">WP Mize</option>
-        </select>
-        <input type="date" id="filter-date-from" />
-        <input type="date" id="filter-date-to" />
-      </div>
-      <div class="actions">
-        <button class="btn" onclick="loadAll()">Filtriraj</button>
-        <button class="btn secondary" onclick="resetFilters()">Ponastavi</button>
-        <div class="inline-actions" style="gap:6px;">
-          <span style="color:#7a7a7a;">Hitra obdobja:</span>
-          <button class="btn secondary" type="button" onclick="setRangeDays(14)">14 dni</button>
-          <button class="btn secondary" type="button" onclick="setRangeDays(30)">30 dni</button>
-          <button class="btn secondary" type="button" onclick="setRangeDays(90)">90 dni</button>
-        </div>
-        <label style="display:inline-flex; align-items:center; gap:6px; color:#7a7a7a;">
-          <input type="checkbox" id="auto-refresh-toggle" onclick="toggleAutoRefresh(this.checked)" />
-          Auto osveži (30s)
-        </label>
-      </div>
-    </div>
-    <div id="reservations-container"></div>
-  </div>
-
   <div class="toast-container" id="toast-container"></div>
-
-  <!-- Email modal -->
-  <div class="modal" id="email-modal">
-    <div class="modal-body">
-      <div class="modal-title">✉ Pošlji sporočilo <span id="email-modal-name"></span></div>
-      <form id="email-form">
-        <input type="hidden" id="email-res-id">
-        <div class="form-group">
-          <label>Prejemnik</label>
-          <input type="email" id="email-recipient" readonly>
-        </div>
-        <div class="form-group">
-          <label>Zadeva</label>
-          <input type="text" id="email-subject" value="Povpraševanje - Domačija Kovačnik">
-        </div>
-        <div class="form-group">
-          <label>Predloga</label>
-          <select id="email-template">
-            <option value="">-- Izberi predlogo --</option>
-            <option value="info">Prosimo za dodatne informacije</option>
-            <option value="date">Potrditev datuma</option>
-            <option value="full">Žal zasedeno - alternativni termin</option>
-            <option value="custom">Po meri</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Sporočilo</label>
-          <textarea id="email-body" placeholder="Vpišite vaše sporočilo..."></textarea>
-        </div>
-        <div class="modal-actions">
-      <button type="button" class="btn secondary" onclick="closeEmailModal()">Prekliči</button>
-      <button type="submit" class="btn">Pošlji</button>
-    </div>
-  </form>
-    </div>
-  </div>
 
   <!-- Modal soba -->
   <div class="modal" id="edit-room-modal">
@@ -861,7 +821,22 @@
         const res = await fetch(`${API_BASE}/reservations?${query}`);
         const data = await res.json();
         lastReservations = data.reservations || [];
-        renderPending(lastReservations);
+        // če imamo rezervacije, prestavimo koledar na mesec prve rezervacije
+        if (lastReservations.length) {
+          const first = lastReservations[0];
+          const d = parseDDMMYYYY(first.date);
+          if (d) {
+            calendarYear = d.getFullYear();
+            calendarMonth = d.getMonth();
+            qs('month-select').value = calendarMonth.toString();
+            qs('year-input').value = calendarYear.toString();
+            if (currentTab === 'room') {
+              renderCalendar();
+            } else {
+              renderTableCalendar();
+            }
+          }
+        }
         renderReservations(lastReservations);
       } catch (e) {
         console.error('Load reservations error', e);
@@ -879,41 +854,11 @@
       }
     }
 
-    function renderPending(resList) {
-      const container = qs('pending-container');
-      if (!container) return;
-      const pending = (resList || []).filter(r => r.status === 'pending');
-      let html = `<h3 style="margin-bottom:8px;">Čakajoče rezervacije</h3>`;
-      if (!pending.length) {
-        container.innerHTML = html + `<div style="padding:10px; border:1px solid #f1e4c7; background:#fffaf0; border-radius:10px;">Ni čakajočih rezervacij ✓</div>`;
-        return;
-      }
-      html += `<div class="date-reservations" style="border:1px solid #f1e4c7; background:#fffaf0; border-radius:10px;">`;
-      html += pending.map(r => {
-        const dataStr = encodeURIComponent(JSON.stringify(r));
-        return `
-          <div class="reservation-row" style="grid-template-columns: 120px 150px 120px 100px 1fr 160px;">
-            <span class="res-date">${r.date || '-'}</span>
-            <span class="res-guest">${r.name || 'Gost'}</span>
-            <span class="res-room">${r.reservation_type === 'table' ? 'Miza' : 'Soba'}</span>
-            <span class="res-people">${r.people || '-'} oseb</span>
-            <span class="res-room">${r.location || '-'}</span>
-            <span class="res-actions">
-              <button class="btn-inline success" onclick="openConfirm('${dataStr}')">✅ Potrdi</button>
-              <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
-              <button class="btn-inline" onclick="openEmailModal('${dataStr}')">✉</button>
-            </span>
-          </div>
-        `;
-      }).join('');
-      html += `</div>`;
-      container.innerHTML = html;
-    }
-
     function renderReservations(list) {
       const container = qs('reservations-container');
       if (!container) return;
       const monthNames = ['Januar', 'Februar', 'Marec', 'April', 'Maj', 'Junij', 'Julij', 'Avgust', 'September', 'Oktober', 'November', 'December'];
+      const title = `${monthNames[calendarMonth]} ${calendarYear}`;
 
       const expanded = expandReservations(list);
       const pendingList = expanded.filter(r => r.isMainDay && (r.status === 'pending' || r.status === 'processing'));
@@ -943,7 +888,23 @@
         byDate[date].push(r);
       });
 
+      const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
       let html = '';
+
+      // pending blok
+      html += `<div class="date-group" style="border-color:#f3c7c2;">
+        <div class="date-header" onclick="toggleGroup('pending-block')">
+          <span>⚠️</span>
+          <span>Čakajoče / v obdelavi</span>
+          <span class="date-count">(${pendingList.length})</span>
+          <span class="date-toggle" id="toggle-pending-block">▼</span>
+        </div>
+        <div class="date-reservations" id="group-pending-block">
+          ${pendingList.length ? pendingList.map(r => renderReservationRow(r, true)).join('') : '<div style="padding:8px 4px;color:#7a7a7a;">Ni čakajočih.</div>'}
+        </div>
+      </div>`;
+
+      html += `<h3 style="margin:12px 0 8px;">${title}</h3>`;
 
       const datesWithReservations = Object.keys(byDate).sort((a, b) => {
         const da = parseDDMMYYYY(a);
@@ -952,31 +913,11 @@
         return da - db;
       });
 
-      const monthKeys = Array.from(new Set(datesWithReservations.map(d => {
-        const dd = parseDDMMYYYY(d);
-        return dd ? `${dd.getFullYear()}-${dd.getMonth()}` : 'unknown';
-      })));
-      const title = monthKeys.length === 1 && datesWithReservations.length
-        ? (() => {
-            const dd = parseDDMMYYYY(datesWithReservations[0]);
-            return `${monthNames[dd.getMonth()]} ${dd.getFullYear()}`;
-          })()
-        : 'Rezervacije (filtrirano)';
-
-      html += `<h3 style="margin:12px 0 8px;">${title}</h3>`;
-
-      let lastMonthKey = null;
       datesWithReservations.forEach(dateStr => {
         const dateKey = dateStr.replace(/\./g, '-');
         const items = byDate[dateStr] || [];
         const isNear = isDateWithin14Days(dateStr);
         const sortedItems = [...items].sort((a,b) => (b.isMainDay === true ? 1 : 0) - (a.isMainDay === true ? 1 : 0));
-        const d = parseDDMMYYYY(dateStr);
-        const monthKey = d ? `${d.getFullYear()}-${d.getMonth()}` : 'unknown';
-        if (monthKey !== lastMonthKey && monthKeys.length > 1) {
-          html += `<h4 style="margin:10px 0 6px; color:#4b3a28;">${d ? monthNames[d.getMonth()] + ' ' + d.getFullYear() : 'Brez datuma'}</h4>`;
-          lastMonthKey = monthKey;
-        }
         html += `
           <div class="date-group">
             <div class="date-header" onclick="toggleGroup('${dateKey}')">
@@ -1109,7 +1050,6 @@
               <button class="btn-inline success" onclick="openConfirm('${encodeURIComponent(JSON.stringify(r))}')">✅</button>
               <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
               <button class="btn-inline" onclick="openEdit('${encodeURIComponent(JSON.stringify(r))}')">✏️</button>
-              <button class="btn-inline" onclick="openEmailModal('${encodeURIComponent(JSON.stringify(r))}')">✉</button>
             </span>
           </div>
         `;
@@ -1197,60 +1137,6 @@
       qs('new-table-email').value = '';
       qs('new-table-phone').value = '';
       qs('new-table-special-needs').value = '';
-    }
-
-    // Email modal
-    function openEmailModal(dataStr) {
-      const r = typeof dataStr === 'string' ? JSON.parse(decodeURIComponent(dataStr)) : dataStr;
-      qs('email-modal-name').textContent = r?.name ? `(${r.name})` : '';
-      qs('email-res-id').value = r?.id || '';
-      qs('email-recipient').value = r?.email || '';
-      qs('email-subject').value = "Povpraševanje - Domačija Kovačnik";
-      qs('email-body').value = '';
-      qs('email-template').value = '';
-      qs('email-modal').classList.add('active');
-    }
-    function closeEmailModal() { qs('email-modal').classList.remove('active'); }
-    const emailTpl = qs('email-template');
-    if (emailTpl) {
-      emailTpl.addEventListener('change', (e) => {
-        const tpl = e.target.value;
-        const body = qs('email-body');
-        if (!body) return;
-        if (tpl === 'info') body.value = 'Prosimo vas za dodatne informacije (termin, število oseb, posebnosti), da lahko pripravimo ponudbo.';
-        else if (tpl === 'date') body.value = 'Prosimo potrdite datum/uro, da dokončno potrdimo rezervacijo.';
-        else if (tpl === 'full') body.value = 'Izbrani termin je zaseden. Lahko ponudimo alternativni termin?';
-        else body.value = '';
-      });
-    }
-    const emailForm = qs('email-form');
-    if (emailForm) {
-      emailForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const payload = {
-          reservation_id: qs('email-res-id').value,
-          email: qs('email-recipient').value,
-          subject: qs('email-subject').value,
-          body: qs('email-body').value,
-          set_processing: false,
-        };
-        try {
-          const res = await fetch(`${API_BASE}/send-message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            toast(data.detail || 'Napaka pri pošiljanju emaila.', 'error');
-            return;
-          }
-          toast('Email poslan ✓', 'success');
-          closeEmailModal();
-        } catch (err) {
-          toast('Napaka pri pošiljanju emaila.', 'error');
-        }
-      });
     }
 
     function openNewRoom() {

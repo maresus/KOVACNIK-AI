@@ -4,6 +4,9 @@ Ne izvaja FSM; samo ugotavlja intent in osnovne entitete.
 """
 from __future__ import annotations
 
+import json
+import logging
+from logging.handlers import RotatingFileHandler
 import re
 from typing import Any, Dict, Optional
 
@@ -150,7 +153,18 @@ def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
     has_table = any(tok in text for tok in table_tokens)
 
     if has_booking and has_room:
-        return "BOOKING_ROOM"
+    return "BOOKING_ROOM"
+
+
+# --- Logging setup ---
+_router_logger = logging.getLogger("router_v2")
+if not _router_logger.handlers:
+    _router_logger.setLevel(logging.INFO)
+    handler = RotatingFileHandler("data/router_debug.log", maxBytes=1_000_000, backupCount=3)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    _router_logger.addHandler(handler)
+
+_metrics = {"info_hits": 0, "booking_starts": 0}
     if has_booking and has_table:
         return "BOOKING_TABLE"
     if has_room and any(tok in text for tok in ["nocit", "noč", "night"]):
@@ -201,9 +215,20 @@ def route_message(
     elif "ana" in text:
         entities["room_name"] = "ANA"
 
+    # Če smo v koraku za telefon in dobimo številko, prisilimo nadaljevanje bookinga
+    if booking_step == "awaiting_phone":
+        digits_only = re.sub(r"\D+", "", message)
+        if len(digits_only) >= 7:
+            intent = "BOOKING_CONTINUE"
     confidence = 0.9 if intent in {"INFO", "PRODUCT", "BOOKING_ROOM", "BOOKING_TABLE"} else 0.6
 
-    return {
+    # metrika
+    if intent == "INFO":
+        _metrics["info_hits"] += 1
+    if intent in {"BOOKING_ROOM", "BOOKING_TABLE"}:
+        _metrics["booking_starts"] += 1
+
+    record = {
         "routing": {
             "intent": intent,
             "confidence": confidence,
@@ -215,4 +240,29 @@ def route_message(
             "needs_soft_sell": needs_soft_sell,
         },
         "entities": entities,
+        "meta": {
+            "has_active_booking": has_active_booking,
+            "booking_step": booking_step,
+        },
     }
+
+    try:
+        _router_logger.info(
+            json.dumps(
+                {
+                    "intent": intent,
+                    "confidence": confidence,
+                    "info_key": info_key,
+                    "product_key": product_key,
+                    "is_interrupt": is_interrupt,
+                    "booking_step": booking_step,
+                    "message": message[:200],
+                    "metrics": _metrics.copy(),
+                },
+                ensure_ascii=False,
+            )
+        )
+    except Exception:
+        pass
+
+    return record

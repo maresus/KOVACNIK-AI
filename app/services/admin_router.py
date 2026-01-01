@@ -20,6 +20,17 @@ service = ReservationService()
 ROOM_IDS = {r["id"] for r in ROOMS}
 
 
+def _log(event: str, **kwargs) -> None:
+    """Preprost log za admin API klice."""
+    try:
+        ts = datetime.now().isoformat(timespec="seconds")
+        extras = " ".join([f"{k}={v}" for k, v in kwargs.items() if v is not None])
+        print(f"[ADMIN API] {ts} {event} {extras}")
+    except Exception:
+        # Logging nesme prekiniti requesta
+        pass
+
+
 def _normalize_room_id(room: Optional[str]) -> Optional[str]:
     if not room:
         return None
@@ -145,9 +156,13 @@ def get_reservations(
     date_to: Optional[str] = None,
 ):
     """Vrne seznam rezervacij s filtri ter osnovno statistiko."""
+    _log("reservations", limit=limit, status=status, type=type, source=source, date_from=date_from, date_to=date_to)
     reservations = service.read_reservations(limit=limit, status=status, reservation_type=type, source=source)
 
     def _parse_date(date_str: str) -> Optional[datetime]:
+        if not date_str:
+            return None
+        date_str = date_str.replace(" ", "")
         for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y"):
             try:
                 return datetime.strptime(date_str, fmt)
@@ -160,15 +175,21 @@ def get_reservations(
         end = _parse_date(date_to) if date_to else None
         filtered = []
         for r in reservations:
-            d = _parse_date(r.get("date", ""))
-            if not d:
+            days = _reservation_days(r.get("date", ""), r.get("nights"))
+            if not days:
+                # če ni datuma, ga obdržimo (ne izločimo)
                 filtered.append(r)
                 continue
-            if start and d < start:
-                continue
-            if end and d > end:
-                continue
-            filtered.append(r)
+            overlaps = False
+            for d in days:
+                if start and d < start:
+                    continue
+                if end and d > end:
+                    continue
+                overlaps = True
+                break
+            if overlaps:
+                filtered.append(r)
         reservations = filtered
 
     all_res = service.read_reservations(limit=1000)
@@ -287,6 +308,7 @@ def send_message(data: SendMessageRequest):
 @router.get("/api/admin/stats")
 def get_stats():
     """Agregirani podatki za dashboard."""
+    _log("stats")
     today_prefix = datetime.now().strftime("%Y-%m-%d")
     week_ago = datetime.now() - timedelta(days=7)
     month_ago = datetime.now().replace(day=1)
@@ -378,7 +400,7 @@ def calendar_rooms(month: int, year: int):
     """Vrne zasedenost sob po dnevih z ločenimi pending/confirmed."""
     if month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Neveljaven mesec")
-    days: dict[str, dict[str, list[str]]] = {}
+    days: dict[str, dict[str, Any]] = {}
     reservations = service.read_reservations(limit=1000, reservation_type="room")
     for r in reservations:
         status = r.get("status")
@@ -392,9 +414,23 @@ def calendar_rooms(month: int, year: int):
                 continue
             key = day.strftime("%Y-%m-%d")
             bucket = "confirmed" if status == "confirmed" else "pending"
-            entry = days.setdefault(key, {"confirmed": [], "pending": []})
+            entry = days.setdefault(key, {"confirmed": [], "pending": [], "reservations": []})
             if room_id not in entry[bucket]:
                 entry[bucket].append(room_id)
+            entry["reservations"].append(
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    "people": r.get("people"),
+                    "kids": r.get("kids"),
+                    "location": room_id,
+                    "email": r.get("email"),
+                    "phone": r.get("phone"),
+                    "status": status,
+                    "date": r.get("date"),
+                    "nights": r.get("nights"),
+                }
+            )
     return {"days": days}
 
 
@@ -418,7 +454,9 @@ def calendar_tables(month: int, year: int):
             people = int(r.get("people") or 0)
         except Exception:
             people = 0
-        entry = calendar.setdefault(iso, {"total_people": 0, "capacity": TOTAL_TABLE_CAPACITY, "reservations": []})
+        entry = calendar.setdefault(
+            iso, {"total_people": 0, "capacity": TOTAL_TABLE_CAPACITY, "reservations": []}
+        )
         entry["total_people"] += people
         entry["reservations"].append(
             {
@@ -427,6 +465,9 @@ def calendar_tables(month: int, year: int):
                 "name": r.get("name"),
                 "status": status,
                 "location": r.get("location"),
+                "email": r.get("email"),
+                "phone": r.get("phone"),
+                "date": r.get("date"),
             }
         )
     return calendar

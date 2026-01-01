@@ -647,7 +647,6 @@ EXIT_KEYWORDS = {
     "cancel",
     "quit",
     "exit",
-    "vseeno",
     "pusti",
 }
 
@@ -2221,7 +2220,6 @@ def detect_reset_request(message: str) -> bool:
         "cancel",
         "quit",
         "exit",
-        "vseeno",
         "pusti",
     ]
     return any(word in lowered for word in reset_words + exit_words)
@@ -3131,10 +3129,13 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
 
         input_norm = normalize(message)
         selected = []
+        any_keywords = {"vseeno", "katerakoli", "katerakol", "karkoli", "any"}
         for opt in options:
             opt_norm = normalize(opt)
             if opt_norm in input_norm or input_norm == opt_norm:
                 selected.append(opt)
+        if input_norm.strip() in any_keywords and not selected:
+            selected = options[:]
         if not selected:
             return "Prosim izberite med: " + ", ".join(options)
         needed = reservation_state.get("rooms") or 1
