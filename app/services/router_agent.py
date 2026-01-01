@@ -153,7 +153,14 @@ def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
     has_table = any(tok in text for tok in table_tokens)
 
     if has_booking and has_room:
-    return "BOOKING_ROOM"
+        return "BOOKING_ROOM"
+    if has_booking and has_table:
+        return "BOOKING_TABLE"
+    if has_room and any(tok in text for tok in ["nocit", "noč", "night"]):
+        return "BOOKING_ROOM"
+    if has_table and any(tok in text for tok in ["oseb", "ob ", ":00"]):
+        return "BOOKING_TABLE"
+    return "GENERAL"
 
 
 # --- Logging setup ---
@@ -165,13 +172,6 @@ if not _router_logger.handlers:
     _router_logger.addHandler(handler)
 
 _metrics = {"info_hits": 0, "booking_starts": 0}
-    if has_booking and has_table:
-        return "BOOKING_TABLE"
-    if has_room and any(tok in text for tok in ["nocit", "noč", "night"]):
-        return "BOOKING_ROOM"
-    if has_table and any(tok in text for tok in ["oseb", "ob ", ":00"]):
-        return "BOOKING_TABLE"
-    return "GENERAL"
 
 
 def route_message(

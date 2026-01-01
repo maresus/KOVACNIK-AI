@@ -5,16 +5,24 @@
   <title>Kovačnik AI – Playground</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap');
     :root {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f3f4f6;
-      color: #111827;
+      --bg: #f6f0e9;
+      --text: #2f302b;
+      --cream: #fffaf3;
+      --green: #2d3e2f;
+      --accent: #c19a6b;
+      --line: #e4dfd7;
+      --shadow: 0 12px 35px rgba(0,0,0,0.08);
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
 
     body {
       margin: 0;
       padding: 0;
-      background: #e5e7eb;
+      background: var(--bg);
     }
 
     .app {
@@ -24,13 +32,15 @@
     }
 
     .card {
-      background: #ffffff;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+      background: var(--cream);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
       padding: 20px;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      border: 1px solid var(--line);
+      backdrop-filter: blur(6px);
     }
 
     .header {
@@ -39,62 +49,81 @@
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
+      background: rgba(255,255,255,0.6);
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: url('https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=200&q=60') center/cover no-repeat;
+      border: 2px solid #fff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
 
     .title {
-      font-size: 1.3rem;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
       font-weight: 700;
+      color: var(--green);
     }
 
     .subtitle {
-      font-size: 0.9rem;
-      color: #6b7280;
+      font-size: 0.95rem;
+      color: #6b5f4e;
     }
 
     .badge {
-      font-size: 0.75rem;
-      padding: 4px 10px;
+      font-size: 0.8rem;
+      padding: 6px 12px;
       border-radius: 999px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
+      background: #e5f3ea;
+      color: var(--green);
+      border: 1px solid #c9e2d1;
       white-space: nowrap;
     }
 
     .messages {
-      border-radius: 14px;
-      background: #f9fafb;
-      padding: 12px;
+      border-radius: 18px;
+      background: #fff;
+      padding: 14px;
       max-height: 420px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      border: 1px solid #e5e7eb;
+      gap: 10px;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
     }
 
     .msg {
       max-width: 80%;
-      border-radius: 12px;
-      padding: 8px 11px;
-      font-size: 0.9rem;
-      line-height: 1.4;
+      border-radius: 20px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      line-height: 1.5;
       white-space: pre-wrap;
       word-wrap: break-word;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      border: 1px solid #f1ebe2;
     }
 
     .msg.user {
       margin-left: auto;
-      background: #dbeafe;
-      color: #111827;
-      border-bottom-right-radius: 4px;
+      background: #eaf2e9;
+      color: var(--text);
+      border-bottom-right-radius: 6px;
     }
 
     .msg.bot {
       margin-right: auto;
-      background: #111827;
-      color: #f9fafb;
-      border-bottom-left-radius: 4px;
+      background: #fdf6ec;
+      color: var(--text);
+      border-bottom-left-radius: 6px;
     }
 
     .msg.meta {
@@ -103,6 +132,8 @@
       color: #9ca3af;
       font-size: 0.75rem;
       padding: 0;
+      box-shadow: none;
+      border: none;
     }
 
     .input-row {
@@ -120,36 +151,38 @@
 
     textarea {
       flex: 1;
-      min-height: 60px;
-      max-height: 160px;
+      min-height: 70px;
+      max-height: 200px;
       resize: vertical;
-      border-radius: 12px;
-      border: 1px solid #d1d5db;
-      padding: 8px 10px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
       font-family: inherit;
       font-size: 0.95rem;
       outline: none;
       box-sizing: border-box;
+      background: #fff;
     }
 
     textarea:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 1px #2563eb20;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px #c19a6b40;
     }
 
     button {
-      border-radius: 999px;
-      border: none;
-      padding: 9px 18px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 10px 18px;
       font-size: 0.95rem;
       font-weight: 600;
       cursor: pointer;
-      background: #2563eb;
+      background: var(--green);
       color: #ffffff;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       white-space: nowrap;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
     }
 
     button:disabled {
@@ -162,7 +195,7 @@
       flex-wrap: wrap;
       gap: 6px;
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #6b5f4e;
       justify-content: space-between;
       align-items: center;
     }
@@ -174,22 +207,24 @@
     }
 
     .chip {
-      padding: 4px 10px;
+      padding: 6px 12px;
       border-radius: 999px;
-      background: #e5e7eb;
-      font-size: 0.75rem;
+      background: #fff;
+      font-size: 0.8rem;
       cursor: pointer;
-      border: 1px solid transparent;
+      border: 1px solid var(--line);
+      transition: all 0.15s ease;
     }
 
     .chip:hover {
-      border-color: #9ca3af;
-      background: #f3f4f6;
+      border-color: var(--accent);
+      background: #fff5e6;
+      color: var(--text);
     }
 
     .status {
-      font-size: 0.75rem;
-      color: #9ca3af;
+      font-size: 0.8rem;
+      color: #6b5f4e;
       text-align: right;
     }
 
@@ -212,20 +247,25 @@
   <div class="app">
     <div class="card">
       <div class="header">
-        <div>
-          <div class="title">Kovačnik AI – Testni chat</div>
-          <div class="subtitle">
-            Tukaj testiraš vse: vprašanja o hrani, sobah, izletih, trgovini in rezervacijah.
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="avatar"></div>
+          <div>
+            <div class="title">Domačija Kovačnik</div>
+            <div class="subtitle">
+              Pozdravljeni pri Kovačniku. Lahko nas kadarkoli, karkoli vprašate. 💚
+            </div>
           </div>
         </div>
-        <div class="badge">DEV playground</div>
+        <div class="badge">Barbara · prisotna</div>
       </div>
 
       <div id="messages" class="messages">
         <div class="msg bot">
-          Pozdravljen! Tukaj lahko testiraš Kovačnik AI asistenta. 😊
+          Pozdravljeni pri Domačiji Kovačnik! 😊
           <br /><br />
-          Poskusi kaj izmed tega:
+          Lahko pomagam z vprašanji o sobah, mizi za kosilo, izletih ali naših domačih izdelkih.
+          <br /><br />
+          Poskusite:
           <br />• "Kaj ponujate za vikend kosila?"
           <br />• "Koliko nočitev najmanj moram rezervirati julija?"
           <br />• "Imate suho salamo ali pohorsko bunko?"
@@ -249,6 +289,7 @@
             <span class="chip" data-prompt="Koliko nočitev najmanj moram rezervirati julija?">Min. nočitve</span>
             <span class="chip" data-prompt="Imate kakšno suho salamo ali pohorsko bunko?">Trgovina</span>
             <span class="chip" data-prompt="Rad bi rezerviral sobo za vikend.">Rezervacija sobe</span>
+            <span class="chip" data-prompt="Bi lahko rezerviral mizo to nedeljo ob 13:00?">Rezervacija mize</span>
           </div>
           <div class="status" id="status">
             Enter = pošlji, Shift+Enter = nova vrstica
@@ -265,12 +306,27 @@
     const sendBtn = document.getElementById("sendBtn");
     const statusEl = document.getElementById("status");
 
+    const ONE_HOUR = 3600 * 1000;
+
+    function checkChatTimeout() {
+      const lastActivity = localStorage.getItem("last_chat_activity");
+      const now = Date.now();
+      if (lastActivity && now - Number(lastActivity) > ONE_HOUR) {
+        localStorage.removeItem("chat_history");
+        localStorage.removeItem("session_id");
+        localStorage.removeItem("last_chat_activity");
+        window.location.reload();
+      }
+    }
+    checkChatTimeout();
+
     function addMessage(text, who = "bot") {
       const div = document.createElement("div");
       div.className = "msg " + who;
       div.textContent = text;
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      localStorage.setItem("last_chat_activity", Date.now().toString());
     }
 
     async function sendMessage() {
@@ -300,6 +356,7 @@
           const data = await res.json();
           addMessage(data.reply ?? "[Prazen odgovor]", "bot");
           statusEl.textContent = "OK – odgovor prejet.";
+          localStorage.setItem("last_chat_activity", Date.now().toString());
         }
       } catch (err) {
         console.error(err);
