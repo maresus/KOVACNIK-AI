@@ -152,13 +152,14 @@ def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
     has_room = any(tok in text for tok in room_tokens)
     has_table = any(tok in text for tok in table_tokens)
 
+    # Za sprožitev bookinga zahtevamo namig na rezervacijo (booking_tokens)
     if has_booking and has_room:
         return "BOOKING_ROOM"
     if has_booking and has_table:
         return "BOOKING_TABLE"
-    if has_room and any(tok in text for tok in ["nocit", "noč", "night"]):
+    if has_room and has_booking:
         return "BOOKING_ROOM"
-    if has_table and any(tok in text for tok in ["oseb", "ob ", ":00"]):
+    if has_table and has_booking:
         return "BOOKING_TABLE"
     return "GENERAL"
 
