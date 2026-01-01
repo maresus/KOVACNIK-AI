@@ -18,8 +18,218 @@ from app.rag.knowledge_base import (
     search_knowledge,
 )
 from app.rag.chroma_service import answer_tourist_question, is_tourist_query
+from app.services.router_agent import route_message
+from app.services.executor_v2 import execute_decision
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+USE_ROUTER_V2 = False
+
+# ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
+INFO_RESPONSES = {
+    "odpiralni_cas": """Odprti smo ob **sobotah in nedeljah med 12:00 in 20:00**.
+
+Zadnji prihod na kosilo je ob **15:00**.
+Ob ponedeljkih in torkih smo zaprti.
+
+Za skupine (15+ oseb) pripravljamo tudi med tednom od srede do petka – pokličite nas! 📞""",
+    "zajtrk": """Zajtrk servíramo med **8:00 in 9:00** in je **vključen v ceno nočitve**.
+
+Kaj vas čaka? 🥐
+- Sveže pomolzeno mleko
+- Zeliščni čaj babice Angelce
+- Kruh iz krušne peči
+- Pohorska bunka, salama, pašteta
+- Domača marmelada in med od čebelarja Pislak
+- Skuta, maslo, sir iz kravjega mleka
+- Jajca z domače reje
+- Kislo mleko, jogurt z malinami po receptu gospodinje Barbare
+
+Vse domače, vse sveže! ☕""",
+    "vecerja": """Večerja se streže ob **18:00** in stane **25 €/osebo**.
+
+Kaj dobite?
+- **Juha** – česnova, bučna, gobova, goveja, čemaževa ali topinambur
+- **Glavna jed** – meso s prilogami (skutni štruklji, narastki, krompir)
+- **Sladica** – specialiteta hiše: pohorska gibanica babice Angelce
+
+Prilagodimo za vegetarijance, vegane in celiakijo! 🌿
+
+⚠️ **Ob ponedeljkih in torkih večerje ne strežemo** – takrat priporočamo bližnji gostilni Framski hram ali Karla.""",
+    "sobe": """Imamo **3 sobe**, vse poimenovane po naših otrocih:
+
+🛏️ **ALJAŽ** – soba z balkonom (2+2)
+🛏️ **JULIJA** – družinska soba z balkonom (2 odrasla + 2 otroka)  
+🛏️ **ANA** – družinska soba z dvema spalnicama (2+2)
+
+Vsaka soba ima:
+✅ Predprostor, spalnico, kopalnico s tušem
+✅ Pohištvo iz lastnega lesa
+✅ Klimatizacijo
+✅ Brezplačen Wi-Fi
+✅ Satelitsko TV
+✅ Igrače za otroke
+
+Zajtrk je vključen v ceno! 🥐""",
+    "cena_sobe": """**Cenik nastanitve:**
+
+🛏️ **Nočitev z zajtrkom:** 50 €/osebo/noč (min. 2 noči)
+🍽️ **Večerja:** 25 €/osebo
+🏷️ **Turistična taksa:** 1,50 €
+
+**Popusti:**
+- Otroci do 5 let: **brezplačno** (z zajtrkom in večerjo)
+- Otroci 5-12 let: **50% popust**
+- Otroška posteljica: **brezplačno**
+- Doplačilo za enoposteljno: **+30%**
+
+⚠️ Plačilo samo z gotovino.
+⚠️ Hišnih ljubljenčkov ne sprejemamo.""",
+    "klima": """Da, **vse sobe imajo klimatizacijo**! ❄️
+
+Ampak zvečer, ko se ohladi, priporočam odprta okna – svež pohorski zrak je nekaj posebnega! 🌙""",
+    "wifi": """Da, **Wi-Fi je brezplačen** v vseh sobah in skupnih prostorih! 📶
+
+Čeprav... mogoče je to priložnost, da telefon za nekaj ur odložite? 😊🌿""",
+    "prijava_odjava": """🔑 **Prijava (check-in):** od 14:00
+🔑 **Odjava (check-out):** do 10:00
+
+🍽️ **Zajtrk:** 8:00 – 9:00
+🍷 **Večerja:** 18:00
+
+⚠️ Ob ponedeljkih in torkih so sobe zaprte – bivanje je možno od srede do nedelje.""",
+    "min_nocitve": """**Minimalno število nočitev:**
+
+- **Junij, julij, avgust:** 3 noči
+- **Ostali meseci:** 2 noči
+
+Rezervacija samo ene nočitve ni možna.
+
+Zakaj? Ker en dan ni dovolj, da se zares sprostite in začutite ritem podeželja! 🌾""",
+    "parking": """Ja, parkiranje je **brezplačno**! 🚗
+
+Parkirate kar na dvorišču – avto bo na varnem, vi pa na miru.""",
+    "zivali": """Žal hišnih ljubljenčkov **ne sprejemamo**. 🐕
+
+Imamo namreč svojo mini kmetijo z živalmi (ponija Marsija, ovna Čarlija, pujsko Pepo...) in bi bilo preveč razburjenja.
+
+Upam, da razumete! 🙏""",
+    "placilo": """Plačilo je možno **samo z gotovino**. 💶
+
+Vem, malo old school – ampak v bližini je bankomat. Račun seveda dobite!""",
+    "kapaciteta_mize": """Imamo **dve jedilnici**:
+
+🏠 **Pri peči** – intimna, topla, do **15 oseb**
+Idealna za družinska praznovanja, obletnice, manjše skupine.
+
+🌳 **Pri vrtu** – prostorna, svetla, do **35 oseb**
+Odlična za večje skupine, team buildinge, praznovanja.
+
+Skupaj lahko sprejmemo do **50 gostov**.
+
+Za kakšno priložnost bi rezervirali? 🎉""",
+    "alergije": """Seveda se prilagodimo! 🌿
+
+Vegetarijansko, brez glutena, brez laktoze, vegansko – povejte nam vnaprej in pripravimo nekaj okusnega.
+
+Naša kuharica babi Angelca čudežno dela tudi z omejitvami! 😊
+
+Samo **zapišite v rezervacijo** ali sporočite dan prej.""",
+    "lokacija": """📍 **Domačija Kovačnik**
+Planica 9, 2313 Fram
+
+Smo na **680 m nadmorske višine** v pohorski vasici Planica nad Framom.
+
+📞 02 601 54 00
+📱 041 878 474 (Danilo), 031 330 113 (Barbara)
+📧 info@kovacnik.com
+
+🗺️ Google Maps: poiščite "Turistična kmetija Pri Kovačniku"
+
+Se vidimo kmalu! 👋""",
+    "jedilnik": """Naš meni se spreminja glede na **sezono in svežo ponudbo** iz vrta in okoliških kmetij.
+
+**Vikend kosilo** (sob-ned, 12:00–15:00):
+Domača juha, glavna jed z mesnimi dobrotami in prilogami, sladica.
+**Cena: 36 €/osebo**
+
+**Večerja** (18:00, 25 €/oseba):
+Juha + glavna jed + sladica (specialiteta: pohorska gibanica babice Angelce)
+
+**Degustacijski meniji** (za skupine, sre-pet):
+- 4-hodni: 36 €
+- 5-hodni: 43 €
+- 6-hodni: 53 €
+- 7-hodni: 62 €
+Z vinsko spremljavo dodatno 15-29 €.
+
+Vse sveže, vse domače! 🍽️""",
+    "druzina": """Na Domačiji Kovačnik skrbimo zate:
+
+👨‍🌾 **Danilo** – gospodar kmetije (od 2008)
+👩‍🍳 **Barbara** – nosilka turizma, govori angleško in nemško
+👵 **Angelca** – srce kuhinje, avtorica slovite pohorske gibanice
+🧑 **Aljaž** – mladi virt, rad igra harmoniko
+👧 **Julija** – animatorka, skrbi za živali
+👧 **Ana** – najmlajša članica družine
+
+Družina nadaljuje tradicijo od leta 1981! 🏡""",
+    "kmetija": """Kovačnikova kmetija obsega **36 hektarjev**:
+- 12 ha obdelovalnih površin (travniki, pašniki)
+- 24 ha gozda
+- 40 glav govedi v hlevu na prosto rejo
+
+Redimo tudi svinje, kokoši nesnice, in hišne ljubljenčke:
+🐴 Ponija Marsija in Malajko
+🐷 Pujsko Pepo  
+🐑 Ovna Čarlija
+🐕 Psičko Luno
+🐱 Mucke
+
+Ogrevamo se na lesno biomaso – sekance iz lastnega gozda! 🌲""",
+    "izdelki": """Prodajamo **domače izdelke** pod znamko "Pri Kovačniku":
+
+🍓 **Marmelade** (od 5,50 €): jagoda, malina, aronija, božična, stara brajda...
+🍷 **Likerji** (13-15 €): borovničev, žajbljev, tepkovec
+🥫 **Namazi** (5-7 €): bučni namaz, jetrna pašteta, čemažev pesto
+🥩 **Mesnine**: pohorska bunka (18-21 €), suha klobasa (7 €), salama (16 €)
+🍵 **Čaji** (4 €): zeliščni in božični čaj babice Angelce
+🍞 **Sirupi** (6,50 €): bezgov, metin, stare brajde
+
+Kupite ob obisku ali naročite v **spletni trgovini**: kovacnik.com/katalog 🛒""",
+    "gibanica": """**Pohorska gibanica babice Angelce** je naša hišna specialiteta! 🥧
+
+Narejena iz sveže skute po receptu, ki ga družina čuva že generacije.
+Nežna, polnega okusa, se kar stopi na jeziku...
+
+Lahko jo naročite tudi za domov: **40 € za 10 kosov**.
+Naročilo na: info@kovacnik.com ali 041 878 474""",
+}
+
+# Varianta odgovorov za bolj človeški ton (rotacija); tukaj uporabljamo iste besedilne vire
+INFO_RESPONSES_VARIANTS = {key: [value] for key, value in INFO_RESPONSES.items()}
+INFO_RESPONSES_VARIANTS["menu_info"] = [INFO_RESPONSES["jedilnik"]]
+INFO_RESPONSES_VARIANTS["menu_full"] = [INFO_RESPONSES["jedilnik"]]
+INFO_RESPONSES["menu_info"] = INFO_RESPONSES["jedilnik"]
+INFO_RESPONSES["menu_full"] = INFO_RESPONSES["jedilnik"]
+INFO_RESPONSES["sobe_info"] = INFO_RESPONSES["sobe"]
+
+BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
+
+
+def get_info_response(key: str) -> str:
+    if key in INFO_RESPONSES_VARIANTS:
+        return random.choice(INFO_RESPONSES_VARIANTS[key])
+    return INFO_RESPONSES.get(key, "Kako vam lahko pomagam?")
+
+# Fiksni zaključek rezervacije
+RESERVATION_PENDING_MESSAGE = """
+✅ **Vaše povpraševanje je PREJETO** in čaka na potrditev.
+
+📧 Potrditev boste prejeli po e-pošti.
+⏳ Odgovorili vam bomo v najkrajšem možnem času.
+
+⚠️ Preverite tudi **SPAM/VSILJENO POŠTO**.
+"""
 
 
 class ChatRequestWithSession(ChatRequest):
@@ -800,6 +1010,335 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     return "default"
 
 
+def detect_info_intent(message: str) -> Optional[str]:
+    """
+    Detecta INFO intent BREZ LLM.
+    Vrne ključ iz INFO_RESPONSES ali None če ni info vprašanje.
+    """
+    text = message.lower().strip()
+
+    # Odpiralni čas
+    if any(w in text for w in ["kdaj ste odprti", "odpiralni", "delovni čas", "kdaj odprete"]):
+        return "odpiralni_cas"
+
+    # Zajtrk
+    if "zajtrk" in text and "večerj" not in text:
+        return "zajtrk"
+
+    # Večerja (info, ne rezervacija)
+    if any(w in text for w in ["koliko stane večerja", "cena večerje"]):
+        return "vecerja"
+
+    # Cena sob / nočitev
+    if any(
+        w in text
+        for w in [
+            "cena sobe",
+            "cena nočit",
+            "cena nocit",
+            "koliko stane noč",
+            "koliko stane noc",
+            "cenik",
+            "koliko stane soba",
+            "koliko stane nočitev",
+        ]
+    ):
+        return "cena_sobe"
+
+    # Sobe info
+    if any(w in text for w in ["koliko sob", "kakšne sobe", "koliko oseb v sobo", "kolko oseb v sobo", "kapaciteta sob"]):
+        return "sobe"
+
+    # Klima
+    if "klim" in text:
+        return "klima"
+
+    # WiFi
+    if "wifi" in text or "wi-fi" in text or "internet" in text:
+        return "wifi"
+
+    # Prijava/odjava
+    if any(w in text for w in ["prijava", "odjava", "check in", "check out"]):
+        return "prijava_odjava"
+
+    # Parking
+    if "parkir" in text:
+        return "parking"
+
+    # Živali
+    if any(w in text for w in ["pes", "mačk", "žival", "ljubljenč"]):
+        return "zivali"
+
+    # Plačilo
+    if any(w in text for w in ["plačilo", "kartic", "gotovina"]):
+        return "placilo"
+
+    # Min nočitve
+    if any(w in text for w in ["minimal", "najmanj noči", "najmanj nočitev", "min nočitev"]):
+        return "min_nocitve"
+
+    # Kapaciteta miz
+    if any(w in text for w in ["koliko miz", "kapaciteta"]):
+        return "kapaciteta_mize"
+
+    # Alergije
+    if any(w in text for w in ["alergij", "gluten", "lakto", "vegan"]):
+        return "alergije"
+
+    # Dodatno: jedilnik / meni
+    if any(
+        w in text
+        for w in [
+            "jedilnik",
+            "jedilnk",
+            "jedilnku",
+            "jedlnik",
+            "meni",
+            "menij",
+            "meniju",
+            "menu",
+            "kaj imate za jest",
+            "kaj ponujate",
+            "kaj strežete",
+            "kaj je za kosilo",
+            "kaj je za večerjo",
+            "kaj je za vecerjo",
+            "koslo",
+        ]
+    ):
+        return "jedilnik"
+
+    if any(w in text for w in ["družin", "druzina", "druzino"]):
+        return "druzina"
+
+    if "kmetij" in text or "kmetijo" in text:
+        return "kmetija"
+
+    if "gibanica" in text:
+        return "gibanica"
+
+    if any(w in text for w in ["izdelk", "trgovin", "katalog", "prodajate"]):
+        return "izdelki"
+
+    return None
+
+
+# Produkti (hitri odgovori brez LLM)
+PRODUCT_RESPONSES = {
+    "marmelada": [
+        "Imamo **domače marmelade**: jagodna, marelična, borovničeva, malinova in druge sezonske. Cena od 5€. Oglejte si ob obisku!",
+        "Ponujamo več vrst **domačih marmelad** – jagoda, marelica, borovnica, malina... Vprašajte ob obisku ali rezervaciji.",
+    ],
+    "liker": [
+        "Imamo **domače likerje**: borovničev liker (13€), orehov liker in druge. Za celoten seznam vprašajte ob obisku.",
+        "Naši **domači likerji**: borovničevec, orehovec... Cena od 13€. Pokušate lahko ob obisku!",
+    ],
+    "izdelki_splosno": [
+        "Prodajamo **domače izdelke**: marmelade, likerje, med... Oglejte si ponudbo ob obisku ali vprašajte za podrobnosti.",
+        "Imamo različne **domače dobrote** – marmelade, likerje, med. Povprašajte ob rezervaciji ali obisku!",
+    ],
+}
+
+
+def detect_product_intent(message: str) -> Optional[str]:
+    text = message.lower()
+    if any(w in text for w in ["liker", "žgan", "zgan", "borovnič", "orehov", "alkohol"]):
+        return "liker"
+    if any(w in text for w in ["marmelad", "džem", "dzem", "jagod", "marelič"]):
+        return "marmelada"
+    if "bunka" in text:
+        return "bunka"
+    if any(w in text for w in ["izdelk", "prodaj", "kupiti", "kaj imate", "trgovin"]):
+        return "izdelki_splosno"
+    return None
+
+
+def get_product_response(key: str) -> str:
+    if key in PRODUCT_RESPONSES:
+        return random.choice(PRODUCT_RESPONSES[key])
+    return PRODUCT_RESPONSES["izdelki_splosno"][0]
+
+
+def get_booking_continuation(step: str, state: dict) -> str:
+    """Vrne navodilo za nadaljevanje glede na trenutni korak."""
+    continuations = {
+        "awaiting_date": "Za kateri **datum** bi rezervirali?",
+        "awaiting_nights": "Koliko **nočitev**?",
+        "awaiting_people": "Za koliko **oseb**?",
+        "awaiting_kids": "Koliko je **otrok** in koliko so stari?",
+        "awaiting_kids_info": "Koliko je **otrok** in koliko so stari?",
+        "awaiting_kids_ages": "Koliko so stari **otroci**?",
+        "awaiting_room_location": "Katero **sobo** želite? (ALJAŽ, JULIJA, ANA)",
+        "awaiting_name": "Vaše **ime in priimek**?",
+        "awaiting_phone": "Vaša **telefonska številka**?",
+        "awaiting_email": "Vaš **e-mail**?",
+        "awaiting_dinner": "Želite **večerje**? (Da/Ne)",
+        "awaiting_dinner_count": "Za koliko oseb želite **večerje**?",
+        "awaiting_note": "Želite še kaj **sporočiti**? (ali 'ne')",
+        "awaiting_time": "Ob kateri **uri**?",
+        "awaiting_table_date": "Za kateri **datum** bi rezervirali mizo?",
+        "awaiting_table_time": "Ob kateri **uri** bi prišli?",
+        "awaiting_table_people": "Za koliko **oseb**?",
+        "awaiting_table_location": "Katero **jedilnico** želite? (Pri peči / Pri vrtu)",
+        "awaiting_table_event_type": "Kakšen je **tip dogodka**?",
+    }
+    return continuations.get(step or "", "Lahko nadaljujemo z rezervacijo?")
+
+
+def handle_info_during_booking(message: str, session_state: dict) -> Optional[str]:
+    """
+    Če je booking aktiven in uporabnik vpraša info ali produkt, odgovorimo + nadaljujemo flow.
+    """
+    if not session_state or session_state.get("step") is None:
+        return None
+
+    info_key = detect_info_intent(message)
+    if info_key:
+        info_response = get_info_response(info_key)
+        continuation = get_booking_continuation(session_state.get("step"), session_state)
+        return f"{info_response}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
+
+    product_key = detect_product_intent(message)
+    if product_key:
+        product_response = get_product_response(product_key)
+        continuation = get_booking_continuation(session_state.get("step"), session_state)
+        return f"{product_response}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
+
+    return None
+
+
+def is_food_question_without_booking_intent(message: str) -> bool:
+    """True če je vprašanje o hrani brez jasne rezervacijske namere."""
+    text = message.lower()
+    food_words = ["meni", "menu", "hrana", "jed", "kosilo", "večerja", "kaj ponujate", "kaj strežete", "kaj imate za kosilo", "jedilnik"]
+    booking_words = ["rezerv", "book", "želim", "rad bi", "radi bi", "za datum", "oseb", "mizo", "rezervacijo"]
+    has_food = any(w in text for w in food_words)
+    has_booking = any(w in text for w in booking_words)
+    return has_food and not has_booking
+
+
+def is_info_only_question(message: str) -> bool:
+    """
+    Vrne True če je vprašanje SAMO info (brez booking namere).
+    Ta vprašanja ne smejo sprožiti rezervacije.
+    """
+    text = message.lower()
+    info_words = [
+        "koliko",
+        "kakšn",
+        "kakšen",
+        "ali imate",
+        "a imate",
+        "kaj je",
+        "kdaj",
+        "kje",
+        "kako",
+        "cena",
+        "stane",
+        "vključen",
+    ]
+    booking_words = [
+        "rezervir",
+        "book",
+        "bi rad",
+        "bi radi",
+        "želim",
+        "želimo",
+        "za datum",
+        "nocitev",
+        "nočitev",
+        "oseb",
+    ]
+    has_info = any(w in text for w in info_words)
+    has_booking = any(w in text for w in booking_words)
+    return has_info and not has_booking
+
+
+def _fuzzy_contains(text: str, patterns: set[str]) -> bool:
+    return any(pat in text for pat in patterns)
+
+
+def detect_router_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
+    """
+    Preprost router za robustno detekcijo rezervacij z fuzzy tipi.
+    Vrne: booking_room | booking_table | booking_continue | none
+    """
+    lower = message.lower()
+
+    if state.get("step") is not None:
+        return "booking_continue"
+
+    booking_tokens = {
+        "rezerv",
+        "rezev",
+        "rezer",
+        "rezeriv",
+        "rezerver",
+        "rezerveru",
+        "rezr",
+        "rezrv",
+        "rezrvat",
+        "rezerveir",
+        "reserv",
+        "reservier",
+        "book",
+        "buking",
+        "booking",
+        "bukng",
+    }
+    room_tokens = {
+        "soba",
+        "sobe",
+        "sobo",
+        "room",
+        "zimmer",
+        "zimmern",
+        "rum",
+        "camer",
+        "camera",
+        "accom",
+        "nocit",
+        "nočit",
+        "nočitev",
+        "nocitev",
+    }
+    table_tokens = {
+        "miza",
+        "mize",
+        "mizo",
+        "miz",
+        "table",
+        "tabl",
+        "tabel",
+        "tble",
+        "tablle",
+        "tafel",
+        "tisch",
+        "koslo",  # typo kosilo
+        "kosilo",
+        "vecerj",
+        "veceja",
+        "vecher",
+    }
+
+    has_booking = _fuzzy_contains(lower, booking_tokens)
+    has_room = _fuzzy_contains(lower, room_tokens)
+    has_table = _fuzzy_contains(lower, table_tokens)
+
+    if has_booking and has_room:
+        return "booking_room"
+    if has_booking and has_table:
+        return "booking_table"
+    # fallback: omemba sobe + nočitve tudi brez rezerv besed
+    if has_room and ("nocit" in lower or "noč" in lower or "night" in lower):
+        return "booking_room"
+    # omemba mize + časa/oseb brez booking besed
+    if has_table and any(tok in lower for tok in ["oseb", "ob ", ":00"]):
+        return "booking_table"
+
+    return "none"
+
+
 def format_products(query: str) -> str:
     products = find_products(query)
     if not products:
@@ -847,7 +1386,7 @@ def answer_product_question(message: str) -> str:
         category = "caj"
     elif "paket" in lowered or "daril" in lowered:
         category = "paket"
-    
+
     # Poišči izdelke
     results = []
     for c in KNOWLEDGE_CHUNKS:
@@ -2398,14 +2937,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             lines.append(f"🍽️ {dinner_note}")
         if note_text:
             lines.append(f"📝 Opombe: {note_text}")
-        lines.extend(
-            [
-                "",
-                "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.",
-                "Odgovorili vam bomo v najkrajšem možnem času.",
-                "Preverite tudi SPAM/VSILJENO POŠTO.",
-            ]
-        )
+        lines.append(RESERVATION_PENDING_MESSAGE.strip())
         final_response = "\n".join(lines)
         return translate_response(final_response, saved_lang)
 
@@ -2649,9 +3181,7 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
             f"👥 Osebe: {summary_state.get('people')}\n"
             f"🍽️ Jedilnica: {summary_state.get('location')}\n"
             f"{'📝 Opombe: ' + note_text if note_text else ''}\n\n"
-            "✅ Vaše povpraševanje je PREJETO in čaka na potrditev.\n"
-            "Odgovorili vam bomo v najkrajšem možnem času.\n"
-            "Preverite tudi SPAM/VSILJENO POŠTO."
+            f"{RESERVATION_PENDING_MESSAGE.strip()}"
         )
         return final_response
 
@@ -2931,6 +3461,94 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         reply = "Hvala! 📧 Vaš elektronski naslov sem si zabeležil. Odgovoril vam bom v najkrajšem možnem času."
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "followup_email", followup_flag=False)
+
+    # V2 router/exec (opcijsko)
+    if USE_ROUTER_V2:
+        decision = route_message(
+            payload.message,
+            has_active_booking=state.get("step") is not None,
+            booking_step=state.get("step"),
+        )
+
+        def _translate(txt: str) -> str:
+            return maybe_translate(txt, detected_lang)
+
+        def _info_resp(key: Optional[str], soft_sell: bool) -> str:
+            reply_local = get_info_response(key or "")
+            if soft_sell and (key or "") in BOOKING_RELEVANT_KEYS:
+                reply_local = f"{reply_local}\n\nŽelite, da pripravim **ponudbo**?"
+            return reply_local
+
+        def _product_resp(key: str) -> str:
+            return get_product_response(key)
+
+        def _continuation(step_val: Optional[str], st: dict) -> str:
+            return get_booking_continuation(step_val, st)
+
+        reply_v2 = execute_decision(
+            decision=decision,
+            message=payload.message,
+            state=state,
+            translate_fn=_translate,
+            info_responder=_info_resp,
+            product_responder=_product_resp,
+            reservation_flow_fn=handle_reservation_flow,
+            reset_fn=reset_reservation_state,
+            continuation_fn=_continuation,
+            general_handler=None,
+        )
+        if reply_v2:
+            return finalize(reply_v2, decision.get("routing", {}).get("intent", "v2"), followup_flag=False)
+    # Info ali produkt med aktivno rezervacijo: odgovor + nadaljevanje
+    info_during = handle_info_during_booking(payload.message, state)
+    if info_during:
+        reply = maybe_translate(info_during, detected_lang)
+        return finalize(reply, "info_during_reservation", followup_flag=False)
+
+    # === ROUTER: Info intent detection ===
+    info_key = detect_info_intent(payload.message)
+    if info_key:
+        reply = get_info_response(info_key)
+        if info_key in BOOKING_RELEVANT_KEYS:
+            reply = f"{reply}\n\nŽelite, da pripravim **ponudbo**?"
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "info_static", followup_flag=False)
+    # === KONEC ROUTER ===
+
+    # Produktni intent brez LLM (samo če ni aktivne rezervacije)
+    if state["step"] is None:
+        product_key = detect_product_intent(payload.message)
+        if product_key:
+            reply = get_product_response(product_key)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "product_static", followup_flag=False)
+
+    # Guard: info-only vprašanja naj ne sprožijo rezervacije
+    if state["step"] is None and is_info_only_question(payload.message):
+        reply = "Z veseljem pomagam z informacijami. Če želite rezervacijo, napišite npr. 'Rezervacija sobe' ali 'Rezervacija mize'."
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "info_only", followup_flag=False)
+
+    # Fuzzy router za rezervacije (robustno na tipkarske napake)
+    router_intent = detect_router_intent(payload.message, state)
+    if router_intent == "booking_room" and state["step"] is None:
+        reset_reservation_state(state)
+        state["type"] = "room"
+        reply = handle_reservation_flow(payload.message, state)
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "reservation_router_room", followup_flag=False)
+    if router_intent == "booking_table" and state["step"] is None:
+        reset_reservation_state(state)
+        state["type"] = "table"
+        reply = handle_reservation_flow(payload.message, state)
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "reservation_router_table", followup_flag=False)
+
+    # Hrana/meni brez jasne rezervacijske namere
+    if is_food_question_without_booking_intent(payload.message):
+        reply = INFO_RESPONSES.get("menu_info", "Za informacije o meniju nas kontaktirajte.")
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "food_info", followup_flag=False)
 
     # aktivna rezervacija ima prednost, vendar omogoča izhod ali druga vprašanja
     if state["step"] is not None:
