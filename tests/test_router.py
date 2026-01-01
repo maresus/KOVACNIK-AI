@@ -86,6 +86,30 @@ def test_info_during_active_booking():
 
 
 # ============================================
+# NOVI INFO KLJUČI
+# ============================================
+
+def test_info_turizem():
+    info = detect_info_intent("kaj priporočate za izlet na Pohorju?")
+    assert info == "turizem", f"Got: {info}"
+
+
+def test_info_kolesa():
+    info = detect_info_intent("imate e-kolesa za izposojo?")
+    assert info == "kolesa", f"Got: {info}"
+
+
+def test_info_darilni_bon():
+    info = detect_info_intent("ali imate darilne bone?")
+    assert info == "darilni_boni", f"Got: {info}"
+
+
+def test_info_vina():
+    info = detect_info_intent("vinska karta?")
+    assert info == "vina", f"Got: {info}"
+
+
+# ============================================
 # RUNNER
 # ============================================
 

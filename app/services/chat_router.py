@@ -22,7 +22,7 @@ from app.services.router_agent import route_message
 from app.services.executor_v2 import execute_decision
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-USE_ROUTER_V2 = False
+USE_ROUTER_V2 = True
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 INFO_RESPONSES = {
@@ -108,11 +108,11 @@ Zakaj? Ker en dan ni dovolj, da se zares sprostite in začutite ritem podeželja
     "parking": """Ja, parkiranje je **brezplačno**! 🚗
 
 Parkirate kar na dvorišču – avto bo na varnem, vi pa na miru.""",
-    "zivali": """Žal hišnih ljubljenčkov **ne sprejemamo**. 🐕
+    "zivali": """Žal hišnih ljubljenčkov **ne sprejemamo**. 🐕❌
 
-Imamo namreč svojo mini kmetijo z živalmi (ponija Marsija, ovna Čarlija, pujsko Pepo...) in bi bilo preveč razburjenja.
+Na kmetiji imamo svoje živali (ponija Marsija, ovna Čarlija, pujsko Pepo …), zato prosimo, da psov in drugih ljubljenčkov ne prinašate s seboj.
 
-Upam, da razumete! 🙏""",
+Hvala za razumevanje! 🙏""",
     "placilo": """Plačilo je možno **samo z gotovino**. 💶
 
 Vem, malo old school – ampak v bližini je bankomat. Račun seveda dobite!""",
@@ -146,29 +146,37 @@ Smo na **680 m nadmorske višine** v pohorski vasici Planica nad Framom.
 🗺️ Google Maps: poiščite "Turistična kmetija Pri Kovačniku"
 
 Se vidimo kmalu! 👋""",
+    "kontakt": """📞 Telefon: 02 601 54 00
+📱 Mobitel: 031 330 113
+📧 Email: info@kovacnik.com""",
     "jedilnik": """Naš meni se spreminja glede na **sezono in svežo ponudbo** iz vrta in okoliških kmetij.
 
 **Vikend kosilo** (sob-ned, 12:00–15:00):
 Domača juha, glavna jed z mesnimi dobrotami in prilogami, sladica.
-**Cena: 36 €/osebo**
+**Cena: 36 €/osebo** (otroci 4–12 let: -50 %)
 
 **Večerja** (18:00, 25 €/oseba):
 Juha + glavna jed + sladica (specialiteta: pohorska gibanica babice Angelce)
 
 **Degustacijski meniji** (za skupine, sre-pet):
-- 4-hodni: 36 €
-- 5-hodni: 43 €
-- 6-hodni: 53 €
-- 7-hodni: 62 €
-Z vinsko spremljavo dodatno 15-29 €.
+- 4-hodni: 36 € | 5-hodni: 43 € | 6-hodni: 53 € | 7-hodni: 62 €
+Z vinsko spremljavo +15–29 €.
 
-Vse sveže, vse domače! 🍽️""",
+🔸 KOSILO V ZIMSKI SRAJČKI (dec–feb, aktualno):
+- Pohorska bunka in zorjen Frešerjev sir, hišna salama, paštetka iz domačih jetrc, zaseka, bučni namaz, hišni kruhek
+- Goveja župca z rezanci in jetrnimi rolicami ali koprivna juhica s čemažem in sirne lizike
+- Meso na plošči: pujskov hrbet, hrustljavi piščanec Pesek, piščančje kroglice z zelišči, mlado goveje meso z jabolki in rdečim vinom
+- Priloge: štukelj s skuto, ričota s pirino kašo in jurčki, pražen krompir iz šporheta na drva, mini pita s porom, ocvrte hruške “Debeluške”, pomladna/zimska solata
+- Sladica: Pohorska gibanica babice Angelce
+
+Za druge sezone (npr. pomladna srajčka) se meni prilagodi – vprašajte, če vas zanima točen sezonski izbor. Prosimo, najavite odstopanja od mesnega menija (vegi, vegansko, brez glutena/mleka/jajc) – prilagodimo. Vse sveže, vse domače! 🍽️""",
     "druzina": """Na Domačiji Kovačnik skrbimo zate:
 
 👨‍🌾 **Danilo** – gospodar kmetije (od 2008)
 👩‍🍳 **Barbara** – nosilka turizma, govori angleško in nemško
 👵 **Angelca** – srce kuhinje, avtorica slovite pohorske gibanice
 🧑 **Aljaž** – mladi virt, rad igra harmoniko
+💛 **Kaja** – partnerka Aljaža, pomaga pri sprejemu gostov in komunikaciji
 👧 **Julija** – animatorka, skrbi za živali
 👧 **Ana** – najmlajša članica družine
 
@@ -203,6 +211,75 @@ Nežna, polnega okusa, se kar stopi na jeziku...
 
 Lahko jo naročite tudi za domov: **40 € za 10 kosov**.
 Naročilo na: info@kovacnik.com ali 041 878 474""",
+    "turizem": """Ideje za izlete v okolici:
+
+**5–15 min**  
+- Planica: sprehod, cerkev sv. Križa, razgledne poti  
+- Eko kmetija Pri Baronu (permakultura, zelišča)  
+- Sirarstvo Frešer (kozice, sir)  
+- Matekov mlin v Framu (zgodovinski mlin)  
+- Vinogradništvo Greif (degustacije – najava)  
+
+**30–45 min z avtom**  
+- Framski slap (vodna pahljača)  
+- Bolfenk (cerkvica, razgledni stolp)  
+- Sv. Henrik na Arehu (žegnanje julija)  
+- Veliki/Mali Šumik, Črno jezero (Pohorje)  
+- Osankarica (zgodovinska pot)  
+- Bistriški vintgar (slapovi, rimski kamnolom)  
+- Potnikova smreka in kostanj (dendrološki spomeniki)  
+
+**Pohodništvo**  
+- Svetejeva žaga – Ranče – Mariborska koča – Zarja (3–4 h)  
+- Fram – Planica – Zarja – Areh (cca 2 h)  
+
+Za vinske in kulinarične postaje: Greif, Frešer, Črnko, lokalne degustacije po najavi.
+""",
+    "kolesa": """Na voljo imamo izposojo gorskih e-koles za raziskovanje Pohorja. 🚴‍♀️
+
+Cene in razpoložljivost sporočimo ob rezervaciji/povpraševanju, da preverimo termin in število koles.
+
+Če želite, nam napišite željeni datum in število koles in vam pošljemo ponudbo.""",
+    "darilni_boni": """Imamo darilne bone (10 €, 20 €, 50 €) in darilne pakete:
+
+- Darilni bon 10 €: https://kovacnik.com/izdelek/darilni-bon-10-eur/
+- Darilni bon 20 €: https://kovacnik.com/izdelek/darilni-bon-20-eur/
+- Darilni bon 50 €: https://kovacnik.com/izdelek/darilni-bon-50-eur/
+- Darilni paketi (npr. Julijin paket, Aljažev paket): https://kovacnik.com/katalog
+
+Ob naročilu vpišite prejemnika in znesek; bone pošljemo po pošti ali jih prevzamete ob obisku.""",
+    "skalca": """Do slapa Skalca lahko:
+- z avtom do izhodišča pri Framskem potoku (cca 20 min vožnje od nas), nato še ~15 min peš po označeni poti;
+- peš od kmetije: približno 1 ura hoje (del po cesti, nato gozdna pot ob potoku).
+
+Priporočamo pohodne čevlje in previdnost ob mokrih skalah.""",
+    "vina": """Na vinski karti imamo izbrane štajerske vinarje in hišna vina:
+
+**Bela (po kozarcu / steklenica):**
+- Greif Belo cuvée (suho) – 2,00 € / 14,00 €
+- Greif Laški rizling terase (suho, barrique) – 3,40 € / 23,00 €
+- Frešer Sauvignon (suho) – 2,80 € / 19,00 €
+- Frešer Laški rizling (suho) – 2,60 € / 18,00 €
+- Frešer Renski rizling Markus (suho) – 3,20 € / 22,00 €
+- Skuber Muškat Ottonel (polsladko) – 2,40 € / 17,00 €
+- Mulec Sivi pinot (suho, mlado) – 2,60 € / 18,00 €
+
+**Rdeča:**
+- Frešer Modri pinot Markus (suho) – 23,00 €
+- Greif Modra frankinja črešnjev vrh (suho) – 26,00 €
+- Skuber Modra frankinja (suho) – 16,00 €
+
+**Peneča / oranžna / posebna:**
+- Penina Doppler Diona brut (Chardonnay) – 30,00 €
+- Opok27 Nympha rosé brut – 25,00 €
+- Bartol Šipon (oranžno) – 32,00 €
+- Šumenjak Alter (oranžno) – 26,00 €
+
+**Hišna in tradicionalna:**
+- Frambelo Greif (1 l) – hišno belo cuvée
+- Jareninčan Črnko (1 l) – hišno belo polsuho cuvée
+
+Postrežemo ohlajeno (bela 8–10°C, rdeča ~14°C). Za vinsko spremljavo ob degustacijskem meniju: +15–29 €.""",
 }
 
 # Varianta odgovorov za bolj človeški ton (rotacija); tukaj uporabljamo iste besedilne vire
@@ -1066,12 +1143,19 @@ def detect_info_intent(message: str) -> Optional[str]:
         return "parking"
 
     # Živali
-    if any(w in text for w in ["pes", "mačk", "žival", "ljubljenč"]):
+    if any(w in text for w in ["pes", "psa", "psi", "psov", "mačk", "žival", "ljubljenč", "kuža", "kuz", "dog"]):
         return "zivali"
 
     # Plačilo
     if any(w in text for w in ["plačilo", "kartic", "gotovina"]):
         return "placilo"
+
+    # Kontakt / telefon
+    if any(
+        w in text
+        for w in ["telefon", "telefonsko", "številka", "stevilka", "gsm", "mobitel", "mobile", "phone"]
+    ):
+        return "kontakt"
 
     # Min nočitve
     if any(w in text for w in ["minimal", "najmanj noči", "najmanj nočitev", "min nočitev"]):
@@ -1084,6 +1168,53 @@ def detect_info_intent(message: str) -> Optional[str]:
     # Alergije
     if any(w in text for w in ["alergij", "gluten", "lakto", "vegan"]):
         return "alergije"
+
+    # Vina / vinska karta
+    if any(w in text for w in ["vino", "vina", "vinsko", "vinska", "wine", "wein", "vinci"]):
+        return "vina"
+
+    # Izleti / turizem
+    if any(
+        w in text
+        for w in [
+            "izlet",
+            "izleti",
+            "znamenitost",
+            "naravne",
+            "narava",
+            "pohod",
+            "pohodni",
+            "okolici",
+            "bližini",
+            "pohorje",
+            "slap",
+            "jezero",
+            "vintgar",
+            "razgled",
+            "bistriški",
+            "ščrno jezero",
+            "šumik",
+        ]
+    ):
+        return "turizem"
+
+    # Izposoja koles
+    if any(w in text for w in ["kolo", "koles", "kolesar", "bike", "e-kolo", "ekolo", "bicikl"]):
+        return "kolesa"
+
+    # Slap Skalca
+    if "skalca" in text or ("slap" in text and "skalc" in text):
+        return "skalca"
+
+    # Darilni boni
+    if "darilni bon" in text or ("bon" in text and "daril" in text):
+        return "darilni_boni"
+
+    # Vikend ponudba / jedilnik
+    if ("vikend" in text or "ponudba" in text) and any(
+        w in text for w in ["vikend", "ponudba", "kosilo", "meni", "menu", "jedil"]
+    ):
+        return "jedilnik"
 
     # Dodatno: jedilnik / meni
     if any(
@@ -1126,17 +1257,22 @@ def detect_info_intent(message: str) -> Optional[str]:
 # Produkti (hitri odgovori brez LLM)
 PRODUCT_RESPONSES = {
     "marmelada": [
-        "Imamo **domače marmelade**: jagodna, marelična, borovničeva, malinova in druge sezonske. Cena od 5€. Oglejte si ob obisku!",
-        "Ponujamo več vrst **domačih marmelad** – jagoda, marelica, borovnica, malina... Vprašajte ob obisku ali rezervaciji.",
+        "Imamo **domače marmelade**: jagodna, marelična, borovničeva, malinova, stara brajda, božična. Cena od 5,50 €.\n\nKupite ob obisku ali naročite v spletni trgovini: https://kovacnik.com/katalog (sekcija Marmelade).",
+        "Ponujamo več vrst **domačih marmelad** – jagoda, marelica, borovnica, malina, božična, stara brajda. Cena 5,50 €/212 ml.\n\nNa voljo ob obisku ali v spletni trgovini: https://kovacnik.com/katalog.",
     ],
     "liker": [
-        "Imamo **domače likerje**: borovničev liker (13€), orehov liker in druge. Za celoten seznam vprašajte ob obisku.",
-        "Naši **domači likerji**: borovničevec, orehovec... Cena od 13€. Pokušate lahko ob obisku!",
+        "Imamo **domače likerje**: borovničev, žajbljev, aronija, smrekovi vršički (3 cl/5 cl) in za domov 350 ml (13–15 €), tepkovec 15 €.\n\nKupite ob obisku ali naročite: https://kovacnik.com/katalog (sekcija Likerji in žganje).",
+        "Naši **domači likerji** (žajbelj, smrekovi vršički, aronija, borovničevec) in žganja (tepkovec, tavžentroža). Cene za 350 ml od 13 €.\n\nNa voljo v spletni trgovini: https://kovacnik.com/katalog ali ob obisku.",
     ],
     "izdelki_splosno": [
-        "Prodajamo **domače izdelke**: marmelade, likerje, med... Oglejte si ponudbo ob obisku ali vprašajte za podrobnosti.",
-        "Imamo različne **domače dobrote** – marmelade, likerje, med. Povprašajte ob rezervaciji ali obisku!",
+        "Prodajamo **domače izdelke** (marmelade, likerji/žganja, mesnine, čaji, sirupi, paketi) ob obisku ali v spletni trgovini: https://kovacnik.com/katalog.",
+        "Na voljo so **marmelade, likerji/žganja, mesnine, čaji, sirupi, darilni paketi**. Naročite na spletu (https://kovacnik.com/katalog) ali kupite ob obisku.",
     ],
+    "gibanica_narocilo": """Za naročilo gibanice za domov:
+- Pohorska gibanica s skuto: 40 € za 10 kosov
+- Pohorska gibanica z orehi: 45 € za 10 kosov
+
+Napišite, koliko kosov in za kateri datum želite prevzem. Ob večjih količinah (npr. 40 kosov) potrebujemo predhodni dogovor. Naročilo: info@kovacnik.com""",
 }
 
 
@@ -1146,6 +1282,8 @@ def detect_product_intent(message: str) -> Optional[str]:
         return "liker"
     if any(w in text for w in ["marmelad", "džem", "dzem", "jagod", "marelič"]):
         return "marmelada"
+    if "gibanica" in text:
+        return "gibanica_narocilo"
     if "bunka" in text:
         return "bunka"
     if any(w in text for w in ["izdelk", "prodaj", "kupiti", "kaj imate", "trgovin"]):
@@ -1201,6 +1339,8 @@ def handle_info_during_booking(message: str, session_state: dict) -> Optional[st
     product_key = detect_product_intent(message)
     if product_key:
         product_response = get_product_response(product_key)
+        if is_bulk_order_request(message):
+            product_response = f"{product_response}\n\nZa večja naročila nam pišite na info@kovacnik.com."
         continuation = get_booking_continuation(session_state.get("step"), session_state)
         return f"{product_response}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
 
@@ -1252,6 +1392,15 @@ def is_info_only_question(message: str) -> bool:
     has_info = any(w in text for w in info_words)
     has_booking = any(w in text for w in booking_words)
     return has_info and not has_booking
+
+
+def is_bulk_order_request(message: str) -> bool:
+    """True, če uporabnik omenja večje količine (npr. 20+ kosov/paketov)."""
+    nums = re.findall(r"\d+", message)
+    if nums and any(int(n) >= 20 for n in nums):
+        return True
+    bulk_words = ["večja količina", "veliko", "na zalogo", "zalogo", "bulk", "škatl", "karton", "več paketov"]
+    return any(w in message.lower() for w in bulk_words)
 
 
 def _fuzzy_contains(text: str, patterns: set[str]) -> bool:
@@ -3469,6 +3618,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             has_active_booking=state.get("step") is not None,
             booking_step=state.get("step"),
         )
+        routing_info = decision.get("routing", {})
+        print(f"[ROUTER_V2] intent={routing_info.get('intent')} conf={routing_info.get('confidence')} info={decision.get('context', {}).get('info_key')} product={decision.get('context', {}).get('product_category')} interrupt={routing_info.get('is_interrupt')}")
 
         def _translate(txt: str) -> str:
             return maybe_translate(txt, detected_lang)
@@ -3480,7 +3631,10 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             return reply_local
 
         def _product_resp(key: str) -> str:
-            return get_product_response(key)
+            reply_local = get_product_response(key)
+            if is_bulk_order_request(payload.message):
+                reply_local = f"{reply_local}\n\nZa večja naročila nam pišite na info@kovacnik.com, da uskladimo količine in prevzem."
+            return reply_local
 
         def _continuation(step_val: Optional[str], st: dict) -> str:
             return get_booking_continuation(step_val, st)
@@ -3520,12 +3674,14 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         product_key = detect_product_intent(payload.message)
         if product_key:
             reply = get_product_response(product_key)
+            if is_bulk_order_request(payload.message):
+                reply = f"{reply}\n\nZa večja naročila nam pišite na info@kovacnik.com, da uskladimo količine in prevzem."
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "product_static", followup_flag=False)
 
     # Guard: info-only vprašanja naj ne sprožijo rezervacije
     if state["step"] is None and is_info_only_question(payload.message):
-        reply = "Z veseljem pomagam z informacijami. Če želite rezervacijo, napišite npr. 'Rezervacija sobe' ali 'Rezervacija mize'."
+        reply = "Tega odgovora nimam pri roki. Pišite na info@kovacnik.com in bomo skupaj našli pot do prave informacije."
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "info_only", followup_flag=False)
 

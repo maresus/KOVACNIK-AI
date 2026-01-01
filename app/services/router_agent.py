@@ -54,6 +54,8 @@ def _detect_info_intent(text: str) -> Optional[str]:
         return "parking"
     if any(w in text for w in ["pes", "mačk", "žival", "ljubljenč"]):
         return "zivali"
+    if any(w in text for w in ["telefon", "telefonsko", "številka", "stevilka", "gsm", "mobitel", "mobile", "phone"]):
+        return "kontakt"
     if any(w in text for w in ["plačilo", "gotovina", "kartic"]):
         return "placilo"
     if any(w in text for w in ["minimal", "min nočit", "najmanj noč", "min noce"]):
