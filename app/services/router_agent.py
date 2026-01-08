@@ -71,7 +71,7 @@ def _detect_info_intent(text: str) -> Optional[str]:
         return "kmetija"
     if "gibanica" in text:
         return "gibanica"
-    if any(w in text for w in ["marmelad", "liker", "bunka", "izdelek", "trgovin", "katalog"]):
+    if any(w in text for w in ["izdelek", "trgovin", "katalog", "prodajate"]):
         return "izdelki"
     return None
 
