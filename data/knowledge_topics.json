@@ -39,11 +39,15 @@
       "kje ste",
       "naslov",
       "lokacija",
+      "nadmorska višina",
+      "nadmorska visina",
+      "nadmorski",
+      "nadmorska",
       "kako pridem do vas",
       "kako pridem do kmetije",
       "kako do vas"
     ],
-    "answer": "📍 Domačija Kovačnik, Planica 9, 2313 Fram\n\n📞 02 601 54 00\n📱 031 330 113\n📧 info@kovacnik.com"
+    "answer": "📍 Domačija Kovačnik, Planica 9, 2313 Fram\n\nSmo na približno **680 m nadmorske višine** v pohorski vasici Planica nad Framom.\n\n📞 02 601 54 00\n📱 031 330 113\n📧 info@kovacnik.com"
   },
   {
     "key": "vikend_ponudba",
@@ -66,9 +70,42 @@
       "zivali na kmetiji",
       "otroci vidijo živali",
       "lahko otroci vidijo živali",
-      "ali lahko otroci vidijo živali"
+      "ali lahko otroci vidijo živali",
+      "imate živali",
+      "imate zivali"
     ],
     "answer": "Na kmetiji imamo živali, ki jih lahko spoznate:\n\n🐴 ponija Marsija in Malajko\n🐷 pujsko Pepo\n🐑 ovna Čarlija\n🐕 psičko Luno\n🐱 mucke\n\nPoleg tega skrbimo tudi za govedo in kokoši."
+  },
+  {
+    "key": "konji",
+    "priority": 84,
+    "triggers": [
+      "konj",
+      "konja",
+      "konje",
+      "konji",
+      "imate konje",
+      "imate konja"
+    ],
+    "answer": "Pravih konj nimamo, imamo pa ponija Marsija in Malajko, ki ju otroci lahko spoznajo."
+  },
+  {
+    "key": "jahanje",
+    "priority": 86,
+    "triggers": [
+      "jahanje",
+      "jahati",
+      "jahamo",
+      "jahamo konja",
+      "jahamo ponija",
+      "jahanje s ponijem",
+      "jahanje s ponijem",
+      "jahanje ponija",
+      "jahanje ponija",
+      "jahanje s ponijem",
+      "jahati ponija"
+    ],
+    "answer": "Na naši domačiji je za otroke na voljo jahanje s ponijem Marsijem. En krog stane 5,00 € (po ceniku) in ga izvajamo ob lepem vremenu ter če je ponij dobre volje. Ob rezervaciji prosim omenite, da želite vključiti jahanje, da se dogovorimo za točen termin.\n\nVeč: https://kovacnik.com/cenik/ponij"
   },
   {
     "key": "zajcki",
@@ -163,5 +200,469 @@
       "kako do areha"
     ],
     "answer": "Od Domačije Kovačnik (Planica 9, Fram) je do Areha približno 30 minut vožnje.\n\nNajprej vozite po cesti Planica, ki nato preide v Frajhajm, po nekaj kilometrih sledite oznakam in zavijete proti Arehu. Cesta vas nato vodi ob Lobnici in skozi gozd vse do vrha Pohorja. 🛣️ Pot je lepa in mirna, primerna za izlet; pozimi pa priporočamo zimsko opremo, ker zna biti cesta zasnežena. ❄️"
+  },
+  {
+    "key": "izleti_okolica",
+    "priority": 82,
+    "triggers": [
+      "kaj je v okolici",
+      "kakšen izlet priporočate",
+      "kaksen izlet priporocate",
+      "kam na izlet",
+      "izleti",
+      "izlet v bližini",
+      "izlet v blizini"
+    ],
+    "answer": "V okolici priporočamo: Botanični vrt TAL 2000 (15 min), Krajinski park Rački ribniki - Požeg (ptice, sprehodi), Framski slap (12m), Grad Rače z Belo dvorano, turnokolesarsko pot na Pohorje. Za ljubitelje etnologije Vešnerjeva domačija v Planici.\n\nVeč: local://turistika/okolica"
+  },
+  {
+    "key": "race_pot",
+    "priority": 80,
+    "triggers": [
+      "rače",
+      "kako pridem v rače",
+      "kako do rač",
+      "kako do race"
+    ],
+    "answer": "Najbolje je, da pot do Rač preverite v Google Maps. Izhodišče: Planica 9, 2313 Fram."
+  },
+  {
+    "key": "praznovanja_dogodki",
+    "priority": 86,
+    "triggers": [
+      "rojstni dan",
+      "rojstni dnevi",
+      "rojstne dneve",
+      "obletnica",
+      "obletnico",
+      "poroka",
+      "poroko",
+      "poroke",
+      "teambuilding",
+      "dogodek",
+      "posebna priložnost",
+      "praznovanje",
+      "poslovni sestanek",
+      "zunanji prostor"
+    ],
+    "answer": "Pri nas lahko organiziramo kosila za posebne priložnosti (rojstni dnevi, obletnice, poroke, teambuilding). Za posebne želje nam pišite na info@kovacnik.com."
+  },
+  {
+    "key": "piknik",
+    "priority": 84,
+    "triggers": [
+      "piknik",
+      "piknike"
+    ],
+    "answer": "Piknika oziroma zunanjega prostora za praznovanje ne nudimo."
+  },
+  {
+    "key": "posebni_meniji",
+    "priority": 84,
+    "triggers": [
+      "silvestrovo",
+      "božični meni",
+      "bozicni meni",
+      "valentinovo"
+    ],
+    "answer": "Ob posebnih priložnostih pripravimo posebne menije. Spremljajte naša družbena omrežja ali nam pišite na info@kovacnik.com."
+  },
+  {
+    "key": "najem_prostora",
+    "priority": 80,
+    "triggers": [
+      "najem prostora",
+      "najem",
+      "najamete prostor",
+      "koliko stane najem prostora"
+    ],
+    "answer": "Prostora ne dajemo v najem."
+  },
+  {
+    "key": "kapaciteta_jedilnice",
+    "priority": 85,
+    "triggers": [
+      "kapaciteta jedilnice",
+      "koliko ljudi lahko sprejmete",
+      "prostor za 30 oseb",
+      "koliko oseb sprejmete"
+    ],
+    "answer": "V prvi jedilnici “Pri peči” je prostora za približno 15 oseb, v drugi “Pri vrtu” pa za okoli 35 obiskovalcev."
+  },
+  {
+    "key": "piknik_zunaj",
+    "priority": 75,
+    "triggers": [
+      "piknik",
+      "zunanji prostor",
+      "prostor zunaj",
+      "zunanji prostor za praznovanje"
+    ],
+    "answer": "Piknika oziroma zunanjega prostora za praznovanje ne nudimo."
+  },
+  {
+    "key": "posebni_meniji",
+    "priority": 75,
+    "triggers": [
+      "silvestrovo",
+      "božični meni",
+      "valentinovo",
+      "posebni meni",
+      "praznični meni"
+    ],
+    "answer": "Ob posebnih priložnostih pripravimo posebne menije. Spremljajte naša družbena omrežja ali nam pišite na info@kovacnik.com."
+  },
+  {
+    "key": "igrisce",
+    "priority": 78,
+    "triggers": [
+      "igrišče",
+      "igrala",
+      "igrisce",
+      "travnik",
+      "hišica"
+    ],
+    "answer": "Da, zunaj imamo igrala, manjši travnik in hišico za otroke."
+  },
+  {
+    "key": "otroski_meni",
+    "priority": 78,
+    "triggers": [
+      "otroški meni",
+      "otroski meni"
+    ],
+    "answer": "Otroškega menija posebej ne pripravljamo."
+  },
+  {
+    "key": "otroski_stolcek_previjalna",
+    "priority": 78,
+    "triggers": [
+      "otroški stol",
+      "otroški stolček",
+      "previjalna miza",
+      "previjalno"
+    ],
+    "answer": "Otroški stolček in previjalno mizo lahko uredimo – prosimo, da sporočite vnaprej."
+  },
+  {
+    "key": "posteljica_dojencek",
+    "priority": 78,
+    "triggers": [
+      "posteljica za dojenčka",
+      "posteljica",
+      "dojenček"
+    ],
+    "answer": "Posteljico za dojenčka lahko uredimo – prosimo, da sporočite vnaprej."
+  },
+  {
+    "key": "otroske_animacije",
+    "priority": 70,
+    "triggers": [
+      "animacije",
+      "animacija za otroke",
+      "otroške animacije"
+    ],
+    "answer": "Velikokrat Julija poskrbi za animacijo otrok, predvsem z živalmi."
+  },
+  {
+    "key": "otroski_popusti_kosilo",
+    "priority": 80,
+    "triggers": [
+      "do koliko let je otrok zastonj",
+      "koliko stane otrok",
+      "otroci popust",
+      "otroški popust",
+      "otroci 4-12"
+    ],
+    "answer": "Za kosilo: odrasli 36 EUR, otroci 4–12 let imajo 50 % popust. Prosimo, najavite morebitna odstopanja od mesnega menija (vegi, vegansko, brez glutena, mleka, jajc)."
+  },
+  {
+    "key": "notranja_jedilnica",
+    "priority": 78,
+    "triggers": [
+      "notranja jedilnica",
+      "notranja jedilnica?",
+      "notranji prostor"
+    ],
+    "answer": "Seveda, imamo notranji jedilnici. Pri peči je približno 15 mest, Pri vrtu pa okoli 35."
+  },
+  {
+    "key": "terasa_pokrita",
+    "priority": 75,
+    "triggers": [
+      "terasa pokrita",
+      "pokrita terasa"
+    ],
+    "answer": "Terasa je pokrita, vendar zunaj strežemo samo ob vremensko ugodnih razmerah."
+  },
+  {
+    "key": "odprti_pozimi",
+    "priority": 75,
+    "triggers": [
+      "odprti pozimi",
+      "pozimi odprti"
+    ],
+    "answer": "Pozimi strežemo v notranjih jedilnicah."
+  },
+  {
+    "key": "gretje",
+    "priority": 70,
+    "triggers": [
+      "gretje",
+      "ogrevanje"
+    ],
+    "answer": "Seveda, prostori so ogrevani."
+  },
+  {
+    "key": "klima_sobe_poleti",
+    "priority": 78,
+    "triggers": [
+      "poleti vroče v sobah",
+      "vroče v sobah",
+      "klima poleti"
+    ],
+    "answer": "V sobah imamo klimo."
+  },
+  {
+    "key": "avtobusi_avtodomi_asfalt",
+    "priority": 78,
+    "triggers": [
+      "avtobus",
+      "avtodomi",
+      "postajališče za avtodome",
+      "cesta asfaltirana",
+      "asfaltirana cesta"
+    ],
+    "answer": "Možen je parkirni prostor za avtobuse in avtodome. Do kmetije je asfaltirana cesta."
+  },
+  {
+    "key": "avtocesta_oddaljenost",
+    "priority": 78,
+    "triggers": [
+      "koliko je od avtoceste",
+      "oddaljenost od avtoceste"
+    ],
+    "answer": "Od avtoceste je približno 20 minut vožnje po cesti."
+  },
+  {
+    "key": "transfer_prevoz",
+    "priority": 70,
+    "triggers": [
+      "transfer",
+      "prevzem na postaji",
+      "pridete po nas",
+      "prevoz iz letališča"
+    ],
+    "answer": "Organiziranega prevoza/prevzema ne nudimo."
+  },
+  {
+    "key": "oddaljenost_lj_celje",
+    "priority": 78,
+    "triggers": [
+      "koliko je ljubljana",
+      "koliko je do ljubljane",
+      "koliko je celje",
+      "koliko je do celja",
+      "oddaljenost ljubljana",
+      "oddaljenost celje"
+    ],
+    "answer": "Ljubljana je približno 100 km, Celje pa približno 50 km."
+  },
+  {
+    "key": "romanticna_soba",
+    "priority": 70,
+    "triggers": [
+      "romantična soba",
+      "romanticna soba",
+      "soba s pogledom",
+      "romantika",
+      "romantična"
+    ],
+    "answer": "Vse sobe so urejene udobno in domače. Dve imata balkon, ena ga nima, vendar je največja. Vse sobe imajo kopalnico s tušem in so poimenovane po naših treh otrocih: Ani, Juliji in Aljažu."
+  },
+  {
+    "key": "wellness",
+    "priority": 70,
+    "triggers": [
+      "masaže",
+      "jacuzzi",
+      "savna",
+      "wellness"
+    ],
+    "answer": "Masaž, jacuzzija ali savne nimamo."
+  },
+  {
+    "key": "presenecenje_sampanjec",
+    "priority": 70,
+    "triggers": [
+      "šampanjec",
+      "presenečenje",
+      "presenecenje"
+    ],
+    "answer": "Za posebne želje (npr. šampanjec ali presenečenje) nas povprašajte ob rezervaciji ali pišite na info@kovacnik.com."
+  },
+  {
+    "key": "medeni_tedni",
+    "priority": 70,
+    "triggers": [
+      "medeni tedni",
+      "honeymoon"
+    ],
+    "answer": "Če načrtujete medeni teden, nam pišite na info@kovacnik.com, da skupaj najdemo najboljšo možnost."
+  },
+  {
+    "key": "pohodne_poti",
+    "priority": 72,
+    "triggers": [
+      "pohodne poti",
+      "kje lahko hodimo",
+      "pohodništvo",
+      "pohorje poti"
+    ],
+    "answer": "V bližini je veliko izletniških in pohodniških poti po Pohorju. Za ideje poglejte naš seznam izletov ali vprašajte ob obisku."
+  },
+  {
+    "key": "smucanje",
+    "priority": 72,
+    "triggers": [
+      "smučanje",
+      "smucanje",
+      "najbližje smučišče",
+      "smučišče",
+      "smucisce"
+    ],
+    "answer": "Najbližji smučišči sta Mariborsko Pohorje in Areh."
+  },
+  {
+    "key": "kolesa",
+    "priority": 72,
+    "triggers": [
+      "kolesa",
+      "e-kolesa",
+      "ekolesa",
+      "izposoja koles",
+      "kolesarji"
+    ],
+    "answer": "Kolesa (tudi e-kolesa) so na voljo. Cena in termin sta po dogovoru – prosimo, povprašajte ob rezervaciji."
+  },
+  {
+    "key": "plavanje",
+    "priority": 70,
+    "triggers": [
+      "plavanje",
+      "bazen",
+      "jezero",
+      "ribolov"
+    ],
+    "answer": "Bazen nimamo. Za kopanje priporočamo okolico Ptuja; drugih vodnih možnosti v bližini ne ponujamo."
+  },
+  {
+    "key": "nordijska_hoja_ture",
+    "priority": 70,
+    "triggers": [
+      "nordijska hoja",
+      "vodene ture",
+      "vodene ture?",
+      "vodenih tur"
+    ],
+    "answer": "Vodenih tur ne organiziramo. Pohorje pa ponuja veliko lepih poti za sprehode in nordijsko hojo."
+  },
+  {
+    "key": "tv_soba",
+    "priority": 70,
+    "triggers": [
+      "televizija v sobi",
+      "tv v sobi",
+      "tv",
+      "televizija"
+    ],
+    "answer": "Da, v sobah je televizija."
+  },
+  {
+    "key": "wifi_hitrost",
+    "priority": 70,
+    "triggers": [
+      "wifi hiter",
+      "hiter wifi",
+      "signal wifi"
+    ],
+    "answer": "Wi‑Fi je na voljo, povezava je praviloma dovolj dobra za običajno uporabo."
+  },
+  {
+    "key": "netflix",
+    "priority": 70,
+    "triggers": [
+      "netflix"
+    ],
+    "answer": "Netflixa nimamo."
+  },
+  {
+    "key": "prostor_delo_tiskanje",
+    "priority": 70,
+    "triggers": [
+      "prostor za delo",
+      "delam od doma",
+      "tiskanje",
+      "tiskalnik"
+    ],
+    "answer": "Namenskega prostora za delo ali tiskanja praviloma ne nudimo."
+  },
+  {
+    "key": "signal",
+    "priority": 70,
+    "triggers": [
+      "signal",
+      "mobilni signal"
+    ],
+    "answer": "Signal na Pohorju zna biti spremenljiv – včasih dober, včasih slab."
+  },
+  {
+    "key": "polnilec_telefon",
+    "priority": 70,
+    "triggers": [
+      "polnilec za telefon",
+      "polnilec"
+    ],
+    "answer": "Polnilca za telefon nimamo na voljo."
+  },
+  {
+    "key": "polnilnica_ev",
+    "priority": 70,
+    "triggers": [
+      "polnilnica",
+      "polnilnica za ev",
+      "električni avto"
+    ],
+    "answer": "Polnilnice za električna vozila nimamo."
+  },
+  {
+    "key": "posebne_prehrane",
+    "priority": 70,
+    "triggers": [
+      "halal",
+      "košer",
+      "koser",
+      "diabetik",
+      "diabetike",
+      "alergičen na oreščke",
+      "alergicna na orescke",
+      "brez laktoze",
+      "laktoza"
+    ],
+    "answer": "Posebne prehrane (halal, košer, diabetična, brez laktoze ipd.) lahko uredimo po dogovoru. Prosimo, sporočite ob rezervaciji ali na info@kovacnik.com."
+  },
+  {
+    "key": "pijace_osnovno",
+    "priority": 70,
+    "triggers": [
+      "brezalkoholna pijača",
+      "pivo",
+      "sokovi",
+      "kava",
+      "čaj",
+      "caj",
+      "brezalkoholno"
+    ],
+    "answer": "Da, na voljo imamo brezalkoholne pijače, pivo, sokove, kavo in čaj."
   }
 ]

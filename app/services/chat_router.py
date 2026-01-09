@@ -366,6 +366,31 @@ UNKNOWN_RESPONSES = [
 ]
 
 SEMANTIC_THRESHOLD = 0.75
+SEMANTIC_STOPWORDS = {
+    "a", "ali", "al", "pa", "in", "na", "za", "se", "so", "je", "smo", "ste",
+    "sem", "biti", "bo", "bi", "da", "ne", "ni", "niso", "si", "mi", "ti",
+    "vi", "vas", "vam", "nas", "ga", "jo", "jih", "te", "to", "ta", "tisto",
+    "kdo", "kaj", "kdaj", "kje", "kako", "kolik", "koliko", "ker", "pač",
+    "pri", "od", "do", "v", "iz", "z", "ob", "kot", "naj", "tudi", "lahko",
+    "moj", "moja", "moje", "tvoj", "tvoja", "tvoje", "njihov", "njihova",
+    "the", "and", "or", "to", "is", "are", "a", "an", "for", "in", "of",
+}
+
+
+def _tokenize_text(text: str) -> set[str]:
+    tokens = re.findall(r"[A-Za-zČŠŽčšžĐđĆć0-9]+", text.lower())
+    return {t for t in tokens if len(t) >= 3 and t not in SEMANTIC_STOPWORDS}
+
+
+def _semantic_overlap_ok(question: str, chunk: Any) -> bool:
+    q_tokens = _tokenize_text(question)
+    if not q_tokens:
+        return True
+    c_tokens = _tokenize_text(f"{chunk.title or ''} {chunk.paragraph or ''}")
+    overlap = q_tokens & c_tokens
+    if len(q_tokens) >= 6:
+        return len(overlap) >= 2 and (len(overlap) / len(q_tokens)) >= 0.25
+    return len(overlap) >= 2 or (len(overlap) / len(q_tokens)) >= 0.5
 
 
 def _format_semantic_snippet(chunk: Any) -> str:
@@ -385,6 +410,20 @@ def semantic_info_answer(question: str) -> Optional[str]:
         try:
             with open("data/semantic_low_score.log", "a", encoding="utf-8") as handle:
                 handle.write(f"{datetime.utcnow().isoformat()} score={score:.2f} q={question}\n")
+        except Exception:
+            pass
+        return None
+    if not _semantic_overlap_ok(question, chunk):
+        try:
+            q_tokens = _tokenize_text(question)
+            c_tokens = _tokenize_text(chunk.paragraph or "")
+            overlap = q_tokens & c_tokens
+            ratio = (len(overlap) / len(q_tokens)) if q_tokens else 0.0
+            with open("data/semantic_low_score.log", "a", encoding="utf-8") as handle:
+                handle.write(
+                    f"{datetime.utcnow().isoformat()} score={score:.2f} overlap={len(overlap)} "
+                    f"ratio={ratio:.2f} q={question}\n"
+                )
         except Exception:
             pass
         return None
