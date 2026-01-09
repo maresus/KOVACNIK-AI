@@ -1,5 +1,7 @@
 import re
 import random
+import json
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
 import uuid
@@ -16,6 +18,7 @@ from app.rag.knowledge_base import (
     KNOWLEDGE_CHUNKS,
     generate_llm_answer,
     search_knowledge,
+    search_knowledge_scored,
 )
 from app.rag.chroma_service import answer_tourist_question, is_tourist_query
 from app.services.router_agent import route_message
@@ -26,6 +29,12 @@ USE_ROUTER_V2 = True
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 INFO_RESPONSES = {
+    "pozdrav": """Pozdravljeni pri Domačiji Kovačnik! 😊
+
+Lahko pomagam z vprašanji o sobah, kosilih, izletih ali domačih izdelkih.""",
+    "kdo_si": """Sem vaš digitalni pomočnik Domačije Kovačnik.
+
+Z veseljem odgovorim na vprašanja o nastanitvi, kosilih, izletih ali izdelkih.""",
     "odpiralni_cas": """Odprti smo ob **sobotah in nedeljah med 12:00 in 20:00**.
 
 Zadnji prihod na kosilo je ob **15:00**.
@@ -113,9 +122,26 @@ Parkirate kar na dvorišču – avto bo na varnem, vi pa na miru.""",
 Na kmetiji imamo svoje živali (ponija Marsija, ovna Čarlija, pujsko Pepo …), zato prosimo, da psov in drugih ljubljenčkov ne prinašate s seboj.
 
 Hvala za razumevanje! 🙏""",
+    "zivali_kmetija": """Na naši domačiji imamo kar nekaj živali, ki jih lahko spoznate:
+
+🐴 ponija Marsija in Malajko
+🐷 pujsko Pepo
+🐑 ovna Čarlija
+🐕 psičko Luno
+🐱 mucke
+
+Poleg tega skrbimo tudi za govedo in kokoši. 😊""",
     "placilo": """Plačilo je možno **samo z gotovino**. 💶
 
 Vem, malo old school – ampak v bližini je bankomat. Račun seveda dobite!""",
+    "kontakt": """📞 Telefon: 02 601 54 00
+📱 Mobitel: 031 330 113
+📧 Email: info@kovacnik.com""",
+    "rezervacija_vnaprej": """Za obisk in kosilo priporočamo rezervacijo vnaprej, da vam lahko zagotovimo mizo in pripravo jedi.
+
+Če želite, vam lahko takoj pomagam z rezervacijo.""",
+    "prazniki": """Za praznike se urnik lahko prilagodi.  
+Najbolje je, da nas kontaktirate na info@kovacnik.com ali 02 601 54 00, da potrdimo aktualni termin.""",
     "kapaciteta_mize": """Imamo **dve jedilnici**:
 
 🏠 **Pri peči** – intimna, topla, do **15 oseb**
@@ -282,6 +308,18 @@ Priporočamo pohodne čevlje in previdnost ob mokrih skalah.""",
 Postrežemo ohlajeno (bela 8–10°C, rdeča ~14°C). Za vinsko spremljavo ob degustacijskem meniju: +15–29 €.""",
 }
 
+_TOPIC_RESPONSES: dict[str, str] = {}
+_topics_path = Path(__file__).resolve().parents[2] / "data" / "knowledge_topics.json"
+if _topics_path.exists():
+    try:
+        for item in json.loads(_topics_path.read_text(encoding="utf-8")):
+            key = item.get("key")
+            answer = item.get("answer")
+            if key and answer:
+                _TOPIC_RESPONSES[key] = answer
+    except Exception:
+        _TOPIC_RESPONSES = {}
+
 # Varianta odgovorov za bolj človeški ton (rotacija); tukaj uporabljamo iste besedilne vire
 INFO_RESPONSES_VARIANTS = {key: [value] for key, value in INFO_RESPONSES.items()}
 INFO_RESPONSES_VARIANTS["menu_info"] = [INFO_RESPONSES["jedilnik"]]
@@ -294,6 +332,10 @@ BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapacit
 
 
 def get_info_response(key: str) -> str:
+    if key.startswith("topic:"):
+        topic_key = key.split(":", 1)[1]
+        if topic_key in _TOPIC_RESPONSES:
+            return _TOPIC_RESPONSES[topic_key]
     if key in INFO_RESPONSES_VARIANTS:
         return random.choice(INFO_RESPONSES_VARIANTS[key])
     return INFO_RESPONSES.get(key, "Kako vam lahko pomagam?")
@@ -322,6 +364,31 @@ UNKNOWN_RESPONSES = [
     "To vprašanje je specifično, prosim napišite na info@kovacnik.com in skupaj najdemo odgovor.",
     "Tu mi manjka podatek. Email: info@kovacnik.com — z veseljem preverimo.",
 ]
+
+SEMANTIC_THRESHOLD = 0.75
+
+
+def _format_semantic_snippet(chunk: Any) -> str:
+    snippet = chunk.paragraph.strip()
+    if len(snippet) > 500:
+        snippet = snippet[:500].rsplit(". ", 1)[0] + "."
+    url_line = f"\n\nVeč: {chunk.url}" if chunk.url else ""
+    return f"{snippet}{url_line}"
+
+
+def semantic_info_answer(question: str) -> Optional[str]:
+    scored = search_knowledge_scored(question, top_k=1)
+    if not scored:
+        return None
+    score, chunk = scored[0]
+    if score < SEMANTIC_THRESHOLD:
+        try:
+            with open("data/semantic_low_score.log", "a", encoding="utf-8") as handle:
+                handle.write(f"{datetime.utcnow().isoformat()} score={score:.2f} q={question}\n")
+        except Exception:
+            pass
+        return None
+    return _format_semantic_snippet(chunk)
 # Fiksni zaključek rezervacije
 RESERVATION_PENDING_MESSAGE = """
 ✅ **Vaše povpraševanje je PREJETO** in čaka na potrditev.
@@ -1287,6 +1354,10 @@ PRODUCT_RESPONSES = {
         "Imamo **domače likerje**: borovničev, žajbljev, aronija, smrekovi vršički (3 cl/5 cl) in za domov 350 ml (13–15 €), tepkovec 15 €.\n\nKupite ob obisku ali naročite: https://kovacnik.com/katalog (sekcija Likerji in žganje).",
         "Naši **domači likerji** (žajbelj, smrekovi vršički, aronija, borovničevec) in žganja (tepkovec, tavžentroža). Cene za 350 ml od 13 €.\n\nNa voljo v spletni trgovini: https://kovacnik.com/katalog ali ob obisku.",
     ],
+    "bunka": [
+        "Imamo **pohorsko bunko** (18–21 €) ter druge mesnine.\n\nNa voljo ob obisku ali v spletni trgovini: https://kovacnik.com/katalog (sekcija Mesnine).",
+        "Pohorska bunka je na voljo (18–21 €), skupaj s suho klobaso in salamo.\n\nNaročilo: https://kovacnik.com/katalog.",
+    ],
     "izdelki_splosno": [
         "Prodajamo **domače izdelke** (marmelade, likerji/žganja, mesnine, čaji, sirupi, paketi) ob obisku ali v spletni trgovini: https://kovacnik.com/katalog.",
         "Na voljo so **marmelade, likerji/žganja, mesnine, čaji, sirupi, darilni paketi**. Naročite na spletu (https://kovacnik.com/katalog) ali kupite ob obisku.",
@@ -1307,7 +1378,7 @@ def detect_product_intent(message: str) -> Optional[str]:
         return "marmelada"
     if "gibanica" in text:
         return "gibanica_narocilo"
-    if "bunka" in text:
+    if any(w in text for w in ["bunka", "bunko", "bunke"]):
         return "bunka"
     if any(w in text for w in ["izdelk", "prodaj", "kupiti", "kaj imate", "trgovin"]):
         return "izdelki_splosno"
@@ -2874,6 +2945,11 @@ def table_intro_text() -> str:
 def parse_reservation_type(message: str) -> Optional[str]:
     lowered = message.lower()
 
+    def _has_term(term: str) -> bool:
+        if " " in term:
+            return term in lowered
+        return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", lowered) is not None
+
     # soba - slovensko, angleško, nemško
     room_keywords = [
         # slovensko
@@ -2902,7 +2978,7 @@ def parse_reservation_type(message: str) -> Optional[str]:
         "schlafen",
         "unterkunft",
     ]
-    if any(word in lowered for word in room_keywords):
+    if any(_has_term(word) for word in room_keywords):
         return "room"
 
     # miza - slovensko, angleško, nemško
@@ -2934,7 +3010,7 @@ def parse_reservation_type(message: str) -> Optional[str]:
         "speisen",
         "restaurant",
     ]
-    if any(word in lowered for word in table_keywords):
+    if any(_has_term(word) for word in table_keywords):
         return "table"
     return None
 
@@ -3461,8 +3537,8 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
         )
 
     if reservation_state["step"] is None:
-        # Če že iz prvega stavka razberemo tip, preskočimo dodatno vprašanje.
-        detected = parse_reservation_type(message)
+        # Če je tip že nastavljen (npr. iz routerja), ga upoštevaj.
+        detected = reservation_state.get("type") or parse_reservation_type(message)
         if detected == "room":
             reservation_state["type"] = "room"
             # poskusimo prebrati datum in nočitve iz prvega stavka
@@ -3678,8 +3754,18 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         )
         if reply_v2:
             return finalize(reply_v2, decision.get("routing", {}).get("intent", "v2"), followup_flag=False)
-        # Če nič ne ujame, priznaj neznano in ponudi email
+        # Če nič ne ujame, poskusi turistični RAG
         if state.get("step") is None:
+            tourist_reply = answer_tourist_question(payload.message)
+            if tourist_reply:
+                tourist_reply = maybe_translate(tourist_reply, detected_lang)
+                return finalize(tourist_reply, "tourist_info", followup_flag=False)
+            # Nato semantični INFO odgovor iz knowledge baze
+            semantic_reply = semantic_info_answer(payload.message)
+            if semantic_reply:
+                semantic_reply = maybe_translate(semantic_reply, detected_lang)
+                return finalize(semantic_reply, "info_semantic", followup_flag=False)
+            # Če še vedno nič, priznaj neznano in ponudi email
             reply = random.choice(UNKNOWN_RESPONSES)
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "info_unknown", followup_flag=False)

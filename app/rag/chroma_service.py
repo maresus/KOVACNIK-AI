@@ -47,6 +47,7 @@ TOURIST_KEYWORDS = [
     "otroci",
     "družina",
     "vikend",
+    "areh",
     "kam",
     "kje",
     "kaj početi",

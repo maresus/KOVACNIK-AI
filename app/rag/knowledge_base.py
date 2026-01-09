@@ -97,6 +97,72 @@ def _score_chunk(tokens: Set[str], chunk: KnowledgeChunk) -> float:
     return overlap_para + 0.5 * overlap_title
 
 
+def _score_chunk_ratio(tokens: Set[str], chunk: KnowledgeChunk, base_len: int) -> float:
+    if not tokens or base_len <= 0:
+        return 0.0
+    paragraph_tokens = _tokenize(chunk.paragraph)
+    if not paragraph_tokens:
+        return 0.0
+    title_tokens = _tokenize(chunk.title)
+    overlap_para = len(tokens & paragraph_tokens)
+    overlap_title = len(tokens & title_tokens)
+    raw = overlap_para + 0.5 * overlap_title
+    return raw / max(1.0, float(base_len))
+
+
+def _expand_query_tokens(query: str, tokens: Set[str]) -> Set[str]:
+    lowered = query.lower()
+    expanded = set(tokens)
+    if "konj" in lowered or "konja" in lowered:
+        expanded.update({"poni", "ponij", "ponija", "jahanje"})
+    if "jah" in lowered:
+        expanded.update({"jahanje", "poni", "ponij", "ponija"})
+    return expanded
+
+
+def search_knowledge_scored(query: str, top_k: int = 3) -> list[tuple[float, KnowledgeChunk]]:
+    base_tokens = _tokenize(query)
+    tokens = _expand_query_tokens(query, base_tokens)
+    base_len = len(base_tokens)
+    if not tokens:
+        return []
+    lowered = query.lower()
+    candidates = None
+    for patterns in KEYWORD_RULES.values():
+        if any(term in lowered for term in patterns):
+            candidates = []
+            for chunk in KNOWLEDGE_CHUNKS:
+                chunk_text = f"{chunk.title.lower()} {chunk.paragraph.lower()} {chunk.url.lower()}"
+                if any(term in chunk_text for term in patterns):
+                    candidates.append(chunk)
+            break
+    # Če je vprašanje o jahanju/poniju, preferiraj specifične odstavke
+    if any(term in lowered for term in ["jahanje", "jahati", "jahamo", "poni", "ponij", "konj", "konja"]):
+        filtered = []
+        source = candidates if candidates is not None else KNOWLEDGE_CHUNKS
+        for chunk in source:
+            chunk_text = f"{chunk.title.lower()} {chunk.paragraph.lower()} {chunk.url.lower()}"
+            if "ponij" in chunk_text or "jahanje" in chunk_text:
+                filtered.append(chunk)
+        if filtered:
+            candidates = filtered
+    scored: list[tuple[float, KnowledgeChunk]] = []
+    for chunk in (candidates if candidates is not None else KNOWLEDGE_CHUNKS):
+        score = _score_chunk_ratio(tokens, chunk, base_len)
+        if score > 0:
+            scored.append((score, chunk))
+    if any(term in lowered for term in ["jahanje", "jahati", "jahamo", "poni", "ponij", "konj", "konja"]):
+        boosted: list[tuple[float, KnowledgeChunk]] = []
+        for score, chunk in scored:
+            chunk_text = f"{chunk.title.lower()} {chunk.url.lower()}"
+            if "ponij" in chunk_text or "jahanje" in chunk_text:
+                score += 1.0
+            boosted.append((score, chunk))
+        scored = boosted
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return scored[:top_k]
+
+
 def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
     tokens = _tokenize(query)
     if not tokens:
