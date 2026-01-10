@@ -21,12 +21,15 @@ from app.rag.knowledge_base import (
     search_knowledge,
     search_knowledge_scored,
 )
+from app.core.config import Settings
+from app.core.llm_client import get_llm_client
 from app.rag.chroma_service import answer_tourist_question, is_tourist_query
 from app.services.router_agent import route_message
 from app.services.executor_v2 import execute_decision
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 USE_ROUTER_V2 = True
+USE_FULL_KB_LLM = True
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 INFO_RESPONSES = {
@@ -120,12 +123,12 @@ Zakaj? Ker en dan ni dovolj, da se zares sprostite in začutite ritem podeželja
 Parkirate kar na dvorišču – avto bo na varnem, vi pa na miru.""",
     "zivali": """Žal hišnih ljubljenčkov **ne sprejemamo**. 🐕❌
 
-Na kmetiji imamo svoje živali (ponija Marsija, ovna Čarlija, pujsko Pepo …), zato prosimo, da psov in drugih ljubljenčkov ne prinašate s seboj.
+Na kmetiji imamo svoje živali (konjička Malajko in Marsija, ovna Čarlija, pujsko Pepo …), zato prosimo, da psov in drugih ljubljenčkov ne prinašate s seboj.
 
 Hvala za razumevanje! 🙏""",
     "zivali_kmetija": """Na naši domačiji imamo kar nekaj živali, ki jih lahko spoznate:
 
-🐴 ponija Marsija in Malajko
+🐴 konjička Malajko in Marsij
 🐷 pujsko Pepo
 🐑 ovna Čarlija
 🐕 psičko Luno
@@ -207,14 +210,14 @@ Za druge sezone (npr. pomladna srajčka) se meni prilagodi – vprašajte, če v
 👧 **Julija** – animatorka, skrbi za živali
 👧 **Ana** – najmlajša članica družine
 
-Družina nadaljuje tradicijo od leta 1981! 🏡""",
+Družina nadaljuje tradicijo od leta 1981 in vas vedno sprejmemo z domačim nasmehom. 🏡""",
     "kmetija": """Kovačnikova kmetija obsega **36 hektarjev**:
 - 12 ha obdelovalnih površin (travniki, pašniki)
 - 24 ha gozda
 - 40 glav govedi v hlevu na prosto rejo
 
 Redimo tudi svinje, kokoši nesnice, in hišne ljubljenčke:
-🐴 Ponija Marsija in Malajko
+🐴 Konjička Malajko in Marsij
 🐷 Pujsko Pepo  
 🐑 Ovna Čarlija
 🐕 Psičko Luno
@@ -330,6 +333,22 @@ INFO_RESPONSES["menu_full"] = INFO_RESPONSES["jedilnik"]
 INFO_RESPONSES["sobe_info"] = INFO_RESPONSES["sobe"]
 
 BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
+CRITICAL_INFO_KEYS = {
+    "odpiralni_cas",
+    "prazniki",
+    "rezervacija_vnaprej",
+    "zajtrk",
+    "vecerja",
+    "jedilnik",
+    "cena_sobe",
+    "min_nocitve",
+    "prijava_odjava",
+    "placilo",
+    "parking",
+    "kontakt",
+    "sobe",
+    "kapaciteta_mize",
+}
 
 def _send_reservation_emails_async(payload: dict) -> None:
     def _worker() -> None:
@@ -339,6 +358,148 @@ def _send_reservation_emails_async(payload: dict) -> None:
         except Exception as exc:
             print(f"[EMAIL] Async send failed: {exc}")
     threading.Thread(target=_worker, daemon=True).start()
+
+FULL_KB_TEXT = ""
+try:
+    kb_path = Path(__file__).resolve().parents[2] / "knowledge.jsonl"
+    if kb_path.exists():
+        chunks = []
+        for line in kb_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            url = record.get("url", "")
+            title = record.get("title", "")
+            content = record.get("content", "")
+            if not (url or title or content):
+                continue
+            chunks.append(
+                f"URL: {url}\nNaslov: {title}\nVsebina: {content}\n"
+            )
+        FULL_KB_TEXT = "\n---\n".join(chunks)
+except Exception as exc:
+    print(f"[KB] Full KB load failed: {exc}")
+
+def _llm_system_prompt_full_kb() -> str:
+    return (
+        "Ti si asistent Domačije Kovačnik. Upoštevaj te potrjene podatke kot glavne:\n"
+        "- Gospodar kmetije: Danilo\n"
+        "- Družina: Babica Angelca, Danilo, Barbara, Aljaž (partnerka Kaja), Julija, Ana\n"
+        "- Konjička: Malajka in Marsij\n\n"
+        "Preverjeni meniji (uporabi dobesedno, brez dodajanja novih jedi):\n"
+        "Zimska srajčka (dec–feb):\n"
+        "- Pohorska bunka in zorjen Frešerjev sir, hišna salama, paštetka iz domačih jetrc, zaseka, bučni namaz, hišni kruhek\n"
+        "- Goveja župca z rezanci in jetrnimi rolicami ali koprivna juhica s čemažem in sirne lizike\n"
+        "- Meso na plošči: pujskov hrbet, hrustljavi piščanec Pesek, piščančje kroglice z zelišči, mlado goveje meso z jabolki in rdečim vinom\n"
+        "- Priloge: štukelj s skuto, ričota s pirino kašo in jurčki, pražen krompir iz šporheta na drva, mini pita s porom, ocvrte hruške “Debeluške”, pomladna/zimska solata\n"
+        "- Sladica: Pohorska gibanica babice Angelce\n\n"
+        "Tukaj so VSE informacije o domačiji:\n"
+        f"{FULL_KB_TEXT}\n\n"
+        "Odgovarjaj prijazno, naravno in slovensko. Ne izmišljuj si podatkov.\n"
+        "Če uporabnik želi TOČEN meni, ga podaš samo, če je v podatkih ali preverjenih menijih.\n"
+        "Če ni podatka o točnem meniju ali sezoni, to povej in vprašaj za mesec/termin.\n"
+        "Če se podatki v virih razlikujejo, uporabi potrjene podatke zgoraj.\n"
+        "Ne navajaj oseb, ki niso v potrjenih podatkih."
+        "Če uporabnik želi rezervirati sobo ali mizo, OBVEZNO pokliči funkcijo "
+        "`reservation_intent` in nastavi ustrezen action."
+    )
+
+def _llm_route_reservation(message: str) -> dict:
+    client = get_llm_client()
+    settings = Settings()
+    tools = [
+        {
+            "type": "function",
+            "name": "reservation_intent",
+            "description": "Ugotovi ali uporabnik želi rezervacijo sobe ali mize. Vrni action.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["NONE", "BOOKING_ROOM", "BOOKING_TABLE"],
+                    },
+                    "date": {"type": "string"},
+                    "time": {"type": "string"},
+                    "people_count": {"type": "integer"},
+                    "nights": {"type": "integer"},
+                },
+                "required": ["action"],
+            },
+        }
+    ]
+    try:
+        response = client.responses.create(
+            model=settings.openai_model,
+            input=[
+                {"role": "system", "content": "Ugotovi, ali uporabnik želi rezervacijo sobe ali mize."},
+                {"role": "user", "content": message},
+            ],
+            tools=tools,
+            tool_choice={"type": "function", "name": "reservation_intent"},
+            temperature=0.2,
+            max_output_tokens=120,
+        )
+    except Exception as exc:
+        print(f"[LLM] reservation route error: {exc}")
+        return {"action": "NONE"}
+
+    for block in getattr(response, "output", []) or []:
+        for content in getattr(block, "content", []) or []:
+            content_type = getattr(content, "type", "")
+            if content_type not in {"tool_call", "function_call"}:
+                continue
+            name = getattr(content, "name", "") or getattr(getattr(content, "function", None), "name", "")
+            if name != "reservation_intent":
+                continue
+            args = getattr(content, "arguments", None)
+            if args is None and getattr(content, "function", None):
+                args = getattr(content.function, "arguments", None)
+            args = args or "{}"
+            try:
+                return json.loads(args)
+            except json.JSONDecodeError:
+                return {"action": "NONE"}
+    return {"action": "NONE"}
+
+def _llm_answer_full_kb(message: str) -> str:
+    client = get_llm_client()
+    settings = Settings()
+    try:
+        response = client.responses.create(
+            model=settings.openai_model,
+            input=[
+                {"role": "system", "content": _llm_system_prompt_full_kb()},
+                {"role": "user", "content": message},
+            ],
+            max_output_tokens=450,
+            temperature=settings.openai_temperature,
+            top_p=0.9,
+        )
+    except Exception as exc:
+        print(f"[LLM] answer error: {exc}")
+        return "Oprostite, trenutno ne morem odgovoriti. Poskusite znova čez trenutek."
+    answer = getattr(response, "output_text", None)
+    if not answer:
+        outputs = []
+        for block in getattr(response, "output", []) or []:
+            for content in getattr(block, "content", []) or []:
+                text = getattr(content, "text", None)
+                if text:
+                    outputs.append(text)
+        answer = "\n".join(outputs).strip()
+    return answer or "Seveda, z veseljem pomagam. Kaj vas zanima?"
+
+def _llm_answer(question: str, history: list[dict[str, str]]) -> Optional[str]:
+    try:
+        return generate_llm_answer(question, history=history)
+    except Exception as exc:
+        print(f"[LLM] Failed to answer: {exc}")
+        return None
 
 
 def get_info_response(key: str) -> str:
@@ -2498,345 +2659,33 @@ def detect_language(message: str) -> str:
 
 
 def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v ciljni jezik, če je angleščina ali nemščina."""
-    if lang == "en":
-        prompt = f"Translate this to English, keep it natural and friendly:\n{reply}"
-    elif lang == "de":
-        prompt = f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-    else:
-        return reply
-
-    try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v angleščino ali nemščino, če je treba."""
-    if lang not in {"en", "de"}:
-        return reply
-
-    if lang == "en":
-        prompt = f"Translate this to English, keep it natural and friendly:\n{reply}"
-    else:
-        prompt = f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-
-    try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v ciljni jezik, če ni slovenščina."""
-    if lang == "en":
-        prompt = f"Translate this to English, keep it natural and friendly:\n{reply}"
-    elif lang == "de":
-        prompt = f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-    else:
-        return reply
-
-    try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v ciljni jezik (en/de) prek LLM, če je potrebno."""
-    if lang == "si":
-        return reply
-    prompts = {
-        "en": "Translate this to English, keep it natural and friendly:\n{reply}",
-        "de": "Translate this to German/Deutsch, keep it natural and friendly:\n{reply}",
-    }
-    prompt = prompts.get(lang)
-    if not prompt:
-        return reply
-    try:
-        return generate_llm_answer(prompt.format(reply=reply), history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v želeni jezik, če ni slovenščina."""
-    if lang == "si":
-        return reply
-
-    prompt_map = {
-        "en": "Translate this to English, keep it natural and friendly:\n{reply}",
-        "de": "Translate this to German/Deutsch, keep it natural and friendly:\n{reply}",
-    }
-    if lang not in prompt_map:
-        return reply
-
-    try:
-        prompt = prompt_map[lang].format(reply=reply)
-        translated = generate_llm_answer(prompt, history=[])
-        return translated or reply
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor glede na zaznan jezik (en/de), sicer vrne original."""
-    if lang == "en":
-        return generate_llm_answer(
-            "Translate to English, keep it natural and friendly:\n" + reply,
-            history=[],
-        )
-    if lang == "de":
-        return generate_llm_answer(
-            "Translate to German/Deutsch, keep it natural and friendly:\n" + reply,
-            history=[],
-        )
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v zaznani jezik (en/de), če je potrebno."""
+    """Prevede odgovor v angleščino ali nemščino, če je potrebno."""
     if not reply or lang not in {"en", "de"}:
         return reply
-    prompt = (
-        f"Translate this to English, keep it natural and friendly:\n{reply}"
-        if lang == "en"
-        else f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-    )
     try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor glede na zaznani jezik, če je treba."""
-    if lang == "en":
-        prompt = f"Translate this to English, keep it natural and friendly:\n{reply}"
-    elif lang == "de":
-        prompt = f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-    else:
-        return reply
-
-    try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Po potrebi prevede odgovor v angleščino ali nemščino."""
-    if lang not in {"en", "de"}:
-        return reply
-    prompt = (
-        f"Translate this to English, keep it natural and friendly:\n{reply}"
-        if lang == "en"
-        else f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
-    )
-    try:
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return reply
-
-
-def maybe_translate(reply: str, detected_lang: str) -> str:
-    """Po potrebi prevede odgovor v angleščino ali nemščino."""
-    if detected_lang not in {"en", "de"}:
-        return reply
-    try:
-        if detected_lang == "en":
-            return generate_llm_answer(
-                f"Translate this to English, keep it natural and friendly:\n{reply}",
-                history=[],
-            )
-        return generate_llm_answer(
-            f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}",
-            history=[],
+        prompt = (
+            f"Translate this to English, keep it natural and friendly:\n{reply}"
+            if lang == "en"
+            else f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}"
         )
+        return generate_llm_answer(prompt, history=[])
     except Exception:
         return reply
 
 
-def maybe_translate(text: str, detected_lang: str) -> str:
+def maybe_translate(text: str, target_lang: str) -> str:
     """Po potrebi prevede besedilo v angleščino ali nemščino."""
-    if detected_lang not in {"en", "de"}:
+    if target_lang not in {"en", "de"} or not text:
         return text
     try:
         prompt = (
             f"Translate this to English, keep it natural and friendly:\n{text}"
-            if detected_lang == "en"
+            if target_lang == "en"
             else f"Translate this to German/Deutsch, keep it natural and friendly:\n{text}"
         )
         return generate_llm_answer(prompt, history=[])
     except Exception:
         return text
-
-def maybe_translate(text: str, detected_lang: str) -> str:
-    """Prevede odgovor v zaznan jezik (angleščina ali nemščina)."""
-    if detected_lang == "en":
-        return generate_llm_answer(
-            f"Translate this to English, keep it natural and friendly:\n{text}",
-            history=[],
-        )
-    if detected_lang == "de":
-        return generate_llm_answer(
-            f"Translate this to German/Deutsch, keep it natural and friendly:\n{text}",
-            history=[],
-        )
-    return text
-
-
-def maybe_translate(text: str, target_lang: str) -> str:
-    """Prevede besedilo v ciljni jezik (en/de), če je smiselno."""
-    if target_lang not in {"en", "de"} or not text:
-        return text
-    prompts = {
-        "en": "Translate to English. Keep the tone friendly and concise:\n",
-        "de": "Übersetze ins Deutsche. Freundlich und klar antworten:\n",
-    }
-    try:
-        translated = generate_llm_answer(prompts[target_lang] + text, history=[])
-        return translated or text
-    except Exception:
-        return text
-
-
-def maybe_translate(text: str, target_lang: str) -> str:
-    """Prevede besedilo v en/de, če je potrebno. Ob napaki vrne izvorno besedilo."""
-    if target_lang not in {"en", "de"} or not text:
-        return text
-    prompt_map = {
-        "en": "Translate this to English, keep it natural and friendly:\n",
-        "de": "Translate this to German/Deutsch, keep it natural and friendly:\n",
-    }
-    try:
-        translated = generate_llm_answer(prompt_map[target_lang] + text, history=[])
-        return translated or text
-    except Exception:
-        return text
-
-def maybe_translate(text: str, target_lang: str) -> str:
-    """Po potrebi prevede besedilo v angleščino ali nemščino."""
-    if target_lang not in {"en", "de"}:
-        return text
-    try:
-        if target_lang == "en":
-            prompt = f"Translate this to English, keep it natural and friendly:\n{text}"
-        else:
-            prompt = f"Translate this to German/Deutsch, keep it natural and friendly:\n{text}"
-        return generate_llm_answer(prompt, history=[])
-    except Exception:
-        return text
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v zaznani jezik (en/de)."""
-    if lang == "en":
-        try:
-            return generate_llm_answer(
-                "Translate this to English, keep it natural and friendly:\n" + reply,
-                history=[],
-            )
-        except Exception:
-            return reply
-    if lang == "de":
-        try:
-            return generate_llm_answer(
-                "Translate this to German/Deutsch, keep it natural and friendly:\n" + reply,
-                history=[],
-            )
-        except Exception:
-            return reply
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v angleščino ali nemščino, če je potrebno."""
-    if not reply or lang == "si":
-        return reply
-    try:
-        if lang == "en":
-            return generate_llm_answer(
-                f"Translate this to English, keep it natural and friendly:\n{reply}",
-                history=[],
-            )
-        if lang == "de":
-            return generate_llm_answer(
-                f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}",
-                history=[],
-            )
-    except Exception:
-        return reply
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v zaznani jezik (en/de); slovenščina ostane."""
-    if not reply or lang == "si":
-        return reply
-    try:
-        if lang == "en":
-            return generate_llm_answer(
-                "Translate the following message to natural, friendly English:\n" + reply,
-                history=[],
-            )
-        if lang == "de":
-            return generate_llm_answer(
-                "Translate the following message to natural, friendly German (Deutsch):\n" + reply,
-                history=[],
-            )
-    except Exception:
-        return reply
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v en/de, če je potrebno. Za slovenščino vrne original."""
-    if lang == "si" or not reply:
-        return reply
-
-    try:
-        if lang == "en":
-            return generate_llm_answer(
-                "Translate the following message to natural, friendly English:\n" + reply,
-                history=[],
-            )
-        if lang == "de":
-            return generate_llm_answer(
-                "Translate the following message to natural, friendly German (Deutsch):\n" + reply,
-                history=[],
-            )
-    except Exception:
-        return reply
-
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v ciljni jezik, če je angleščina ali nemščina."""
-    if lang == "en":
-        return generate_llm_answer(
-            f"Translate this to English, keep it natural and friendly:\n{reply}", history=[]
-        )
-    if lang == "de":
-        return generate_llm_answer(
-            f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}", history=[]
-        )
-    return reply
-
-
-def translate_reply(reply: str, lang: str) -> str:
-    """Prevede odgovor v podani jezik, če ni slovenščina."""
-    if lang == "en":
-        return generate_llm_answer(
-            f"Translate this to English, keep it natural and friendly:\n{reply}", history=[]
-        )
-    if lang == "de":
-        return generate_llm_answer(
-            f"Translate this to German/Deutsch, keep it natural and friendly:\n{reply}", history=[]
-        )
-    return reply
 
 
 def translate_response(text: str, target_lang: str) -> str:
@@ -3760,6 +3609,36 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         return finalize(reply, "followup_email", followup_flag=False)
 
     # V2 router/exec (opcijsko)
+    if USE_FULL_KB_LLM:
+        if state.get("step") is not None:
+            reply = handle_reservation_flow(payload.message, state)
+            return finalize(reply, "reservation", followup_flag=False)
+        try:
+            intent_result = _llm_route_reservation(payload.message)
+        except Exception as exc:
+            print(f"[LLM] routing failed: {exc}")
+            intent_result = {"action": "NONE"}
+        action = (intent_result or {}).get("action") or "NONE"
+        if action in {"BOOKING_ROOM", "BOOKING_TABLE"}:
+            reset_reservation_state(state)
+            state["type"] = "room" if action == "BOOKING_ROOM" else "table"
+            reply = handle_reservation_flow(payload.message, state)
+            return finalize(reply, action.lower(), followup_flag=False)
+        # fallback: če LLM ne vrne action, uporabi osnovno heuristiko
+        if any(token in payload.message.lower() for token in ["rezerv", "book", "booking"]):
+            if "mizo" in payload.message.lower() or "table" in payload.message.lower():
+                reset_reservation_state(state)
+                state["type"] = "table"
+                reply = handle_reservation_flow(payload.message, state)
+                return finalize(reply, "booking_table_fallback", followup_flag=False)
+            if "sobo" in payload.message.lower() or "room" in payload.message.lower() or "nočitev" in payload.message.lower():
+                reset_reservation_state(state)
+                state["type"] = "room"
+                reply = handle_reservation_flow(payload.message, state)
+                return finalize(reply, "booking_room_fallback", followup_flag=False)
+        llm_reply = _llm_answer_full_kb(payload.message)
+        return finalize(llm_reply, "info_llm", followup_flag=False)
+
     if USE_ROUTER_V2:
         decision = route_message(
             payload.message,
@@ -3768,6 +3647,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         )
         routing_info = decision.get("routing", {})
         print(f"[ROUTER_V2] intent={routing_info.get('intent')} conf={routing_info.get('confidence')} info={decision.get('context', {}).get('info_key')} product={decision.get('context', {}).get('product_category')} interrupt={routing_info.get('is_interrupt')}")
+        info_key = decision.get("context", {}).get("info_key") or ""
+        is_critical_info = info_key in CRITICAL_INFO_KEYS
 
         def _translate(txt: str) -> str:
             return maybe_translate(txt, detected_lang)
@@ -3787,6 +3668,16 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         def _continuation(step_val: Optional[str], st: dict) -> str:
             return get_booking_continuation(step_val, st)
 
+        # INFO brez kritičnih podatkov -> LLM/RAG odgovor (z možnostjo nadaljevanja rezervacije)
+        if routing_info.get("intent") == "INFO" and not is_critical_info:
+            llm_reply = _llm_answer(payload.message, conversation_history)
+            if llm_reply:
+                if routing_info.get("is_interrupt") and state.get("step"):
+                    cont = _continuation(state.get("step"), state)
+                    llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{cont}"
+                llm_reply = maybe_translate(llm_reply, detected_lang)
+                return finalize(llm_reply, "info_llm", followup_flag=False)
+
         reply_v2 = execute_decision(
             decision=decision,
             message=payload.message,
@@ -3801,6 +3692,11 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         )
         if reply_v2:
             return finalize(reply_v2, decision.get("routing", {}).get("intent", "v2"), followup_flag=False)
+        # Če nič ne ujame, poskusi LLM/RAG odgovor
+        llm_reply = _llm_answer(payload.message, conversation_history)
+        if llm_reply:
+            llm_reply = maybe_translate(llm_reply, detected_lang)
+            return finalize(llm_reply, "general_llm", followup_flag=False)
         # Če nič ne ujame, poskusi turistični RAG
         if state.get("step") is None:
             tourist_reply = answer_tourist_question(payload.message)
