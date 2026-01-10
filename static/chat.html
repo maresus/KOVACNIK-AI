@@ -301,6 +301,12 @@
 
   <script>
     const apiUrl = "/chat"; // isti host, isti port
+    const sessionKey = "chat_session_id";
+    let sessionId = localStorage.getItem(sessionKey);
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+      localStorage.setItem(sessionKey, sessionId);
+    }
     const messagesEl = document.getElementById("messages");
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
@@ -346,7 +352,7 @@
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify({ message: text, session_id: sessionId })
         });
 
         if (!res.ok) {

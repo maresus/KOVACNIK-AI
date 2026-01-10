@@ -229,6 +229,13 @@
       if (el) el.remove();
     }
     
+    const sessionKey = 'chat_session_id';
+    let sessionId = localStorage.getItem(sessionKey);
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+      localStorage.setItem(sessionKey, sessionId);
+    }
+
     async function sendMessage(text) {
       if (!text.trim()) return;
       addMessageToDOM(text, 'user');
@@ -241,8 +248,8 @@
         const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
-        });
+        body: JSON.stringify({ message: text, session_id: sessionId })
+      });
         hideTyping();
         if (res.ok) {
           const data = await res.json();
