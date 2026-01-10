@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
 import uuid
+import threading
 
 from fastapi import APIRouter
 
@@ -329,6 +330,15 @@ INFO_RESPONSES["menu_full"] = INFO_RESPONSES["jedilnik"]
 INFO_RESPONSES["sobe_info"] = INFO_RESPONSES["sobe"]
 
 BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
+
+def _send_reservation_emails_async(payload: dict) -> None:
+    def _worker() -> None:
+        try:
+            send_guest_confirmation(payload)
+            send_admin_notification(payload)
+        except Exception as exc:
+            print(f"[EMAIL] Async send failed: {exc}")
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def get_info_response(key: str) -> str:
@@ -3209,8 +3219,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             'kids': reservation_state.get('kids', ''),
             'kids_ages': reservation_state.get('kids_ages', ''),
         }
-        send_guest_confirmation(email_data)
-        send_admin_notification(email_data)
+        _send_reservation_emails_async(email_data)
         saved_lang = reservation_state.get("language", "si")
         reset_reservation_state(state)
         lines = [
@@ -3461,8 +3470,7 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
             'kids': reservation_state.get('people_kids', ''),
             'kids_ages': reservation_state.get('kids_ages', ''),
         }
-        send_guest_confirmation(email_data)
-        send_admin_notification(email_data)
+        _send_reservation_emails_async(email_data)
         reset_reservation_state(state)
         final_response = (
             "Super! 😊 Vaša rezervacija mize je zabeležena:\n"
