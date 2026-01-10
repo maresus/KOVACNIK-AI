@@ -88,7 +88,9 @@ def _detect_info_intent(text: str) -> Optional[str]:
         return "jedilnik"
     if any(w in text for w in ["alergij", "alergik", "gluten", "lakto", "vegan", "vegetar", "vegansko"]):
         return "alergije"
-    if any(w in text for w in ["nadmorski", "višina", "zemlje", "krav", "krave", "kmetij", "kmetijo"]):
+    if any(w in text for w in ["nadmorski", "višina"]):
+        return "lokacija"
+    if any(w in text for w in ["zemlje", "krav", "krave", "kmetij", "kmetijo"]):
         return "kmetija"
     if "gibanica" in text:
         return "gibanica"

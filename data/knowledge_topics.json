@@ -99,11 +99,12 @@
       "jahamo konja",
       "jahamo ponija",
       "jahanje s ponijem",
-      "jahanje s ponijem",
       "jahanje ponija",
-      "jahanje ponija",
-      "jahanje s ponijem",
-      "jahati ponija"
+      "jahati ponija",
+      "poni",
+      "ponij",
+      "ponija",
+      "ponijem"
     ],
     "answer": "Na naši domačiji je za otroke na voljo jahanje s ponijem Marsijem. En krog stane 5,00 € (po ceniku) in ga izvajamo ob lepem vremenu ter če je ponij dobre volje. Ob rezervaciji prosim omenite, da želite vključiti jahanje, da se dogovorimo za točen termin.\n\nVeč: https://kovacnik.com/cenik/ponij"
   },
@@ -248,6 +249,34 @@
     "answer": "Pri nas lahko organiziramo kosila za posebne priložnosti (rojstni dnevi, obletnice, poroke, teambuilding). Za posebne želje nam pišite na info@kovacnik.com."
   },
   {
+    "key": "kontakt",
+    "priority": 95,
+    "triggers": [
+      "telefon",
+      "telefonska številka",
+      "telefonska stevilka",
+      "številka",
+      "stevilka",
+      "mobitel",
+      "email",
+      "e-mail",
+      "epošta",
+      "e-pošta"
+    ],
+    "answer": "📞 Telefon: 02 601 54 00\n📱 Mobitel: 031 330 113\n📧 Email: info@kovacnik.com"
+  },
+  {
+    "key": "pogrebscina",
+    "priority": 80,
+    "triggers": [
+      "pogrebščina",
+      "pogrebscina",
+      "pogrebščino",
+      "pogreb"
+    ],
+    "answer": "Za pogrebščine se dogovorimo posebej. Prosimo, pišite na info@kovacnik.com ali pokličite 02 601 54 00."
+  },
+  {
     "key": "piknik",
     "priority": 84,
     "triggers": [
@@ -285,32 +314,22 @@
       "kapaciteta jedilnice",
       "koliko ljudi lahko sprejmete",
       "prostor za 30 oseb",
-      "koliko oseb sprejmete"
+      "koliko oseb sprejmete",
+      "notranja jedilnica",
+      "notranjo jedilnico",
+      "jedilnica"
     ],
     "answer": "V prvi jedilnici “Pri peči” je prostora za približno 15 oseb, v drugi “Pri vrtu” pa za okoli 35 obiskovalcev."
   },
   {
-    "key": "piknik_zunaj",
-    "priority": 75,
+    "key": "golf",
+    "priority": 90,
     "triggers": [
-      "piknik",
-      "zunanji prostor",
-      "prostor zunaj",
-      "zunanji prostor za praznovanje"
+      "golf",
+      "golf igrišče",
+      "golf igrisce"
     ],
-    "answer": "Piknika oziroma zunanjega prostora za praznovanje ne nudimo."
-  },
-  {
-    "key": "posebni_meniji",
-    "priority": 75,
-    "triggers": [
-      "silvestrovo",
-      "božični meni",
-      "valentinovo",
-      "posebni meni",
-      "praznični meni"
-    ],
-    "answer": "Ob posebnih priložnostih pripravimo posebne menije. Spremljajte naša družbena omrežja ali nam pišite na info@kovacnik.com."
+    "answer": "Golf igrišča nimamo, zato priporočamo, da najbližje lokacije preverite v Google Maps."
   },
   {
     "key": "igrisce",
@@ -323,6 +342,95 @@
       "hišica"
     ],
     "answer": "Da, zunaj imamo igrala, manjši travnik in hišico za otroke."
+  },
+  {
+    "key": "otroci_aktivnosti",
+    "priority": 78,
+    "triggers": [
+      "kaj lahko otroci počnejo",
+      "kaj lahko otroci pocnejo",
+      "otroci počnejo",
+      "otroci pocnejo",
+      "kotiček za otroke",
+      "koticek za otroke",
+      "kotiček",
+      "koticek",
+      "primerno za 3-letnika",
+      "primerno za 3 letnika",
+      "3-letnik",
+      "3 letnik"
+    ],
+    "answer": "Otroci lahko spoznajo živali, se igrajo na igrišču in travniku ter uživajo v naravi okoli domačije."
+  },
+  {
+    "key": "malcki_varno",
+    "priority": 74,
+    "triggers": [
+      "varno za malčke",
+      "varno za malcke",
+      "malčki",
+      "malcki",
+      "dojenčki",
+      "dojencki"
+    ],
+    "answer": "Okolica je podeželska in naravna, zato priporočamo, da so najmlajši ves čas pod nadzorom odraslih."
+  },
+  {
+    "key": "dez_vreme",
+    "priority": 70,
+    "triggers": [
+      "kaj počnemo če dežuje",
+      "kaj pocnemo ce dezjuje",
+      "če dežuje",
+      "ce dezjuje",
+      "slabo vreme"
+    ],
+    "answer": "V primeru slabega vremena se zadržujemo v notranjih jedilnicah, za dodatne ideje pa nas vprašajte ob prihodu."
+  },
+  {
+    "key": "sezona_obisk",
+    "priority": 70,
+    "triggers": [
+      "najboljši čas za obisk",
+      "najboljsi cas za obisk",
+      "katera sezona je najlepša",
+      "katera sezona je najlepsa",
+      "najlepša sezona",
+      "najlepsa sezona"
+    ],
+    "answer": "Vsaka sezona ima svoj čar. Spomladi in poleti je največ dogajanja zunaj, jeseni pa je okolica najlepša v barvah."
+  },
+  {
+    "key": "jesen",
+    "priority": 70,
+    "triggers": [
+      "jeseni",
+      "kako je jeseni",
+      "jesen"
+    ],
+    "answer": "Jeseni je okolica še posebej lepa zaradi barv. Dnevi so lahko hladnejši, zato priporočamo toplejša oblačila."
+  },
+  {
+    "key": "primerna_otroke",
+    "priority": 80,
+    "triggers": [
+      "primerna za otroke",
+      "primerno za otroke",
+      "kmetija primerna za otroke"
+    ],
+    "answer": "Da, kmetija je primerna za otroke. Lahko spoznajo živali, se igrajo na igrišču in preživijo čas v naravi."
+  },
+  {
+    "key": "dojencki",
+    "priority": 70,
+    "triggers": [
+      "dojenčki",
+      "dojencke",
+      "dojenčke",
+      "dojenčkom",
+      "dojencka"
+    ],
+    "answer": "Za dojenčke nimamo posebnega menija, lahko pa se prilagodimo po dogovoru. Posteljico lahko uredimo, prosimo sporočite vnaprej."
   },
   {
     "key": "otroski_meni",
@@ -350,7 +458,8 @@
     "triggers": [
       "posteljica za dojenčka",
       "posteljica",
-      "dojenček"
+      "dojenček",
+      "dojenčka"
     ],
     "answer": "Posteljico za dojenčka lahko uredimo – prosimo, da sporočite vnaprej."
   },
@@ -405,6 +514,17 @@
     "answer": "Pozimi strežemo v notranjih jedilnicah."
   },
   {
+    "key": "sneg_pozimi",
+    "priority": 70,
+    "triggers": [
+      "sneg pozimi",
+      "ali imate sneg pozimi",
+      "pozimi sneg",
+      "sneg"
+    ],
+    "answer": "Sneg je odvisen od vremena in sezone. Za aktualne razmere priporočamo vremensko napoved za območje Pohorja."
+  },
+  {
     "key": "gretje",
     "priority": 70,
     "triggers": [
@@ -456,13 +576,34 @@
     "answer": "Organiziranega prevoza/prevzema ne nudimo."
   },
   {
+    "key": "motoristi",
+    "priority": 70,
+    "triggers": [
+      "motoristi",
+      "motorist",
+      "motoriste",
+      "primerno za motoriste",
+      "motor",
+      "motorji"
+    ],
+    "answer": "Dostop do kmetije je po asfaltirani cesti, parkiranje pa je na dvorišču."
+  },
+  {
     "key": "oddaljenost_lj_celje",
     "priority": 78,
     "triggers": [
       "koliko je ljubljana",
       "koliko je do ljubljane",
+      "kako daleč je ljubljana",
+      "kako dalec je ljubljana",
       "koliko je celje",
       "koliko je do celja",
+      "kako daleč je celje",
+      "kako dalec je celje",
+      "koliko časa traja vožnja iz celja",
+      "koliko casa traja voznja iz celja",
+      "vožnja iz celja",
+      "voznja iz celja",
       "oddaljenost ljubljana",
       "oddaljenost celje"
     ],
@@ -473,10 +614,15 @@
     "priority": 70,
     "triggers": [
       "romantična soba",
+      "romantično sobo",
       "romanticna soba",
+      "romanticno sobo",
       "soba s pogledom",
+      "sobo s pogledom",
       "romantika",
-      "romantična"
+      "romantična",
+      "parček",
+      "parcek"
     ],
     "answer": "Vse sobe so urejene udobno in domače. Dve imata balkon, ena ga nima, vendar je največja. Vse sobe imajo kopalnico s tušem in so poimenovane po naših treh otrocih: Ani, Juliji in Aljažu."
   },
@@ -485,8 +631,15 @@
     "priority": 70,
     "triggers": [
       "masaže",
+      "masaža",
+      "masažo",
+      "masaza",
+      "masaze",
       "jacuzzi",
+      "jacuzzija",
       "savna",
+      "savno",
+      "savne",
       "wellness"
     ],
     "answer": "Masaž, jacuzzija ali savne nimamo."
@@ -506,6 +659,7 @@
     "priority": 70,
     "triggers": [
       "medeni tedni",
+      "medene tedne",
       "honeymoon"
     ],
     "answer": "Če načrtujete medeni teden, nam pišite na info@kovacnik.com, da skupaj najdemo najboljšo možnost."
@@ -516,6 +670,8 @@
     "triggers": [
       "pohodne poti",
       "kje lahko hodimo",
+      "pohod",
+      "pohodi",
       "pohodništvo",
       "pohorje poti"
     ],
@@ -538,10 +694,14 @@
     "priority": 72,
     "triggers": [
       "kolesa",
+      "kolo",
+      "kolesom",
+      "s kolesom",
       "e-kolesa",
       "ekolesa",
       "izposoja koles",
-      "kolesarji"
+      "kolesarji",
+      "kolesarje"
     ],
     "answer": "Kolesa (tudi e-kolesa) so na voljo. Cena in termin sta po dogovoru – prosimo, povprašajte ob rezervaciji."
   },
@@ -550,6 +710,8 @@
     "priority": 70,
     "triggers": [
       "plavanje",
+      "plavam",
+      "plavamo",
       "bazen",
       "jezero",
       "ribolov"
@@ -561,6 +723,7 @@
     "priority": 70,
     "triggers": [
       "nordijska hoja",
+      "nordijsko hojo",
       "vodene ture",
       "vodene ture?",
       "vodenih tur"
@@ -574,9 +737,10 @@
       "televizija v sobi",
       "tv v sobi",
       "tv",
-      "televizija"
+      "televizija",
+      "televizijo"
     ],
-    "answer": "Da, v sobah je televizija."
+    "answer": "Da, v sobah je satelitska televizija."
   },
   {
     "key": "wifi_hitrost",
@@ -621,6 +785,7 @@
     "priority": 70,
     "triggers": [
       "polnilec za telefon",
+      "polnilca za telefon",
       "polnilec"
     ],
     "answer": "Polnilca za telefon nimamo na voljo."
@@ -631,7 +796,12 @@
     "triggers": [
       "polnilnica",
       "polnilnica za ev",
-      "električni avto"
+      "polnilnico",
+      "ev polnilnica",
+      "polnilnica ev",
+      "električni avto",
+      "elektricni avto",
+      "polnjenje avta"
     ],
     "answer": "Polnilnice za električna vozila nimamo."
   },
@@ -646,6 +816,8 @@
       "diabetike",
       "alergičen na oreščke",
       "alergicna na orescke",
+      "oreščke",
+      "orescke",
       "brez laktoze",
       "laktoza"
     ],
@@ -656,9 +828,13 @@
     "priority": 70,
     "triggers": [
       "brezalkoholna pijača",
+      "brezalkoholne pijače",
       "pivo",
       "sokovi",
+      "sokove",
+      "sok",
       "kava",
+      "kavo",
       "čaj",
       "caj",
       "brezalkoholno"
