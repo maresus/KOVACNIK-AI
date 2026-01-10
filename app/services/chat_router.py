@@ -434,7 +434,7 @@ def _llm_route_reservation(message: str) -> dict:
     ]
     try:
         response = client.responses.create(
-            model=settings.openai_model,
+            model=getattr(settings, "openai_model", "gpt-4.1-mini"),
             input=[
                 {"role": "system", "content": "Ugotovi, ali uporabnik želi rezervacijo sobe ali mize."},
                 {"role": "user", "content": message},
@@ -471,13 +471,13 @@ def _llm_answer_full_kb(message: str) -> str:
     settings = Settings()
     try:
         response = client.responses.create(
-            model=settings.openai_model,
+            model=getattr(settings, "openai_model", "gpt-4.1-mini"),
             input=[
                 {"role": "system", "content": _llm_system_prompt_full_kb()},
                 {"role": "user", "content": message},
             ],
             max_output_tokens=450,
-            temperature=settings.openai_temperature,
+            temperature=getattr(settings, "openai_temperature", 0.8),
             top_p=0.9,
         )
     except Exception as exc:
