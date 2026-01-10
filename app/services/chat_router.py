@@ -3612,6 +3612,19 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     # V2 router/exec (opcijsko)
     if USE_FULL_KB_LLM:
         if state.get("step") is not None:
+            lowered_message = payload.message.lower()
+            question_like = (
+                "?" in payload.message
+                or is_info_only_question(payload.message)
+                or is_info_query(payload.message)
+                or any(word in lowered_message for word in ["gospodar", "družin", "lastnik", "kmetij"])
+            )
+            if question_like:
+                llm_reply = _llm_answer_full_kb(payload.message)
+                continuation = get_booking_continuation(state.get("step"), state)
+                llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
+                llm_reply = maybe_translate(llm_reply, detected_lang)
+                return finalize(llm_reply, "info_during_reservation", followup_flag=False)
             reply = handle_reservation_flow(payload.message, state)
             return finalize(reply, "reservation", followup_flag=False)
         try:
