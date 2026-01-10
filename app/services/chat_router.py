@@ -3244,7 +3244,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
 
         input_norm = normalize(message)
         selected = []
-        any_keywords = {"vseeno", "katerakoli", "katerakol", "karkoli", "any"}
+        any_keywords = {"vseeno", "vseen", "vseeni", "katerakoli", "katerakol", "karkoli", "any"}
         for opt in options:
             opt_norm = normalize(opt)
             if opt_norm in input_norm or input_norm == opt_norm:
