@@ -1671,6 +1671,7 @@ def is_info_only_question(message: str) -> bool:
         "koliko",
         "kakšn",
         "kakšen",
+        "kdo",
         "ali imate",
         "a imate",
         "kaj je",
@@ -3776,6 +3777,23 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             prompt = reservation_prompt_for_state(state)
             reply = maybe_translate(prompt, detected_lang)
             return finalize(reply, "reservation_continue", followup_flag=False)
+        lowered_message = payload.message.lower()
+        question_like = (
+            "?" in payload.message
+            or is_info_only_question(payload.message)
+            or is_info_query(payload.message)
+            or any(word in lowered_message for word in ["gospodar", "družin", "lastnik", "kmetij"])
+        )
+        if question_like:
+            if USE_FULL_KB_LLM:
+                llm_reply = _llm_answer_full_kb(payload.message)
+            else:
+                llm_reply = _llm_answer(payload.message, conversation_history)
+            if llm_reply:
+                continuation = get_booking_continuation(state.get("step"), state)
+                llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
+                llm_reply = maybe_translate(llm_reply, detected_lang)
+                return finalize(llm_reply, "info_during_reservation", followup_flag=False)
         if is_product_query(payload.message):
             reply = answer_product_question(payload.message)
             last_product_query = payload.message
