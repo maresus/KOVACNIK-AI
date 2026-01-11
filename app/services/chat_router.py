@@ -1806,6 +1806,23 @@ def is_inquiry_trigger(message: str) -> bool:
     return any(t in lowered for t in triggers)
 
 
+def is_strong_inquiry_request(message: str) -> bool:
+    """Hitro zazna, ali uporabnik eksplicitno želi povpraševanje/naročilo."""
+    lowered = message.lower()
+    if re.search(r"\d", lowered):
+        return True
+    strong_words = [
+        "naročil",
+        "naročilo",
+        "naročim",
+        "naroč",
+        "ponudb",
+        "povpraš",
+        "količin",
+    ]
+    return any(word in lowered for word in strong_words)
+
+
 def extract_email(text: str) -> str:
     match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
     return match.group(0) if match else ""
@@ -3810,11 +3827,22 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             return finalize(inquiry_reply, "inquiry", followup_flag=False)
 
     if state.get("step") is None and is_inquiry_trigger(payload.message):
-        inquiry_state["details"] = payload.message.strip()
-        inquiry_state["step"] = "awaiting_deadline"
-        reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
-        reply = maybe_translate(reply, detected_lang)
-        return finalize(reply, "inquiry_start", followup_flag=False)
+        if is_strong_inquiry_request(payload.message):
+            inquiry_state["details"] = payload.message.strip()
+            inquiry_state["step"] = "awaiting_deadline"
+            reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "inquiry_start", followup_flag=False)
+        info_key = detect_info_intent(payload.message)
+        if info_key:
+            info_reply = get_info_response(info_key)
+            consent = start_inquiry_consent(inquiry_state)
+            reply = f"{info_reply}\n\n---\n\n{consent}"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "inquiry_offer", followup_flag=False)
+        inquiry_reply = start_inquiry_consent(inquiry_state)
+        inquiry_reply = maybe_translate(inquiry_reply, detected_lang)
+        return finalize(inquiry_reply, "inquiry_offer", followup_flag=False)
 
     # če je prejšnji odgovor bil "ne vem" in uporabnik pošlje email
     if session_id in unknown_question_state and is_email(payload.message):
