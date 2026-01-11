@@ -22,6 +22,7 @@ ADMIN_EMAIL=info@kovacnik.com
 
 import os
 import smtplib
+import resend
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict, Any
@@ -38,6 +39,9 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "info@kovacnik.com")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Domačija Kovačnik")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "info@kovacnik.com")
+SMTP_SSL = os.getenv("SMTP_SSL", "").strip().lower() in {"1", "true", "yes"}
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 
 # Brand barve (enake kot WordPress)
 BRAND_COLOR = "#7b5e3b"
@@ -309,6 +313,23 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
     POMEMBNO: Ta funkcija trenutno NI AKTIVNA.
     Za aktivacijo nastavi SMTP credentials v .env
     """
+    if RESEND_API_KEY:
+        try:
+            resend.api_key = RESEND_API_KEY
+            resend.Emails.send(
+                {
+                    "from": RESEND_FROM_EMAIL,
+                    "to": to,
+                    "subject": subject,
+                    "html": html_body,
+                }
+            )
+            print(f"[EMAIL] Resend poslano: {subject} -> {to}")
+            return True
+        except Exception as e:
+            print(f"[EMAIL] Resend napaka: {e}")
+            return False
+
     if not SMTP_USER or not SMTP_PASSWORD:
         print(f"[EMAIL] SMTP ni konfiguriran. Email NI poslan: {subject}")
         return False
@@ -328,8 +349,8 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         
         # Pošlji
-        # Port 465 = SSL, Port 587 = TLS
-        if SMTP_PORT == 465:
+        # Port 465 = SSL, Port 587 = TLS (ali prisilno preko SMTP_SSL)
+        if SMTP_PORT == 465 or SMTP_SSL:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10) as server:
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
