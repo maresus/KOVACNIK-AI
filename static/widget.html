@@ -245,15 +245,29 @@
       quickBtns.style.display = 'none';
       showTyping();
       try {
-        const res = await fetch('/chat', {
+        const res = await fetch('/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, session_id: sessionId })
       });
         hideTyping();
         if (res.ok) {
-          const data = await res.json();
-          addMessageToDOM(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
+          if (!res.body) {
+            const data = await res.json();
+            addMessageToDOM(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
+          } else {
+            const botEl = addMessageToDOM('', 'bot');
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              botEl.textContent += chunk;
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+            saveHistory();
+          }
         } else {
           addMessageToDOM('Oprostite, strežnik ni dosegljiv.', 'bot');
         }

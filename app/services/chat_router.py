@@ -8,6 +8,7 @@ import uuid
 import threading
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.product_service import find_products
@@ -493,6 +494,48 @@ def _llm_answer_full_kb(message: str) -> str:
                     outputs.append(text)
         answer = "\n".join(outputs).strip()
     return answer or "Seveda, z veseljem pomagam. Kaj vas zanima?"
+
+
+def _stream_text_chunks(text: str, chunk_size: int = 80):
+    for i in range(0, len(text), chunk_size):
+        yield text[i : i + chunk_size]
+
+
+def _llm_answer_full_kb_stream(message: str, settings: Settings):
+    client = get_llm_client()
+    try:
+        stream = client.responses.create(
+            model=getattr(settings, "openai_model", "gpt-4.1-mini"),
+            input=[
+                {"role": "system", "content": _llm_system_prompt_full_kb()},
+                {"role": "user", "content": message},
+            ],
+            max_output_tokens=450,
+            temperature=getattr(settings, "openai_temperature", 0.8),
+            top_p=0.9,
+            stream=True,
+        )
+    except Exception as exc:
+        fallback = "Oprostite, trenutno ne morem odgovoriti. Poskusite znova čez trenutek."
+        print(f"[LLM] stream error: {exc}")
+        for chunk in _stream_text_chunks(fallback):
+            yield chunk
+        return fallback
+
+    collected: list[str] = []
+    for event in stream:
+        event_type = getattr(event, "type", "")
+        if event_type == "response.output_text.delta":
+            delta = getattr(event, "delta", "")
+            if delta:
+                collected.append(delta)
+                yield delta
+        elif event_type == "response.error":
+            error_message = getattr(getattr(event, "error", None), "message", "")
+            if error_message:
+                print(f"[LLM] stream error event: {error_message}")
+    final_text = "".join(collected).strip()
+    return final_text or "Seveda, z veseljem pomagam. Kaj vas zanima?"
 
 def _llm_answer(question: str, history: list[dict[str, str]]) -> Optional[str]:
     try:
@@ -3596,7 +3639,61 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         conversation_history.append({"role": "assistant", "content": final_reply})
         if len(conversation_history) > 12:
             conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=final_reply)
+    return ChatResponse(reply=final_reply)
+
+
+@router.post("/stream")
+def chat_stream(payload: ChatRequestWithSession):
+    global conversation_history, last_interaction
+    now = datetime.now()
+    session_id = payload.session_id or "default"
+    if last_interaction and now - last_interaction > timedelta(hours=SESSION_TIMEOUT_HOURS):
+        reset_conversation_context(session_id)
+    last_interaction = now
+    state = get_reservation_state(session_id)
+
+    detected_lang = detect_language(payload.message)
+
+    def stream_and_log(reply_chunks):
+        collected: list[str] = []
+        for chunk in reply_chunks:
+            collected.append(chunk)
+            yield chunk
+        final_reply = "".join(collected).strip() or "Seveda, z veseljem pomagam. Kaj vas zanima?"
+        reservation_service.log_conversation(
+            session_id=session_id,
+            user_message=payload.message,
+            bot_response=final_reply,
+            intent="stream",
+            needs_followup=False,
+        )
+        conversation_history.append({"role": "assistant", "content": final_reply})
+        if len(conversation_history) > 12:
+            conversation_history = conversation_history[-12:]
+
+    # Če je rezervacija aktivna ali gre za rezervacijo, uporabimo obstoječo pot (brez pravega streama)
+    if state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
+        response = chat_endpoint(payload)
+        return StreamingResponse(
+            _stream_text_chunks(response.reply),
+            media_type="text/plain",
+        )
+
+    if USE_FULL_KB_LLM:
+        settings = Settings()
+        conversation_history.append({"role": "user", "content": payload.message})
+        if len(conversation_history) > 12:
+            conversation_history = conversation_history[-12:]
+        return StreamingResponse(
+            stream_and_log(_llm_answer_full_kb_stream(payload.message, settings)),
+            media_type="text/plain",
+        )
+
+    response = chat_endpoint(payload)
+    return StreamingResponse(
+        _stream_text_chunks(response.reply),
+        media_type="text/plain",
+    )
 
     # če je prejšnji odgovor bil "ne vem" in uporabnik pošlje email
     if session_id in unknown_question_state and is_email(payload.message):

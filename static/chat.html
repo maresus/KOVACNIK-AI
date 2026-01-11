@@ -300,7 +300,7 @@
   </div>
 
   <script>
-    const apiUrl = "/chat"; // isti host, isti port
+    const apiUrl = "/chat/stream"; // isti host, isti port
     const sessionKey = "chat_session_id";
     let sessionId = localStorage.getItem(sessionKey);
     if (!sessionId) {
@@ -333,6 +333,7 @@
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
       localStorage.setItem("last_chat_activity", Date.now().toString());
+      return div;
     }
 
     async function sendMessage() {
@@ -344,7 +345,7 @@
       inputEl.focus();
 
       sendBtn.disabled = true;
-      statusEl.textContent = "Pošiljam zahtevo na /chat ...";
+      statusEl.textContent = "Pošiljam zahtevo na /chat/stream ...";
 
       try {
         const res = await fetch(apiUrl, {
@@ -356,12 +357,26 @@
         });
 
         if (!res.ok) {
-          addMessage("Napaka pri klicu /chat (status " + res.status + ")", "bot");
-          statusEl.textContent = "Napaka pri klicu /chat.";
+          addMessage("Napaka pri klicu /chat/stream (status " + res.status + ")", "bot");
+          statusEl.textContent = "Napaka pri klicu /chat/stream.";
         } else {
-          const data = await res.json();
-          addMessage(data.reply ?? "[Prazen odgovor]", "bot");
-          statusEl.textContent = "OK – odgovor prejet.";
+          if (!res.body) {
+            const data = await res.json();
+            addMessage(data.reply ?? "[Prazen odgovor]", "bot");
+            statusEl.textContent = "OK – odgovor prejet.";
+          } else {
+            const botEl = addMessage("", "bot");
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              botEl.textContent += chunk;
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+            statusEl.textContent = "OK – odgovor prejet.";
+          }
           localStorage.setItem("last_chat_activity", Date.now().toString());
         }
       } catch (err) {
