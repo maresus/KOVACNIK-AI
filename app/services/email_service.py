@@ -40,7 +40,7 @@ SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "info@kovacnik.com")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Domačija Kovačnik")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "info@kovacnik.com")
 SMTP_SSL = os.getenv("SMTP_SSL", "").strip().lower() in {"1", "true", "yes"}
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 
 # Brand barve (enake kot WordPress)
