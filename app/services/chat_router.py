@@ -3859,6 +3859,13 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     if USE_FULL_KB_LLM:
         if state.get("step") is not None:
             lowered_message = payload.message.lower()
+            if is_inquiry_trigger(payload.message) and is_strong_inquiry_request(payload.message):
+                reset_reservation_state(state)
+                inquiry_state["details"] = payload.message.strip()
+                inquiry_state["step"] = "awaiting_deadline"
+                reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "inquiry_start", followup_flag=False)
             question_like = (
                 "?" in payload.message
                 or is_info_only_question(payload.message)
@@ -4035,6 +4042,13 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
 
     # aktivna rezervacija ima prednost, vendar omogoča izhod ali druga vprašanja
     if state["step"] is not None:
+        if is_inquiry_trigger(payload.message) and is_strong_inquiry_request(payload.message):
+            reset_reservation_state(state)
+            inquiry_state["details"] = payload.message.strip()
+            inquiry_state["step"] = "awaiting_deadline"
+            reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "inquiry_start", followup_flag=False)
         if is_escape_command(payload.message):
             reset_reservation_state(state)
             reply = "OK, prekinil sem rezervacijo."
