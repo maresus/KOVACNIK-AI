@@ -3639,61 +3639,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         conversation_history.append({"role": "assistant", "content": final_reply})
         if len(conversation_history) > 12:
             conversation_history = conversation_history[-12:]
-    return ChatResponse(reply=final_reply)
-
-
-@router.post("/stream")
-def chat_stream(payload: ChatRequestWithSession):
-    global conversation_history, last_interaction
-    now = datetime.now()
-    session_id = payload.session_id or "default"
-    if last_interaction and now - last_interaction > timedelta(hours=SESSION_TIMEOUT_HOURS):
-        reset_conversation_context(session_id)
-    last_interaction = now
-    state = get_reservation_state(session_id)
-
-    detected_lang = detect_language(payload.message)
-
-    def stream_and_log(reply_chunks):
-        collected: list[str] = []
-        for chunk in reply_chunks:
-            collected.append(chunk)
-            yield chunk
-        final_reply = "".join(collected).strip() or "Seveda, z veseljem pomagam. Kaj vas zanima?"
-        reservation_service.log_conversation(
-            session_id=session_id,
-            user_message=payload.message,
-            bot_response=final_reply,
-            intent="stream",
-            needs_followup=False,
-        )
-        conversation_history.append({"role": "assistant", "content": final_reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-
-    # Če je rezervacija aktivna ali gre za rezervacijo, uporabimo obstoječo pot (brez pravega streama)
-    if state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
-        response = chat_endpoint(payload)
-        return StreamingResponse(
-            _stream_text_chunks(response.reply),
-            media_type="text/plain",
-        )
-
-    if USE_FULL_KB_LLM:
-        settings = Settings()
-        conversation_history.append({"role": "user", "content": payload.message})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return StreamingResponse(
-            stream_and_log(_llm_answer_full_kb_stream(payload.message, settings)),
-            media_type="text/plain",
-        )
-
-    response = chat_endpoint(payload)
-    return StreamingResponse(
-        _stream_text_chunks(response.reply),
-        media_type="text/plain",
-    )
+        return ChatResponse(reply=final_reply)
 
     # če je prejšnji odgovor bil "ne vem" in uporabnik pošlje email
     if session_id in unknown_question_state and is_email(payload.message):
@@ -4188,3 +4134,55 @@ WEEKLY_INFO = {
     "contact": {"phone": "031 330 113", "email": "info@kovacnik.com"},
     "special_diet_extra": 8,
 }
+
+
+@router.post("/stream")
+def chat_stream(payload: ChatRequestWithSession):
+    global conversation_history, last_interaction
+    now = datetime.now()
+    session_id = payload.session_id or "default"
+    if last_interaction and now - last_interaction > timedelta(hours=SESSION_TIMEOUT_HOURS):
+        reset_conversation_context(session_id)
+    last_interaction = now
+    state = get_reservation_state(session_id)
+
+    def stream_and_log(reply_chunks):
+        collected: list[str] = []
+        for chunk in reply_chunks:
+            collected.append(chunk)
+            yield chunk
+        final_reply = "".join(collected).strip() or "Seveda, z veseljem pomagam. Kaj vas zanima?"
+        reservation_service.log_conversation(
+            session_id=session_id,
+            user_message=payload.message,
+            bot_response=final_reply,
+            intent="stream",
+            needs_followup=False,
+        )
+        conversation_history.append({"role": "assistant", "content": final_reply})
+        if len(conversation_history) > 12:
+            conversation_history[:] = conversation_history[-12:]
+
+    # Če je rezervacija aktivna ali gre za rezervacijo, uporabimo obstoječo pot (brez pravega streama)
+    if state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
+        response = chat_endpoint(payload)
+        return StreamingResponse(
+            _stream_text_chunks(response.reply),
+            media_type="text/plain",
+        )
+
+    if USE_FULL_KB_LLM:
+        settings = Settings()
+        conversation_history.append({"role": "user", "content": payload.message})
+        if len(conversation_history) > 12:
+            conversation_history = conversation_history[-12:]
+        return StreamingResponse(
+            stream_and_log(_llm_answer_full_kb_stream(payload.message, settings)),
+            media_type="text/plain",
+        )
+
+    response = chat_endpoint(payload)
+    return StreamingResponse(
+        _stream_text_chunks(response.reply),
+        media_type="text/plain",
+    )
