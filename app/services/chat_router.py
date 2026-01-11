@@ -3810,8 +3810,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             return finalize(inquiry_reply, "inquiry", followup_flag=False)
 
     if state.get("step") is None and is_inquiry_trigger(payload.message):
-        inquiry_state["step"] = "awaiting_details"
         inquiry_state["details"] = payload.message.strip()
+        inquiry_state["step"] = "awaiting_deadline"
         reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "inquiry_start", followup_flag=False)
