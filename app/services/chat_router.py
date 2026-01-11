@@ -4328,6 +4328,7 @@ def chat_stream(payload: ChatRequestWithSession):
         reset_conversation_context(session_id)
     last_interaction = now
     state = get_reservation_state(session_id)
+    inquiry_state = get_inquiry_state(session_id)
 
     def stream_and_log(reply_chunks):
         collected: list[str] = []
@@ -4348,6 +4349,14 @@ def chat_stream(payload: ChatRequestWithSession):
 
     # Če je rezervacija aktivna ali gre za rezervacijo, uporabimo obstoječo pot (brez pravega streama)
     if state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
+        response = chat_endpoint(payload)
+        return StreamingResponse(
+            _stream_text_chunks(response.reply),
+            media_type="text/plain",
+        )
+
+    # inquiry flow mora prednostno delovati tudi v stream načinu
+    if inquiry_state.get("step") or is_inquiry_trigger(payload.message):
         response = chat_endpoint(payload)
         return StreamingResponse(
             _stream_text_chunks(response.reply),
