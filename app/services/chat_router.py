@@ -2,6 +2,7 @@ import re
 import random
 import json
 import difflib
+import os
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
@@ -14,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.product_service import find_products
 from app.services.reservation_service import ReservationService
-from app.services.email_service import send_guest_confirmation, send_admin_notification
+from app.services.email_service import send_guest_confirmation, send_admin_notification, send_custom_message
 from app.rag.rag_engine import rag_engine
 from app.rag.knowledge_base import (
     CONTACT,
@@ -32,6 +33,7 @@ from app.services.executor_v2 import execute_decision
 router = APIRouter(prefix="/chat", tags=["chat"])
 USE_ROUTER_V2 = True
 USE_FULL_KB_LLM = True
+INQUIRY_RECIPIENT = os.getenv("INQUIRY_RECIPIENT", "satlermarko@gmail.com")
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 INFO_RESPONSES = {
@@ -1158,13 +1160,36 @@ def _blank_reservation_state() -> dict[str, Optional[str | int]]:
     }
 
 
+def _blank_inquiry_state() -> dict[str, Optional[str]]:
+    return {
+        "step": None,
+        "details": "",
+        "deadline": "",
+        "contact_name": "",
+        "contact_email": "",
+        "contact_phone": "",
+        "contact_raw": "",
+    }
+
+
 reservation_states: dict[str, dict[str, Optional[str | int]]] = {}
+inquiry_states: dict[str, dict[str, Optional[str]]] = {}
 
 
 def get_reservation_state(session_id: str) -> dict[str, Optional[str | int]]:
     if session_id not in reservation_states:
         reservation_states[session_id] = _blank_reservation_state()
     return reservation_states[session_id]
+
+
+def get_inquiry_state(session_id: str) -> dict[str, Optional[str]]:
+    if session_id not in inquiry_states:
+        inquiry_states[session_id] = _blank_inquiry_state()
+    return inquiry_states[session_id]
+
+
+def reset_inquiry_state(state: dict[str, Optional[str]]) -> None:
+    state.update(_blank_inquiry_state())
 
 last_product_query: Optional[str] = None
 last_info_query: Optional[str] = None
@@ -1754,6 +1779,41 @@ def is_reservation_typo(message: str) -> bool:
             if difflib.SequenceMatcher(None, word, target).ratio() >= 0.75:
                 return True
     return False
+
+
+def is_inquiry_trigger(message: str) -> bool:
+    lowered = message.lower()
+    triggers = [
+        "povpraš",
+        "ponudb",
+        "naročil",
+        "naročilo",
+        "naroč",
+        "količin",
+        "večja količina",
+        "vecja kolicina",
+        "teambuilding",
+        "poroka",
+        "pogrebščina",
+        "pogrebscina",
+        "pogostitev",
+        "catering",
+        "potica",
+        "potic",
+        "torta",
+        "darilni paket",
+    ]
+    return any(t in lowered for t in triggers)
+
+
+def extract_email(text: str) -> str:
+    match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
+    return match.group(0) if match else ""
+
+
+def extract_phone(text: str) -> str:
+    digits = re.sub(r"\D", "", text)
+    return digits if len(digits) >= 7 else ""
 
 
 def is_bulk_order_request(message: str) -> bool:
@@ -2817,6 +2877,91 @@ def reset_reservation_state(state: dict[str, Optional[str | int]]) -> None:
     state.update(_blank_reservation_state())
 
 
+def start_inquiry_consent(state: dict[str, Optional[str]]) -> str:
+    state["step"] = "awaiting_consent"
+    return (
+        "Žal nimam dovolj informacij. "
+        "Lahko zabeležim povpraševanje in ga posredujem ekipi. "
+        "Želite to? (da/ne)"
+    )
+
+
+def handle_inquiry_flow(message: str, state: dict[str, Optional[str]], session_id: str) -> Optional[str]:
+    text = message.strip()
+    lowered = text.lower()
+    step = state.get("step")
+
+    if step == "awaiting_consent":
+        if lowered in {"da", "ja", "seveda", "lahko", "ok"}:
+            state["step"] = "awaiting_details"
+            return "Odlično. Prosim opišite, kaj točno želite (količina, izdelek, storitev)."
+        if lowered in {"ne", "ne hvala", "ni treba"}:
+            reset_inquiry_state(state)
+            return "V redu. Če želite, lahko vprašate še kaj drugega."
+        return "Želite, da zabeležim povpraševanje? Odgovorite z 'da' ali 'ne'."
+
+    if step == "awaiting_details":
+        if text:
+            state["details"] = (state.get("details") or "")
+            if state["details"]:
+                state["details"] += "\n" + text
+            else:
+                state["details"] = text
+        state["step"] = "awaiting_deadline"
+        return "Hvala! Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+
+    if step == "awaiting_deadline":
+        if any(word in lowered for word in ["ni", "ne vem", "kadar koli", "vseeno", "ni pomembno"]):
+            state["deadline"] = ""
+        else:
+            state["deadline"] = text
+        state["step"] = "awaiting_contact"
+        return "Super. Prosim še kontakt (ime, telefon, email)."
+
+    if step == "awaiting_contact":
+        state["contact_raw"] = text
+        email = extract_email(text)
+        phone = extract_phone(text)
+        state["contact_email"] = email or state.get("contact_email") or ""
+        state["contact_phone"] = phone or state.get("contact_phone") or ""
+        state["contact_name"] = state.get("contact_name") or ""
+        if not state["contact_email"]:
+            return "Za povratni kontakt prosim dodajte email."
+
+        details = state.get("details") or text
+        deadline = state.get("deadline") or ""
+        contact_summary = state.get("contact_raw") or ""
+        summary = "\n".join(
+            [
+                "Novo povpraševanje:",
+                f"- Podrobnosti: {details}",
+                f"- Rok: {deadline or 'ni naveden'}",
+                f"- Kontakt: {contact_summary}",
+                f"- Session: {session_id}",
+            ]
+        )
+        reservation_service.create_inquiry(
+            session_id=session_id,
+            details=details,
+            deadline=deadline,
+            contact_name=state.get("contact_name") or "",
+            contact_email=state.get("contact_email") or "",
+            contact_phone=state.get("contact_phone") or "",
+            contact_raw=contact_summary,
+            source="chat",
+            status="new",
+        )
+        send_custom_message(
+            INQUIRY_RECIPIENT,
+            "Novo povpraševanje – Kovačnik",
+            summary,
+        )
+        reset_inquiry_state(state)
+        return "Hvala! Povpraševanje sem zabeležil in ga posredoval. Odgovorimo vam v najkrajšem možnem času."
+
+    return None
+
+
 def reset_conversation_context(session_id: Optional[str] = None) -> None:
     """Počisti začasne pogovorne podatke in ponastavi sejo."""
     global conversation_history, last_product_query, last_wine_query, last_info_query, last_menu_query
@@ -3626,6 +3771,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         reset_conversation_context(session_id)
     last_interaction = now
     state = get_reservation_state(session_id)
+    inquiry_state = get_inquiry_state(session_id)
     needs_followup = False
 
     # zabeležimo user vprašanje v zgodovino (omejimo na zadnjih 6 parov)
@@ -3655,6 +3801,20 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         if len(conversation_history) > 12:
             conversation_history = conversation_history[-12:]
         return ChatResponse(reply=final_reply)
+
+    # inquiry flow
+    if state.get("step") is None and inquiry_state.get("step"):
+        inquiry_reply = handle_inquiry_flow(payload.message, inquiry_state, session_id)
+        if inquiry_reply:
+            inquiry_reply = maybe_translate(inquiry_reply, detected_lang)
+            return finalize(inquiry_reply, "inquiry", followup_flag=False)
+
+    if state.get("step") is None and is_inquiry_trigger(payload.message):
+        inquiry_state["step"] = "awaiting_details"
+        inquiry_state["details"] = payload.message.strip()
+        reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "inquiry_start", followup_flag=False)
 
     # če je prejšnji odgovor bil "ne vem" in uporabnik pošlje email
     if session_id in unknown_question_state and is_email(payload.message):
@@ -3748,6 +3908,10 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                     cont = _continuation(state.get("step"), state)
                     llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{cont}"
                 llm_reply = maybe_translate(llm_reply, detected_lang)
+                if state.get("step") is None and is_unknown_response(llm_reply) and inquiry_state.get("step") is None:
+                    inquiry_reply = start_inquiry_consent(inquiry_state)
+                    inquiry_reply = maybe_translate(inquiry_reply, detected_lang)
+                    return finalize(inquiry_reply, "inquiry_offer", followup_flag=False)
                 return finalize(llm_reply, "info_llm", followup_flag=False)
 
         reply_v2 = execute_decision(
@@ -3781,6 +3945,10 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                 semantic_reply = maybe_translate(semantic_reply, detected_lang)
                 return finalize(semantic_reply, "info_semantic", followup_flag=False)
             # Če še vedno nič, priznaj neznano in ponudi email
+            if state.get("step") is None:
+                inquiry_reply = start_inquiry_consent(inquiry_state)
+                inquiry_reply = maybe_translate(inquiry_reply, detected_lang)
+                return finalize(inquiry_reply, "info_unknown", followup_flag=False)
             reply = random.choice(UNKNOWN_RESPONSES)
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "info_unknown", followup_flag=False)

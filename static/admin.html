@@ -260,6 +260,7 @@
         <button class="btn secondary" onclick="exportCsv()">📥 Izvozi CSV</button>
         <button class="btn" onclick="loadAll()">🔄 Osveži podatke</button>
         <a class="btn secondary" href="/admin/conversations">💬 Pogovori</a>
+        <a class="btn secondary" href="/admin/inquiries">📝 Povpraševanja</a>
       </div>
     </header>
 
@@ -276,6 +277,9 @@
       <div class="stat"><div class="label">Čaka</div><div class="value" id="stat-pending">0</div></div>
       <div class="stat"><div class="label">🛏️ Sobe</div><div class="value" id="stat-room">0</div></div>
       <div class="stat"><div class="label">🍽️ Mize</div><div class="value" id="stat-table">0</div></div>
+      <div class="stat"><div class="label">🤖 AI danes</div><div class="value" id="stat-ai-today">0</div></div>
+      <div class="stat"><div class="label">🤖 AI ta mesec</div><div class="value" id="stat-ai-month">0</div></div>
+      <div class="stat"><div class="label">🤖 AI letos</div><div class="value" id="stat-ai-year">0</div></div>
     </div>
 
   <div class="month-picker">
@@ -794,7 +798,7 @@
     }
 
     async function loadAll() {
-      const tasks = [loadStats(), loadReservations()];
+      const tasks = [loadStats(), loadUsageStats(), loadReservations()];
       if (currentTab === 'room') {
         tasks.push(renderCalendar());
       } else {
@@ -851,6 +855,18 @@
         qs('stat-table').textContent = data.po_tipu?.table ?? 0;
       } catch (e) {
         console.error('Stats error', e);
+      }
+    }
+
+    async function loadUsageStats() {
+      try {
+        const res = await fetch(`${API_BASE}/usage_stats`);
+        const data = await res.json();
+        qs('stat-ai-today').textContent = data.today ?? 0;
+        qs('stat-ai-month').textContent = data.month ?? 0;
+        qs('stat-ai-year').textContent = data.year ?? 0;
+      } catch (e) {
+        console.error('Usage stats error', e);
       }
     }
 

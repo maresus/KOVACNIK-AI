@@ -156,6 +156,16 @@ def admin_conversations_page() -> HTMLResponse:
     return HTMLResponse(content=html)
 
 
+@router.get("/admin/inquiries", response_class=HTMLResponse)
+def admin_inquiries_page() -> HTMLResponse:
+    """Postreže statično datoteko za povpraševanja (static/inquiries.html)."""
+    html_path = Path("static/inquiries.html")
+    if not html_path.exists():
+        return HTMLResponse("<h1>Inquiries UI manjka (static/inquiries.html)</h1>", status_code=500)
+    html = html_path.read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
+
+
 @router.get("/api/admin/conversations")
 def get_conversations(limit: int = 200, needs_followup_only: bool = False):
     """Vrne zadnje pogovore za admin pregled."""
@@ -166,6 +176,19 @@ def get_conversations(limit: int = 200, needs_followup_only: bool = False):
         "followup": len([c for c in conversations if c.get("needs_followup")]),
     }
     return {"conversations": conversations, "stats": stats}
+
+
+@router.get("/api/admin/inquiries")
+def get_inquiries(limit: int = 200, status: Optional[str] = None):
+    _log("inquiries", limit=limit, status=status)
+    inquiries = service.get_inquiries(limit=limit, status=status)
+    return {"inquiries": inquiries}
+
+
+@router.get("/api/admin/usage_stats")
+def get_usage_stats():
+    _log("usage_stats")
+    return service.get_usage_stats()
 
 
 @router.get("/api/admin/reservations")

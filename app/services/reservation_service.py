@@ -145,6 +145,23 @@ class ReservationService:
                     )
                     """
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS inquiries (
+                        id SERIAL PRIMARY KEY,
+                        session_id TEXT,
+                        details TEXT NOT NULL,
+                        deadline TEXT,
+                        contact_name TEXT,
+                        contact_email TEXT,
+                        contact_phone TEXT,
+                        contact_raw TEXT,
+                        status TEXT DEFAULT 'new',
+                        created_at TEXT NOT NULL,
+                        source TEXT NOT NULL
+                    )
+                    """
+                )
                 # dodaj manjkajoče stolpce na obstoječo tabelo (robustnost)
                 for col, definition in new_columns:
                     cur.execute(
@@ -202,6 +219,23 @@ class ReservationService:
                     needs_followup BOOLEAN DEFAULT FALSE,
                     followup_email TEXT,
                     created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inquiries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    details TEXT NOT NULL,
+                    deadline TEXT,
+                    contact_name TEXT,
+                    contact_email TEXT,
+                    contact_phone TEXT,
+                    contact_raw TEXT,
+                    status TEXT DEFAULT 'new',
+                    created_at TEXT NOT NULL,
+                    source TEXT NOT NULL
                 )
                 """
             )
@@ -947,6 +981,98 @@ class ReservationService:
             cur.execute(f"UPDATE conversations SET followup_email = {ph} WHERE id = {ph}", (email, conversation_id))
             conn.commit()
             return True
+        finally:
+            cur.close()
+            conn.close()
+
+    # --- inquiries -------------------------------------------
+    def create_inquiry(
+        self,
+        session_id: str,
+        details: str,
+        deadline: str,
+        contact_name: str,
+        contact_email: str,
+        contact_phone: str,
+        contact_raw: str,
+        source: str = "chat",
+        status: str = "new",
+    ) -> Optional[int]:
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ph = self._placeholder()
+        conn = self._conn()
+        inquiry_id: Optional[int] = None
+        try:
+            cur = conn.cursor()
+            sql = (
+                "INSERT INTO inquiries (session_id, details, deadline, contact_name, contact_email, contact_phone, contact_raw, status, created_at, source) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+            )
+            params = (
+                session_id,
+                details,
+                deadline,
+                contact_name,
+                contact_email,
+                contact_phone,
+                contact_raw,
+                status,
+                created_at,
+                source,
+            )
+            if self.use_postgres:
+                sql += " RETURNING id"
+            cur.execute(sql, params)
+            if self.use_postgres:
+                fetched = cur.fetchone()
+                if fetched:
+                    inquiry_id = fetched["id"] if isinstance(fetched, dict) else fetched[0]
+            else:
+                inquiry_id = cur.lastrowid
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+        return inquiry_id
+
+    def get_inquiries(self, limit: int = 200, status: Optional[str] = None) -> list[dict]:
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            sql = "SELECT * FROM inquiries"
+            params = []
+            if status:
+                sql += " WHERE status = " + self._placeholder()
+                params.append(status)
+            sql += " ORDER BY created_at DESC LIMIT " + str(limit)
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
+    def get_usage_stats(self) -> dict:
+        """Vrne unikatne session_id za danes/ta mesec/letos."""
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            today_prefix = datetime.now().strftime("%Y-%m-%d")
+            month_prefix = datetime.now().strftime("%Y-%m")
+            year_prefix = datetime.now().strftime("%Y")
+            ph = self._placeholder()
+            sql_base = "SELECT DISTINCT session_id FROM conversations WHERE session_id IS NOT NULL AND session_id != '' AND created_at LIKE "
+            cur.execute(sql_base + ph, (today_prefix + "%",))
+            today_sessions = {row["session_id"] if isinstance(row, dict) else row[0] for row in cur.fetchall()}
+            cur.execute(sql_base + ph, (month_prefix + "%",))
+            month_sessions = {row["session_id"] if isinstance(row, dict) else row[0] for row in cur.fetchall()}
+            cur.execute(sql_base + ph, (year_prefix + "%",))
+            year_sessions = {row["session_id"] if isinstance(row, dict) else row[0] for row in cur.fetchall()}
+            return {
+                "today": len(today_sessions),
+                "month": len(month_sessions),
+                "year": len(year_sessions),
+            }
         finally:
             cur.close()
             conn.close()
