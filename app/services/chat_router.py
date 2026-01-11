@@ -1,6 +1,7 @@
 import re
 import random
 import json
+import difflib
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
@@ -1363,6 +1364,8 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     has_miza = any(p in lower_message for p in miza_patterns)
     if has_rezerv and (has_soba or has_miza or "nočitev" in lower_message or "nocitev" in lower_message):
         return "reservation"
+    if is_reservation_typo(message) and (has_soba or has_miza):
+        return "reservation"
 
     # goodbye/hvala
     if is_goodbye(message):
@@ -1740,6 +1743,17 @@ def is_info_only_question(message: str) -> bool:
     has_info = any(w in text for w in info_words)
     has_booking = any(w in text for w in booking_words)
     return has_info and not has_booking
+
+
+def is_reservation_typo(message: str) -> bool:
+    """Fuzzy zazna tipkarske napake pri 'rezervacija'."""
+    words = re.findall(r"[a-zA-ZčšžČŠŽ]+", message.lower())
+    targets = ["rezervacija", "rezervirati", "rezerviram", "rezerviraj"]
+    for word in words:
+        for target in targets:
+            if difflib.SequenceMatcher(None, word, target).ratio() >= 0.75:
+                return True
+    return False
 
 
 def is_bulk_order_request(message: str) -> bool:
@@ -3083,6 +3097,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
         dinner_note = ""
         if reservation_state.get("dinner_people"):
             dinner_note = f"Večerje: {reservation_state.get('dinner_people')} oseb (25€/oseba)"
+        chosen_location = reservation_state.get("location") or "Sobe (dodelimo ob potrditvi)"
         reservation_service.create_reservation(
             date=reservation_state["date"] or "",
             people=int(reservation_state["people"] or 0),
@@ -3093,7 +3108,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             name=str(reservation_state["name"]),
             phone=str(reservation_state["phone"]),
             email=reservation_state["email"],
-            location="Sobe (dodelimo ob potrditvi)",
+            location=chosen_location,
             note=note_text or dinner_note,
             kids=str(reservation_state.get("kids") or ""),
             kids_small=str(reservation_state.get("kids_ages") or ""),
@@ -3107,7 +3122,7 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
             'rooms': reservation_state.get('rooms', 0),
             'people': reservation_state.get('people', 0),
             'reservation_type': 'room',
-            'location': 'Sobe (dodelimo ob potrditvi)',
+            'location': chosen_location,
             'note': note_text or dinner_note,
             'kids': reservation_state.get('kids', ''),
             'kids_ages': reservation_state.get('kids_ages', ''),
@@ -3682,7 +3697,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             reply = handle_reservation_flow(payload.message, state)
             return finalize(reply, action.lower(), followup_flag=False)
         # fallback: če LLM ne vrne action, uporabi osnovno heuristiko
-        if any(token in payload.message.lower() for token in ["rezerv", "book", "booking"]):
+        if any(token in payload.message.lower() for token in ["rezerv", "book", "booking"]) or is_reservation_typo(payload.message):
             if "mizo" in payload.message.lower() or "table" in payload.message.lower():
                 reset_reservation_state(state)
                 state["type"] = "table"
