@@ -1797,9 +1797,31 @@ def is_reservation_typo(message: str) -> bool:
     return False
 
 
+def is_ambiguous_reservation_request(message: str) -> bool:
+    lowered = message.lower()
+    reserv_words = ["rezerv", "book", "booking", "reserve", "reservation", "zimmer", "buchen"]
+    type_words = ["soba", "sobo", "sobe", "room", "miza", "mizo", "table", "nočitev", "nocitev"]
+    has_reserv = any(w in lowered for w in reserv_words)
+    has_type = any(w in lowered for w in type_words)
+    return has_reserv and not has_type
+
+
+def is_ambiguous_inquiry_request(message: str) -> bool:
+    lowered = message.lower()
+    if any(w in lowered for w in ["večerj", "vecerj"]):
+        return False
+    explicit = ["povpraš", "ponudb", "naročil", "naročilo", "naroč", "količin"]
+    has_explicit = any(w in lowered for w in explicit)
+    has_number = re.search(r"\d", lowered) is not None
+    has_product = any(stem in lowered for stem in PRODUCT_STEMS) or any(
+        word in lowered for word in ["potica", "potic", "torta", "darilni paket"]
+    )
+    return has_explicit and not (has_number and has_product)
+
+
 def is_inquiry_trigger(message: str) -> bool:
     lowered = message.lower()
-    triggers = [
+    explicit = [
         "povpraš",
         "ponudb",
         "naročil",
@@ -1814,31 +1836,19 @@ def is_inquiry_trigger(message: str) -> bool:
         "pogrebscina",
         "pogostitev",
         "catering",
-        "potica",
-        "potic",
-        "torta",
-        "darilni paket",
     ]
-    return any(t in lowered for t in triggers)
+    if any(t in lowered for t in explicit):
+        return True
+    has_number = re.search(r"\d", lowered) is not None
+    has_product = any(stem in lowered for stem in PRODUCT_STEMS) or any(
+        word in lowered for word in ["potica", "potic", "torta", "darilni paket"]
+    )
+    return has_number and has_product
 
 
 def is_strong_inquiry_request(message: str) -> bool:
     """Hitro zazna, ali uporabnik eksplicitno želi povpraševanje/naročilo."""
-    lowered = message.lower()
-    if is_product_followup(message) and not re.search(r"\d", lowered):
-        return False
-    if re.search(r"\d", lowered):
-        return True
-    strong_words = [
-        "naročil",
-        "naročilo",
-        "naročim",
-        "naroč",
-        "ponudb",
-        "povpraš",
-        "količin",
-    ]
-    return any(word in lowered for word in strong_words)
+    return is_inquiry_trigger(message)
 
 
 def is_product_followup(message: str) -> bool:
@@ -4077,6 +4087,17 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                 return finalize(llm_reply, "info_during_reservation", followup_flag=False)
             reply = handle_reservation_flow(payload.message, state)
             return finalize(reply, "reservation", followup_flag=False)
+        if is_ambiguous_reservation_request(payload.message):
+            reply = "Želite rezervirati **sobo** ali **mizo**?"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "clarify_reservation", followup_flag=False)
+        if is_ambiguous_inquiry_request(payload.message):
+            reply = (
+                "Ali želite, da zabeležim **povpraševanje/naročilo**? "
+                "Če da, prosim napišite **količino** in **rok**."
+            )
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "clarify_inquiry", followup_flag=False)
         try:
             intent_result = _llm_route_reservation(payload.message)
         except Exception as exc:
@@ -4601,6 +4622,13 @@ def chat_stream(payload: ChatRequestWithSession):
 
     # inquiry flow mora prednostno delovati tudi v stream načinu
     if inquiry_state.get("step") or is_inquiry_trigger(payload.message):
+        response = chat_endpoint(payload)
+        return StreamingResponse(
+            _stream_text_chunks(response.reply),
+            media_type="text/plain",
+        )
+
+    if is_ambiguous_reservation_request(payload.message) or is_ambiguous_inquiry_request(payload.message):
         response = chat_endpoint(payload)
         return StreamingResponse(
             _stream_text_chunks(response.reply),
