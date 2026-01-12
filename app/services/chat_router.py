@@ -2616,6 +2616,45 @@ def extract_date_from_text(message: str) -> Optional[str]:
     return extract_date(message)
 
 
+def extract_date_range(text: str) -> Optional[tuple[str, str]]:
+    """
+    Vrne (start, end) datum v obliki DD.MM.YYYY, če zazna interval (npr. "23. 1. do 26. 1.").
+    """
+    today = datetime.now()
+    match = re.search(
+        r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\s*(?:do|–|—|-|to)\s*(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\b",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    day1, month1, year1, day2, month2, year2 = match.groups()
+    if year2 and not year1:
+        year1 = year2
+    year1_val = int(year1) if year1 else today.year
+    year2_val = int(year2) if year2 else year1_val
+    try:
+        start_dt = datetime(year1_val, int(month1), int(day1))
+        end_dt = datetime(year2_val, int(month2), int(day2))
+    except ValueError:
+        return None
+    if end_dt <= start_dt:
+        end_dt = datetime(year2_val + 1, int(month2), int(day2))
+    start = start_dt.strftime("%d.%m.%Y")
+    end = end_dt.strftime("%d.%m.%Y")
+    return (start, end)
+
+
+def nights_from_range(start: str, end: str) -> Optional[int]:
+    try:
+        start_dt = datetime.strptime(start, "%d.%m.%Y")
+        end_dt = datetime.strptime(end, "%d.%m.%Y")
+    except ValueError:
+        return None
+    nights = (end_dt - start_dt).days
+    return nights if nights > 0 else None
+
+
 def extract_time(text: str) -> Optional[str]:
     """
     Vrne prvi čas v formatu HH:MM (sprejme 13:00, 13.00 ali 1300).
@@ -2691,7 +2730,22 @@ def is_switch_topic_command(message: str) -> bool:
 
 def is_affirmative(message: str) -> bool:
     lowered = message.strip().lower()
-    return lowered in {"da", "ja", "seveda", "yes", "oui", "ok", "okej", "okey", "sure", "yep", "yeah"}
+    return lowered in {
+        "da",
+        "ja",
+        "seveda",
+        "potrjujem",
+        "potrdim",
+        "potrdi",
+        "yes",
+        "oui",
+        "ok",
+        "okej",
+        "okey",
+        "sure",
+        "yep",
+        "yeah",
+    }
 
 
 def get_last_assistant_message() -> str:
@@ -3200,6 +3254,25 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
     step = reservation_state["step"]
 
     if step == "awaiting_room_date":
+        range_data = extract_date_range(message)
+        if range_data:
+            reservation_state["date"] = range_data[0]
+            nights_candidate = nights_from_range(range_data[0], range_data[1])
+            if nights_candidate:
+                ok, error_message, _ = validate_reservation_rules(
+                    reservation_state["date"] or "", nights_candidate
+                )
+                if not ok:
+                    reservation_state["step"] = "awaiting_room_date"
+                    reservation_state["date"] = None
+                    reservation_state["nights"] = None
+                    return error_message + " Prosim pošlji nov datum in št. nočitev skupaj (npr. 15.7.2025 za 3 nočitve)."
+                reservation_state["nights"] = nights_candidate
+                reservation_state["step"] = "awaiting_people"
+                return (
+                    f"Odlično, zabeležila sem {reservation_state['date']} za {reservation_state['nights']} nočitev. "
+                    "Za koliko oseb bi bilo bivanje (odrasli + otroci)?"
+                )
         date_candidate = extract_date(message)
         nights_candidate = extract_nights(message)
         if not date_candidate:
@@ -3229,6 +3302,22 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
         return "Hvala! Koliko nočitev si predstavljate? (poleti min. 3, sicer 2)"
 
     if step == "awaiting_nights":
+        range_data = extract_date_range(message)
+        if range_data:
+            reservation_state["date"] = range_data[0]
+            nights_candidate = nights_from_range(range_data[0], range_data[1])
+            if nights_candidate:
+                ok, error_message, _ = validate_reservation_rules(
+                    reservation_state["date"] or "", nights_candidate
+                )
+                if not ok:
+                    reservation_state["step"] = "awaiting_room_date"
+                    reservation_state["date"] = None
+                    reservation_state["nights"] = None
+                    return error_message + " Prosim pošlji nov datum prihoda (DD.MM.YYYY) in število nočitev."
+                reservation_state["nights"] = nights_candidate
+                reservation_state["step"] = "awaiting_people"
+                return "Super! Za koliko oseb (odrasli + otroci skupaj)? Vsaka soba je 2+2, imamo tri sobe in jih lahko tudi kombiniramo."
         if not reservation_state["date"]:
             reservation_state["step"] = "awaiting_room_date"
             return "Najprej mi, prosim, zaupajte datum prihoda (DD.MM.YYYY), potem še število nočitev."
@@ -3434,7 +3523,18 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
 
     if step == "awaiting_dinner":
         answer = message.strip().lower()
-        positive = {"da", "ja", "seveda", "zelim", "želim", "hocem", "hočem"}
+        positive = {
+            "da",
+            "ja",
+            "seveda",
+            "zelim",
+            "želim",
+            "hocem",
+            "hočem",
+            "polpenzion",
+            "pol penzion",
+            "pol-penzion",
+        }
         negative = {"ne", "no", "nocem", "nočem", "brez"}
 
         def dinner_warning() -> Optional[str]:
@@ -3722,9 +3822,14 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
             reservation_state["type"] = "room"
             # poskusimo prebrati datum in nočitve iz prvega stavka
             prefilled_date = extract_date_from_text(message)
+            range_data = extract_date_range(message)
+            if range_data:
+                prefilled_date = range_data[0]
             prefilled_nights = None
             if "nočit" in message.lower() or "nocit" in message.lower() or "noči" in message.lower():
                 prefilled_nights = extract_nights(message)
+            if range_data and not prefilled_nights:
+                prefilled_nights = nights_from_range(range_data[0], range_data[1])
             prefilled_people = parse_people_count(message)
             if prefilled_people.get("total"):
                 reservation_state["people"] = prefilled_people["total"]
@@ -3872,6 +3977,18 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             reply = handle_reservation_flow(payload.message, state)
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "reservation_confirmed", followup_flag=False)
+
+    if state.get("step") is None:
+        last_bot = get_last_assistant_message().lower()
+        has_room_context = any(token in last_bot for token in ["sobo", "soba", "preno", "room", "zimmer"])
+        has_table_context = any(token in last_bot for token in ["mizo", "miza", "table"])
+        date_hit = extract_date(payload.message) or extract_date_range(payload.message)
+        people_hit = parse_people_count(payload.message).get("total")
+        if date_hit and people_hit and (has_room_context or has_table_context):
+            state["type"] = "room" if has_room_context else "table"
+            reply = handle_reservation_flow(payload.message, state)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_context_start", followup_flag=False)
 
     # zabeležimo user vprašanje v zgodovino (omejimo na zadnjih 6 parov)
     conversation_history.append({"role": "user", "content": payload.message})
