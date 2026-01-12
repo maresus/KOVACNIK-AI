@@ -1394,10 +1394,6 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     if re.search(r"koliko\s+soba", lower_message) or re.search(r"koliko\s+sob", lower_message):
         return "room_info"
 
-    # jedilnik / meni naj ne sproži rezervacije
-    if is_menu_query(message):
-        return "menu"
-
     # Rezervacija - fuzzy match (tudi s tipkarskimi napakami)
     rezerv_patterns = ["rezerv", "rezev", "rezer", "book", "buking", "bokking", "reserve", "reservation"]
     soba_patterns = ["sobo", "sobe", "soba", "room"]
@@ -1409,14 +1405,16 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
         return "reservation"
     if is_reservation_typo(message) and (has_soba or has_miza):
         return "reservation"
+    if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
+        return "reservation"
 
     # goodbye/hvala
     if is_goodbye(message):
         return "goodbye"
 
-    # 2) začetek rezervacije
-    if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
-        return "reservation"
+    # jedilnik / meni naj ne sproži rezervacije
+    if is_menu_query(message):
+        return "menu"
 
     # SOBE - posebej pred rezervacijo
     sobe_keywords = ["sobe", "soba", "sobo", "nastanitev", "prenočitev", "nočitev nočitve", "rooms", "room", "accommodation"]
