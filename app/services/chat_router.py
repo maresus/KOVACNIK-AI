@@ -1395,7 +1395,7 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
         return "menu"
 
     # Rezervacija - fuzzy match (tudi s tipkarskimi napakami)
-    rezerv_patterns = ["rezerv", "rezev", "rezer", "book", "buking", "bokking"]
+    rezerv_patterns = ["rezerv", "rezev", "rezer", "book", "buking", "bokking", "reserve", "reservation"]
     soba_patterns = ["sobo", "sobe", "soba", "room"]
     miza_patterns = ["mizo", "mize", "miza", "table"]
     has_rezerv = any(p in lower_message for p in rezerv_patterns)
@@ -2676,7 +2676,7 @@ def is_switch_topic_command(message: str) -> bool:
 
 def is_affirmative(message: str) -> bool:
     lowered = message.strip().lower()
-    return lowered in {"da", "ja", "seveda", "yes", "oui", "ok", "okej", "okey", "sure"}
+    return lowered in {"da", "ja", "seveda", "yes", "oui", "ok", "okej", "okey", "sure", "yep", "yeah"}
 
 
 def get_last_assistant_message() -> str:
@@ -2684,6 +2684,11 @@ def get_last_assistant_message() -> str:
         if msg.get("role") == "assistant":
             return msg.get("content", "")
     return ""
+
+
+def last_bot_mentions_reservation(last_bot: str) -> bool:
+    text = last_bot.lower()
+    return any(token in text for token in ["rezerv", "reserve", "booking", "zimmer", "room", "mizo", "table"])
 
 
 def reservation_prompt_for_state(state: dict[str, Optional[str | int]]) -> str:
@@ -3842,10 +3847,10 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
 
     if state.get("step") is None and is_affirmative(payload.message):
         last_bot = get_last_assistant_message().lower()
-        if "rezerv" in last_bot:
-            if "mizo" in last_bot or "miza" in last_bot:
+        if last_bot_mentions_reservation(last_bot):
+            if any(token in last_bot for token in ["mizo", "miza", "table"]):
                 state["type"] = "table"
-            elif "sobo" in last_bot or "soba" in last_bot or "preno" in last_bot:
+            elif any(token in last_bot for token in ["sobo", "soba", "preno", "room", "zimmer"]):
                 state["type"] = "room"
             else:
                 state["type"] = None
@@ -3954,7 +3959,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             reply = handle_reservation_flow(payload.message, state)
             return finalize(reply, action.lower(), followup_flag=False)
         # fallback: če LLM ne vrne action, uporabi osnovno heuristiko
-        if any(token in payload.message.lower() for token in ["rezerv", "book", "booking"]) or is_reservation_typo(payload.message):
+        if any(token in payload.message.lower() for token in ["rezerv", "book", "booking", "reserve", "reservation", "zimmer"]) or is_reservation_typo(payload.message):
             if "mizo" in payload.message.lower() or "table" in payload.message.lower():
                 reset_reservation_state(state)
                 state["type"] = "table"
