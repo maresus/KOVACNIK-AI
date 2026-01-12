@@ -388,8 +388,8 @@ try:
 except Exception as exc:
     print(f"[KB] Full KB load failed: {exc}")
 
-def _llm_system_prompt_full_kb() -> str:
-    return (
+def _llm_system_prompt_full_kb(language: str = "si") -> str:
+    common = (
         "Ti si asistent Domačije Kovačnik. Upoštevaj te potrjene podatke kot glavne:\n"
         "- Gospodar kmetije: Danilo\n"
         "- Družina: Babica Angelca, Danilo, Barbara, Aljaž (partnerka Kaja), Julija, Ana\n"
@@ -403,13 +403,27 @@ def _llm_system_prompt_full_kb() -> str:
         "- Sladica: Pohorska gibanica babice Angelce\n\n"
         "Tukaj so VSE informacije o domačiji:\n"
         f"{FULL_KB_TEXT}\n\n"
-        "Odgovarjaj prijazno, naravno in slovensko. Ne izmišljuj si podatkov.\n"
+        "Ne izmišljuj si podatkov.\n"
         "Če uporabnik želi TOČEN meni, ga podaš samo, če je v podatkih ali preverjenih menijih.\n"
         "Če ni podatka o točnem meniju ali sezoni, to povej in vprašaj za mesec/termin.\n"
         "Če se podatki v virih razlikujejo, uporabi potrjene podatke zgoraj.\n"
-        "Ne navajaj oseb, ki niso v potrjenih podatkih."
+        "Ne navajaj oseb, ki niso v potrjenih podatkih.\n"
         "Če uporabnik želi rezervirati sobo ali mizo, OBVEZNO pokliči funkcijo "
-        "`reservation_intent` in nastavi ustrezen action."
+        "`reservation_intent` in nastavi ustrezen action.\n"
+    )
+    if language == "en":
+        return (
+            "You are the assistant for Domačija Kovačnik. Respond in English.\n"
+            + common
+        )
+    if language == "de":
+        return (
+            "Du bist der Assistent für Domačija Kovačnik. Antworte auf Deutsch.\n"
+            + common
+        )
+    return (
+        common
+        + "Odgovarjaj prijazno, naravno in slovensko.\n"
     )
 
 def _llm_route_reservation(message: str) -> dict:
@@ -470,14 +484,14 @@ def _llm_route_reservation(message: str) -> dict:
                 return {"action": "NONE"}
     return {"action": "NONE"}
 
-def _llm_answer_full_kb(message: str) -> str:
+def _llm_answer_full_kb(message: str, language: str = "si") -> str:
     client = get_llm_client()
     settings = Settings()
     try:
         response = client.responses.create(
             model=getattr(settings, "openai_model", "gpt-4.1-mini"),
             input=[
-                {"role": "system", "content": _llm_system_prompt_full_kb()},
+                {"role": "system", "content": _llm_system_prompt_full_kb(language)},
                 {"role": "user", "content": message},
             ],
             max_output_tokens=450,
@@ -504,13 +518,13 @@ def _stream_text_chunks(text: str, chunk_size: int = 80):
         yield text[i : i + chunk_size]
 
 
-def _llm_answer_full_kb_stream(message: str, settings: Settings):
+def _llm_answer_full_kb_stream(message: str, settings: Settings, language: str = "si"):
     client = get_llm_client()
     try:
         stream = client.responses.create(
             model=getattr(settings, "openai_model", "gpt-4.1-mini"),
             input=[
-                {"role": "system", "content": _llm_system_prompt_full_kb()},
+                {"role": "system", "content": _llm_system_prompt_full_kb(language)},
                 {"role": "user", "content": message},
             ],
             max_output_tokens=450,
@@ -3921,7 +3935,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                 or any(word in lowered_message for word in ["gospodar", "družin", "lastnik", "kmetij"])
             )
             if question_like:
-                llm_reply = _llm_answer_full_kb(payload.message)
+                llm_reply = _llm_answer_full_kb(payload.message, detected_lang)
                 continuation = get_booking_continuation(state.get("step"), state)
                 llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
                 llm_reply = maybe_translate(llm_reply, detected_lang)
@@ -3951,7 +3965,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                 state["type"] = "room"
                 reply = handle_reservation_flow(payload.message, state)
                 return finalize(reply, "booking_room_fallback", followup_flag=False)
-        llm_reply = _llm_answer_full_kb(payload.message)
+        llm_reply = _llm_answer_full_kb(payload.message, detected_lang)
         return finalize(llm_reply, "info_llm", followup_flag=False)
 
     if USE_ROUTER_V2:
@@ -4115,7 +4129,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         )
         if question_like:
             if USE_FULL_KB_LLM:
-                llm_reply = _llm_answer_full_kb(payload.message)
+                llm_reply = _llm_answer_full_kb(payload.message, detected_lang)
             else:
                 llm_reply = _llm_answer(payload.message, conversation_history)
             if llm_reply:
@@ -4459,7 +4473,7 @@ def chat_stream(payload: ChatRequestWithSession):
         if len(conversation_history) > 12:
             conversation_history = conversation_history[-12:]
         return StreamingResponse(
-            stream_and_log(_llm_answer_full_kb_stream(payload.message, settings)),
+            stream_and_log(_llm_answer_full_kb_stream(payload.message, settings, detect_language(payload.message))),
             media_type="text/plain",
         )
 
