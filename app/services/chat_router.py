@@ -2647,6 +2647,31 @@ def is_escape_command(message: str) -> bool:
     return any(word in lowered for word in escape_words)
 
 
+def is_switch_topic_command(message: str) -> bool:
+    lowered = message.lower()
+    switch_words = {
+        "zamenjaj temo",
+        "menjaj temo",
+        "nova tema",
+        "spremeni temo",
+        "gremo drugam",
+        "druga tema",
+    }
+    return any(phrase in lowered for phrase in switch_words)
+
+
+def is_affirmative(message: str) -> bool:
+    lowered = message.strip().lower()
+    return lowered in {"da", "ja", "seveda", "yes", "oui", "ok", "okej", "okey", "sure"}
+
+
+def get_last_assistant_message() -> str:
+    for msg in reversed(conversation_history):
+        if msg.get("role") == "assistant":
+            return msg.get("content", "")
+    return ""
+
+
 def reservation_prompt_for_state(state: dict[str, Optional[str | int]]) -> str:
     step = state.get("step")
     res_type = state.get("type")
@@ -2907,6 +2932,9 @@ def handle_inquiry_flow(message: str, state: dict[str, Optional[str]], session_i
     text = message.strip()
     lowered = text.lower()
     step = state.get("step")
+    if is_escape_command(message) or is_switch_topic_command(message):
+        reset_inquiry_state(state)
+        return "V redu, prekinil sem povpraševanje. Kako vam lahko še pomagam?"
 
     if step == "awaiting_consent":
         if lowered in {"da", "ja", "seveda", "lahko", "ok"}:
@@ -3790,6 +3818,26 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     state = get_reservation_state(session_id)
     inquiry_state = get_inquiry_state(session_id)
     needs_followup = False
+
+    if is_switch_topic_command(payload.message):
+        reset_reservation_state(state)
+        reset_inquiry_state(inquiry_state)
+        reply = "Seveda — zamenjamo temo. Kako vam lahko pomagam?"
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "switch_topic", followup_flag=False)
+
+    if state.get("step") is None and is_affirmative(payload.message):
+        last_bot = get_last_assistant_message().lower()
+        if "rezerv" in last_bot:
+            if "mizo" in last_bot or "miza" in last_bot:
+                state["type"] = "table"
+            elif "sobo" in last_bot or "soba" in last_bot or "preno" in last_bot:
+                state["type"] = "room"
+            else:
+                state["type"] = None
+            reply = handle_reservation_flow(payload.message, state)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_confirmed", followup_flag=False)
 
     # zabeležimo user vprašanje v zgodovino (omejimo na zadnjih 6 parov)
     conversation_history.append({"role": "user", "content": payload.message})
