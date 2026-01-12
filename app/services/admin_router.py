@@ -178,6 +178,14 @@ def get_conversations(limit: int = 200, needs_followup_only: bool = False):
     return {"conversations": conversations, "stats": stats}
 
 
+@router.get("/api/admin/conversations/session/{session_id}")
+def get_conversations_by_session(session_id: str, limit: int = 200):
+    """Vrne pogovor za posamezen session_id."""
+    _log("conversations_session", session_id=session_id, limit=limit)
+    conversations = service.get_conversations_by_session(session_id=session_id, limit=limit)
+    return {"session_id": session_id, "conversations": conversations, "total": len(conversations)}
+
+
 @router.get("/api/admin/inquiries")
 def get_inquiries(limit: int = 200, status: Optional[str] = None):
     _log("inquiries", limit=limit, status=status)

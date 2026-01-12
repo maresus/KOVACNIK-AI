@@ -972,6 +972,20 @@ class ReservationService:
             cur.close()
             conn.close()
 
+    def get_conversations_by_session(self, session_id: str, limit: int = 200) -> list[dict]:
+        """Vrne pogovor po session_id."""
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            sql = f"SELECT * FROM conversations WHERE session_id = {ph} ORDER BY created_at ASC LIMIT {limit}"
+            cur.execute(sql, (session_id,))
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
     def update_followup_email(self, conversation_id: int, email: str) -> bool:
         """Posodobi email za followup pogovor."""
         ph = self._placeholder()

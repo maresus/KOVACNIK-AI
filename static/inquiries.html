@@ -144,6 +144,7 @@
               <th>Rok</th>
               <th>Kontakt</th>
               <th class="nowrap">Session</th>
+              <th class="nowrap">Pogovor</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
@@ -167,6 +168,28 @@
         .replace(/>/g, '&gt;');
     }
 
+    function sessionDomId(sessionId) {
+      return String(sessionId || 'no-session').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    async function loadSessionDetail(sessionId, targetEl) {
+      const res = await fetch(`${API_BASE}/conversations/session/${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      const list = data.conversations || [];
+      if (!list.length) {
+        targetEl.innerHTML = '<div class="muted">Ni pogovora za to sejo.</div>';
+        return;
+      }
+      const rows = list.map(item => `
+        <div style="padding:8px 0; border-bottom:1px solid #f0ede8;">
+          <div class="muted">${escapeHtml(item.created_at)} · ${escapeHtml(item.intent || '-')}</div>
+          <div><strong>Uporabnik:</strong> ${escapeHtml(item.user_message)}</div>
+          <div><strong>AI:</strong> ${escapeHtml(item.bot_response)}</div>
+        </div>
+      `).join('');
+      targetEl.innerHTML = rows;
+    }
+
     async function loadInquiries() {
       const limit = limitEl.value;
       const status = statusEl.value;
@@ -176,15 +199,46 @@
       const res = await fetch(`${API_BASE}/inquiries?${params.toString()}`);
       const data = await res.json();
       const list = data.inquiries || [];
-      tableBody.innerHTML = list.map(i => `
-        <tr>
-          <td class="nowrap">${escapeHtml(i.created_at)}</td>
-          <td>${escapeHtml(i.details)}</td>
-          <td class="nowrap">${escapeHtml(i.deadline || '-') }</td>
-          <td>${escapeHtml(i.contact_raw || i.contact_email || '-')}</td>
-          <td class="nowrap">${escapeHtml(i.session_id || '-')}</td>
-        </tr>
-      `).join('');
+      tableBody.innerHTML = list.map(i => {
+        const domId = sessionDomId(i.session_id);
+        const canView = i.session_id;
+        return `
+          <tr>
+            <td class="nowrap">${escapeHtml(i.created_at)}</td>
+            <td>${escapeHtml(i.details)}</td>
+            <td class="nowrap">${escapeHtml(i.deadline || '-') }</td>
+            <td>${escapeHtml(i.contact_raw || i.contact_email || '-')}</td>
+            <td class="nowrap">${escapeHtml(i.session_id || '-')}</td>
+            <td class="nowrap">
+              ${canView ? `<button class="btn secondary" data-session="${escapeHtml(i.session_id)}" data-target="${domId}">Poglej</button>` : '<span class="muted">-</span>'}
+            </td>
+          </tr>
+          <tr id="detail-${domId}" style="display:none;">
+            <td colspan="6">
+              <div class="card" style="box-shadow:none; border:1px solid #f0ede8; margin:0;">
+                <div class="muted">Nalagam pogovor ...</div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.querySelectorAll('button[data-session]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sessionId = btn.getAttribute('data-session');
+          const targetId = btn.getAttribute('data-target');
+          const detailRow = document.getElementById(`detail-${targetId}`);
+          if (!detailRow) return;
+          const isOpen = detailRow.style.display !== 'none';
+          if (isOpen) {
+            detailRow.style.display = 'none';
+            return;
+          }
+          detailRow.style.display = 'table-row';
+          const contentEl = detailRow.querySelector('.card');
+          await loadSessionDetail(sessionId, contentEl);
+        });
+      });
     }
 
     loadBtn.addEventListener('click', loadInquiries);

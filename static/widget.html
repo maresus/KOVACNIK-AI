@@ -46,7 +46,7 @@
     }
     .header-text h1 { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
     .header-text p { font-size: 0.75rem; color: var(--muted); }
-    .header-actions { margin-left: auto; }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; }
     .clear-btn {
       background: var(--green);
       border: none;
@@ -55,6 +55,10 @@
       border-radius: 999px;
       font-size: 0.7rem;
       cursor: pointer;
+    }
+    .clear-btn.secondary {
+      background: #f1ede5;
+      color: #4b3a28;
     }
     .clear-btn:hover { filter: brightness(0.95); }
     .messages {
@@ -139,6 +143,7 @@
       </div>
       <div class="header-actions">
         <button class="clear-btn" id="clearBtn" title="Počisti zgodovino">Barbara – pomoč</button>
+        <button class="clear-btn secondary" id="newSessionBtn" title="Nova seja">Nova seja</button>
       </div>
     </div>
     <div class="messages" id="messages"></div>
@@ -167,6 +172,7 @@
     const sendBtn = document.getElementById('sendBtn');
     const quickBtns = document.getElementById('quickBtns');
     const clearBtn = document.getElementById('clearBtn');
+    const newSessionBtn = document.getElementById('newSessionBtn');
     
     // Load history from localStorage
     function loadHistory() {
@@ -239,6 +245,12 @@
       localStorage.setItem(sessionKey, sessionId);
     }
 
+    function resetSession() {
+      localStorage.removeItem(sessionKey);
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+      localStorage.setItem(sessionKey, sessionId);
+    }
+
     async function sendMessage(text) {
       if (!text.trim()) return;
       addMessageToDOM(text, 'user');
@@ -285,6 +297,10 @@
     // Event listeners
     sendBtn.addEventListener('click', () => sendMessage(inputEl.value));
     clearBtn.addEventListener('click', clearHistory);
+    newSessionBtn.addEventListener('click', () => {
+      clearHistory();
+      resetSession();
+    });
     
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {

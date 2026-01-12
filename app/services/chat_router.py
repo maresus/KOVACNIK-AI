@@ -813,6 +813,10 @@ PRODUCT_FOLLOWUP_PHRASES = {
     "katere pa",
     "kakšne",
     "še kaj",
+    "kje naročim",
+    "kje lahko naročim",
+    "kako naročim",
+    "kako lahko naročim",
 }
 INFO_FOLLOWUP_PHRASES = {
     "še kaj",
@@ -1823,6 +1827,8 @@ def is_inquiry_trigger(message: str) -> bool:
 def is_strong_inquiry_request(message: str) -> bool:
     """Hitro zazna, ali uporabnik eksplicitno želi povpraševanje/naročilo."""
     lowered = message.lower()
+    if is_product_followup(message) and not re.search(r"\d", lowered):
+        return False
     if re.search(r"\d", lowered):
         return True
     strong_words = [
@@ -1835,6 +1841,15 @@ def is_strong_inquiry_request(message: str) -> bool:
         "količin",
     ]
     return any(word in lowered for word in strong_words)
+
+
+def is_product_followup(message: str) -> bool:
+    lowered = message.lower()
+    if not last_product_query:
+        return False
+    if any(phrase in lowered for phrase in PRODUCT_FOLLOWUP_PHRASES):
+        return True
+    return False
 
 
 def extract_email(text: str) -> str:
@@ -3958,6 +3973,11 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             state["type"] = "room" if action == "BOOKING_ROOM" else "table"
             reply = handle_reservation_flow(payload.message, state)
             return finalize(reply, action.lower(), followup_flag=False)
+        info_key = detect_info_intent(payload.message)
+        if info_key:
+            info_reply = get_info_response(info_key)
+            info_reply = maybe_translate(info_reply, detected_lang)
+            return finalize(info_reply, "info_llm", followup_flag=False)
         # fallback: če LLM ne vrne action, uporabi osnovno heuristiko
         if any(token in payload.message.lower() for token in ["rezerv", "book", "booking", "reserve", "reservation", "zimmer"]) or is_reservation_typo(payload.message):
             if "mizo" in payload.message.lower() or "table" in payload.message.lower():

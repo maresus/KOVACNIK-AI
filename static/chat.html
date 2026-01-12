@@ -256,22 +256,13 @@
             </div>
           </div>
         </div>
-        <div class="badge">Barbara · prisotna</div>
-      </div>
-
-      <div id="messages" class="messages">
-        <div class="msg bot">
-          Pozdravljeni pri Domačiji Kovačnik! 😊
-          <br /><br />
-          Lahko pomagam z vprašanji o sobah, mizi za kosilo, izletih ali naših domačih izdelkih.
-          <br /><br />
-          Poskusite:
-          <br />• "Kaj ponujate za vikend kosila?"
-          <br />• "Koliko nočitev najmanj moram rezervirati julija?"
-          <br />• "Imate suho salamo ali pohorsko bunko?"
-          <br />• "Rad bi rezerviral sobo za vikend."
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="newSessionBtn" class="chip" style="cursor:pointer;">Nova seja</button>
+          <div class="badge">Barbara · prisotna</div>
         </div>
       </div>
+
+      <div id="messages" class="messages"></div>
 
       <div class="input-row">
         <div class="input-main">
@@ -319,12 +310,29 @@
       const now = Date.now();
       if (lastActivity && now - Number(lastActivity) > ONE_HOUR) {
         localStorage.removeItem("chat_history");
-        localStorage.removeItem("session_id");
+        localStorage.removeItem(sessionKey);
         localStorage.removeItem("last_chat_activity");
         window.location.reload();
       }
     }
     checkChatTimeout();
+
+    function renderWelcome() {
+      messagesEl.innerHTML = `
+        <div class="msg bot">
+          Pozdravljeni pri Domačiji Kovačnik! 😊
+          <br /><br />
+          Lahko pomagam z vprašanji o sobah, mizi za kosilo, izletih ali naših domačih izdelkih.
+          <br /><br />
+          Poskusite:
+          <br />• "Kaj ponujate za vikend kosila?"
+          <br />• "Koliko nočitev najmanj moram rezervirati julija?"
+          <br />• "Imate suho salamo ali pohorsko bunko?"
+          <br />• "Rad bi rezerviral sobo za vikend."
+        </div>
+      `;
+    }
+    renderWelcome();
 
     function addMessage(text, who = "bot") {
       const div = document.createElement("div");
@@ -405,6 +413,15 @@
         inputEl.value = prompt;
         inputEl.focus();
       });
+    });
+
+    document.getElementById("newSessionBtn").addEventListener("click", () => {
+      localStorage.removeItem(sessionKey);
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+      localStorage.setItem(sessionKey, sessionId);
+      localStorage.setItem("last_chat_activity", Date.now().toString());
+      renderWelcome();
+      statusEl.textContent = "Nova seja ustvarjena.";
     });
   </script>
 </body>
