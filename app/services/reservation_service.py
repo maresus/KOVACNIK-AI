@@ -999,6 +999,26 @@ class ReservationService:
             cur.close()
             conn.close()
 
+    def get_top_questions(self, limit: int = 10) -> list[dict]:
+        """Vrne najpogostejša vprašanja."""
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            sql = (
+                "SELECT user_message, COUNT(*) as count "
+                "FROM conversations "
+                "GROUP BY user_message "
+                "ORDER BY count DESC "
+                f"LIMIT {ph}"
+            )
+            cur.execute(sql, (limit,))
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
     # --- inquiries -------------------------------------------
     def create_inquiry(
         self,

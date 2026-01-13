@@ -199,6 +199,12 @@ def get_usage_stats():
     return service.get_usage_stats()
 
 
+@router.get("/api/admin/question_stats")
+def get_question_stats(limit: int = 10):
+    _log("question_stats", limit=limit)
+    return {"questions": service.get_top_questions(limit=limit)}
+
+
 @router.get("/api/admin/reservations")
 def get_reservations(
     limit: int = 100,

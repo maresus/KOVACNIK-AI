@@ -34,6 +34,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 USE_ROUTER_V2 = True
 USE_FULL_KB_LLM = True
 INQUIRY_RECIPIENT = os.getenv("INQUIRY_RECIPIENT", "satlermarko@gmail.com")
+SHORT_MODE = os.getenv("SHORT_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 INFO_RESPONSES = {
@@ -404,6 +405,8 @@ def _llm_system_prompt_full_kb(language: str = "si") -> str:
         "Tukaj so VSE informacije o domačiji:\n"
         f"{FULL_KB_TEXT}\n\n"
         "Ne izmišljuj si podatkov.\n"
+        "Odgovarjaj kratko (2–4 stavke), razen če uporabnik izrecno želi podrobnosti ali meni.\n"
+        "Če nisi prepričan, postavi kratko pojasnitveno vprašanje.\n"
         "Če uporabnik želi TOČEN meni, ga podaš samo, če je v podatkih ali preverjenih menijih.\n"
         "Če ni podatka o točnem meniju ali sezoni, to povej in vprašaj za mesec/termin.\n"
         "Če se podatki v virih razlikujejo, uporabi potrjene podatke zgoraj.\n"
@@ -566,10 +569,28 @@ def get_info_response(key: str) -> str:
     if key.startswith("topic:"):
         topic_key = key.split(":", 1)[1]
         if topic_key in _TOPIC_RESPONSES:
-            return _TOPIC_RESPONSES[topic_key]
+            return maybe_shorten_response(_TOPIC_RESPONSES[topic_key])
     if key in INFO_RESPONSES_VARIANTS:
-        return random.choice(INFO_RESPONSES_VARIANTS[key])
-    return INFO_RESPONSES.get(key, "Kako vam lahko pomagam?")
+        variants = INFO_RESPONSES_VARIANTS[key]
+        chosen = min(variants, key=len) if SHORT_MODE else random.choice(variants)
+        return maybe_shorten_response(chosen)
+    return maybe_shorten_response(INFO_RESPONSES.get(key, "Kako vam lahko pomagam?"))
+
+
+def maybe_shorten_response(text: str) -> str:
+    if not SHORT_MODE:
+        return text
+    if not text:
+        return text
+    if len(text) <= 520:
+        return text
+    lines = [line for line in text.splitlines() if line.strip()]
+    if len(lines) > 4:
+        return "\n".join(lines[:4]) + "\n\nZa več informacij vprašajte naprej."
+    clipped = text[:520]
+    if ". " in clipped:
+        clipped = clipped.rsplit(". ", 1)[0] + "."
+    return clipped
 
 # Mini RAG fallback za neznane info/product
 def get_mini_rag_answer(question: str) -> Optional[str]:
@@ -2367,7 +2388,22 @@ def get_help_response() -> str:
     )
 
 
-def format_current_menu(month_override: Optional[int] = None) -> str:
+def is_full_menu_request(message: str) -> bool:
+    lowered = message.lower()
+    return any(
+        phrase in lowered
+        for phrase in [
+            "celoten meni",
+            "celotni meni",
+            "poln meni",
+            "celoten jedilnik",
+            "celotni jedilnik",
+            "poln jedilnik",
+        ]
+    )
+
+
+def format_current_menu(month_override: Optional[int] = None, force_full: bool = False) -> str:
     now = datetime.now()
     month = month_override or now.month
     current = None
@@ -2381,16 +2417,22 @@ def format_current_menu(month_override: Optional[int] = None) -> str:
         next_menu_intro(),
         f"{current['label']}",
     ]
-    for item in current["items"]:
-        if item.lower().startswith("cena"):
-            continue
-        lines.append(f"- {item}")
-    lines.append("Cena: 36 EUR odrasli, otroci 4–12 let -50%.")
-    lines.append("")
-    lines.append(
-        "Jedilnik je sezonski; če želiš meni za drug mesec, samo povej mesec (npr. 'kaj pa novembra'). "
-        "Vege ali brez glutena uredimo ob rezervaciji."
-    )
+    items = [item for item in current["items"] if not item.lower().startswith("cena")]
+    if SHORT_MODE and not force_full:
+        for item in items[:4]:
+            lines.append(f"- {item}")
+        lines.append("Cena: 36 EUR odrasli, otroci 4–12 let -50%.")
+        lines.append("")
+        lines.append("Za celoten sezonski meni recite: \"celoten meni\".")
+    else:
+        for item in items:
+            lines.append(f"- {item}")
+        lines.append("Cena: 36 EUR odrasli, otroci 4–12 let -50%.")
+        lines.append("")
+        lines.append(
+            "Jedilnik je sezonski; če želiš meni za drug mesec, samo povej mesec (npr. 'kaj pa novembra'). "
+            "Vege ali brez glutena uredimo ob rezervaciji."
+        )
     return "\n".join(lines)
 
 
@@ -4483,7 +4525,7 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
 
     month_hint = parse_month_from_text(payload.message) or parse_relative_month(payload.message)
     if is_menu_query(payload.message):
-        reply = format_current_menu(month_override=month_hint)
+        reply = format_current_menu(month_override=month_hint, force_full=is_full_menu_request(payload.message))
         last_product_query = None
         last_wine_query = None
         last_info_query = None
@@ -4491,7 +4533,7 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "menu")
     if month_hint is not None and intent == "default":
-        reply = format_current_menu(month_override=month_hint)
+        reply = format_current_menu(month_override=month_hint, force_full=is_full_menu_request(payload.message))
         last_product_query = None
         last_wine_query = None
         last_info_query = None
