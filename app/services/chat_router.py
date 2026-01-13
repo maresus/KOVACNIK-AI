@@ -1821,6 +1821,8 @@ def is_ambiguous_inquiry_request(message: str) -> bool:
 
 def is_inquiry_trigger(message: str) -> bool:
     lowered = message.lower()
+    if any(w in lowered for w in ["večerj", "vecerj"]):
+        return False
     explicit = [
         "povpraš",
         "ponudb",
