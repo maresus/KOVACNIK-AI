@@ -221,6 +221,24 @@
       font-size: 12px;
       margin-bottom: 4px;
     }
+    .msg-refresh {
+      margin-left: 8px;
+      border: 1px solid #e6e2da;
+      background: #fff;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .msg-badge {
+      display: inline-block;
+      min-width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #e54848;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
 
     .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
     .tab {
@@ -546,7 +564,10 @@
           <textarea id="room-edit-admin-notes" rows="2"></textarea>
         </div>
         <div class="form-group">
-          <label>Sporočila (email)</label>
+          <label>
+            Sporočila (email)
+            <button type="button" class="msg-refresh" onclick="refreshMessages('room')">⟳ Osveži</button>
+          </label>
           <div id="room-edit-messages" class="message-thread">Ni sporočil.</div>
         </div>
         <div class="modal-actions">
@@ -632,7 +653,10 @@
           <textarea id="table-edit-admin-notes" rows="2"></textarea>
         </div>
         <div class="form-group">
-          <label>Sporočila (email)</label>
+          <label>
+            Sporočila (email)
+            <button type="button" class="msg-refresh" onclick="refreshMessages('table')">⟳ Osveži</button>
+          </label>
           <div id="table-edit-messages" class="message-thread">Ni sporočil.</div>
         </div>
         <div class="modal-actions">
@@ -948,6 +972,7 @@
         lastReservations = data.reservations || [];
         renderPending(lastReservations);
         renderReservations(lastReservations);
+        checkUnreadForReservations(lastReservations);
       } catch (e) {
         console.error('Load reservations error', e);
       }
@@ -987,6 +1012,7 @@
               <button class="btn-inline success" onclick="openConfirm('${dataStr}')">✅ Potrdi</button>
               <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
               <button class="btn-inline" onclick="openEmailModal('${dataStr}')">✉</button>
+              <span class="msg-badge" data-msg-badge="${r.id}" style="display:none"></span>
             </span>
           </div>
         `;
@@ -1195,6 +1221,7 @@
               <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
               <button class="btn-inline" onclick="openEdit('${encodeURIComponent(JSON.stringify(r))}')">✏️</button>
               <button class="btn-inline" onclick="openEmailModal('${encodeURIComponent(JSON.stringify(r))}')">✉</button>
+              <span class="msg-badge" data-msg-badge="${r.id}" style="display:none"></span>
             </span>
           </div>
         `;
@@ -1693,7 +1720,27 @@
       }
     }
 
-    async function loadReservationMessages(resId, targetId) {
+    const MSG_SEEN_KEY = 'reservation_msg_seen';
+    function getSeenMap() {
+      try { return JSON.parse(localStorage.getItem(MSG_SEEN_KEY) || '{}'); } catch (e) { return {}; }
+    }
+    function setSeenMap(map) {
+      try { localStorage.setItem(MSG_SEEN_KEY, JSON.stringify(map)); } catch (e) {}
+    }
+    function updateBadge(resId, hasUnread) {
+      document.querySelectorAll(`[data-msg-badge="${resId}"]`).forEach(el => {
+        el.style.display = hasUnread ? 'inline-block' : 'none';
+      });
+    }
+    function markSeen(resId, lastInbound) {
+      if (!lastInbound) return;
+      const map = getSeenMap();
+      map[resId] = lastInbound;
+      setSeenMap(map);
+      updateBadge(resId, false);
+    }
+
+    async function loadReservationMessages(resId, targetId, markAsSeen = false) {
       const container = qs(targetId);
       if (!container) return;
       container.textContent = 'Nalagam sporočila...';
@@ -1705,6 +1752,8 @@
           container.textContent = 'Ni sporočil.';
           return;
         }
+        const inbound = messages.filter(m => (m.direction || '').toLowerCase() === 'inbound');
+        const lastInbound = inbound.length ? inbound[inbound.length - 1].created_at : null;
         container.innerHTML = messages.map(m => `
           <div class="msg">
             <div class="meta">
@@ -1714,8 +1763,40 @@
             <div>${escapeHtml(m.body || '')}</div>
           </div>
         `).join('');
+        if (markAsSeen && lastInbound) {
+          markSeen(resId, lastInbound);
+        }
       } catch (err) {
         container.textContent = 'Napaka pri nalaganju sporočil.';
+      }
+    }
+
+    function refreshMessages(type) {
+      const id = type === 'room' ? qs('room-edit-hidden-id').value : qs('table-edit-hidden-id').value;
+      const target = type === 'room' ? 'room-edit-messages' : 'table-edit-messages';
+      if (!id) return;
+      loadReservationMessages(id, target, false);
+    }
+
+    async function checkUnreadForReservations(resList) {
+      const candidates = (resList || []).filter(r => ['pending','processing'].includes(r.status));
+      const seenMap = getSeenMap();
+      for (const r of candidates) {
+        try {
+          const res = await fetch(`${API_BASE}/reservations/${r.id}/messages`);
+          const data = await res.json().catch(() => ({}));
+          const messages = data.messages || [];
+          const inbound = messages.filter(m => (m.direction || '').toLowerCase() === 'inbound');
+          const lastInbound = inbound.length ? inbound[inbound.length - 1].created_at : null;
+          const lastSeen = seenMap[r.id];
+          if (lastInbound && (!lastSeen || lastInbound > lastSeen)) {
+            updateBadge(r.id, true);
+          } else {
+            updateBadge(r.id, false);
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     }
 
@@ -1734,7 +1815,7 @@
       qs('room-edit-phone').value = r.phone || '';
       qs('room-edit-note').value = r.note || '';
       qs('room-edit-admin-notes').value = r.admin_notes || '';
-      loadReservationMessages(r.id, 'room-edit-messages');
+      loadReservationMessages(r.id, 'room-edit-messages', true);
       qs('edit-room-modal').classList.add('active');
     }
     function closeRoomEditModal() { qs('edit-room-modal').classList.remove('active'); }
@@ -1755,7 +1836,7 @@
       qs('table-edit-phone').value = r.phone || '';
       qs('table-edit-special-needs').value = r.special_needs || '';
       qs('table-edit-admin-notes').value = r.admin_notes || '';
-      loadReservationMessages(r.id, 'table-edit-messages');
+      loadReservationMessages(r.id, 'table-edit-messages', true);
       qs('edit-table-modal').classList.add('active');
     }
     function closeTableEditModal() { qs('edit-table-modal').classList.remove('active'); }
