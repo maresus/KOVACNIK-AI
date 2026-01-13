@@ -201,6 +201,26 @@
     label { font-weight: 600; font-size: 13px; color: #3b2d1e; }
     textarea { min-height: 90px; }
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+    .message-thread {
+      background: #faf8f3;
+      border: 1px solid #e6e2da;
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+      font-size: 13px;
+      color: #1f2937;
+    }
+    .message-thread .msg {
+      border-bottom: 1px dashed #e6e2da;
+      padding: 8px 0;
+    }
+    .message-thread .msg:last-child { border-bottom: 0; }
+    .message-thread .meta {
+      color: #7a7a7a;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
 
     .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
     .tab {
@@ -525,6 +545,10 @@
           <label>Admin opombe (interno)</label>
           <textarea id="room-edit-admin-notes" rows="2"></textarea>
         </div>
+        <div class="form-group">
+          <label>Sporočila (email)</label>
+          <div id="room-edit-messages" class="message-thread">Ni sporočil.</div>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" onclick="closeRoomEditModal()">Prekliči</button>
           <button type="submit" class="btn">💾 Shrani</button>
@@ -606,6 +630,10 @@
         <div class="form-group">
           <label>Admin opombe (interno)</label>
           <textarea id="table-edit-admin-notes" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Sporočila (email)</label>
+          <div id="table-edit-messages" class="message-thread">Ni sporočil.</div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" onclick="closeTableEditModal()">Prekliči</button>
@@ -1262,7 +1290,8 @@
       qs('email-modal-name').textContent = r?.name ? `(${r.name})` : '';
       qs('email-res-id').value = r?.id || '';
       qs('email-recipient').value = r?.email || '';
-      qs('email-subject').value = "Povpraševanje - Domačija Kovačnik";
+      const tag = r?.id ? `Rezervacija #${r.id}` : 'Rezervacija';
+      qs('email-subject').value = `${tag} - Dodatne informacije`;
       qs('email-body').value = '';
       qs('email-template').value = '';
       qs('email-modal').classList.add('active');
@@ -1664,6 +1693,32 @@
       }
     }
 
+    async function loadReservationMessages(resId, targetId) {
+      const container = qs(targetId);
+      if (!container) return;
+      container.textContent = 'Nalagam sporočila...';
+      try {
+        const res = await fetch(`${API_BASE}/reservations/${resId}/messages`);
+        const data = await res.json().catch(() => ({}));
+        const messages = data.messages || [];
+        if (!messages.length) {
+          container.textContent = 'Ni sporočil.';
+          return;
+        }
+        container.innerHTML = messages.map(m => `
+          <div class="msg">
+            <div class="meta">
+              ${escapeHtml(m.direction || '')} • ${escapeHtml(m.created_at || '')}
+            </div>
+            <div><strong>${escapeHtml(m.subject || '')}</strong></div>
+            <div>${escapeHtml(m.body || '')}</div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.textContent = 'Napaka pri nalaganju sporočil.';
+      }
+    }
+
     function openRoomEditModal(r) {
       qs('room-edit-id').textContent = r.id;
       qs('room-edit-hidden-id').value = r.id;
@@ -1679,6 +1734,7 @@
       qs('room-edit-phone').value = r.phone || '';
       qs('room-edit-note').value = r.note || '';
       qs('room-edit-admin-notes').value = r.admin_notes || '';
+      loadReservationMessages(r.id, 'room-edit-messages');
       qs('edit-room-modal').classList.add('active');
     }
     function closeRoomEditModal() { qs('edit-room-modal').classList.remove('active'); }
@@ -1699,6 +1755,7 @@
       qs('table-edit-phone').value = r.phone || '';
       qs('table-edit-special-needs').value = r.special_needs || '';
       qs('table-edit-admin-notes').value = r.admin_notes || '';
+      loadReservationMessages(r.id, 'table-edit-messages');
       qs('edit-table-modal').classList.add('active');
     }
     function closeTableEditModal() { qs('edit-table-modal').classList.remove('active'); }

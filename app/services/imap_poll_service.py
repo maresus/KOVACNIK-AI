@@ -1,0 +1,168 @@
+import json
+import os
+import re
+import threading
+import time
+from email import message_from_bytes
+from email.header import decode_header
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+from typing import Optional, Tuple
+
+import imaplib
+
+from app.services.reservation_service import ReservationService
+
+IMAP_HOST = os.getenv("IMAP_HOST", "").strip()
+IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
+IMAP_USER = os.getenv("IMAP_USER", "").strip()
+IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "").strip()
+IMAP_SSL = os.getenv("IMAP_SSL", "").strip().lower() in {"1", "true", "yes"}
+IMAP_POLL_INTERVAL = int(os.getenv("IMAP_POLL_INTERVAL", "300"))
+
+RESERVATION_ID_RE = re.compile(r"rezervacija\\s*#(\\d+)", re.IGNORECASE)
+
+
+def _decode_header(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    decoded_parts = decode_header(value)
+    parts = []
+    for part, encoding in decoded_parts:
+        if isinstance(part, bytes):
+            try:
+                parts.append(part.decode(encoding or "utf-8", errors="ignore"))
+            except Exception:
+                parts.append(part.decode("utf-8", errors="ignore"))
+        else:
+            parts.append(part)
+    return "".join(parts)
+
+
+def _extract_text(msg) -> str:
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            content_disposition = (part.get("Content-Disposition") or "").lower()
+            if content_type == "text/plain" and "attachment" not in content_disposition:
+                payload = part.get_payload(decode=True) or b""
+                charset = part.get_content_charset() or "utf-8"
+                return payload.decode(charset, errors="ignore").strip()
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                payload = part.get_payload(decode=True) or b""
+                charset = part.get_content_charset() or "utf-8"
+                html = payload.decode(charset, errors="ignore")
+                return re.sub(r"<[^>]+>", " ", html).strip()
+    payload = msg.get_payload(decode=True) or b""
+    charset = msg.get_content_charset() or "utf-8"
+    return payload.decode(charset, errors="ignore").strip()
+
+
+def _match_reservation_id(subject: str) -> Optional[int]:
+    match = RESERVATION_ID_RE.search(subject or "")
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except Exception:
+        return None
+
+
+def _state_path() -> Path:
+    project_root = Path(__file__).resolve().parents[2]
+    data_dir = project_root / "data"
+    data_dir.mkdir(exist_ok=True)
+    return data_dir / "imap_state.json"
+
+
+def _load_last_uid() -> int:
+    path = _state_path()
+    if not path.exists():
+        return 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return int(data.get("last_uid", 0))
+    except Exception:
+        return 0
+
+
+def _save_last_uid(uid: int) -> None:
+    path = _state_path()
+    path.write_text(json.dumps({"last_uid": uid}), encoding="utf-8")
+
+
+def _imap_connect() -> imaplib.IMAP4:
+    if IMAP_SSL:
+        return imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+    return imaplib.IMAP4(IMAP_HOST, IMAP_PORT)
+
+
+def _process_message(
+    service: ReservationService,
+    uid: int,
+    msg_bytes: bytes,
+) -> Tuple[bool, Optional[int]]:
+    msg = message_from_bytes(msg_bytes)
+    subject = _decode_header(msg.get("Subject", ""))
+    message_id = _decode_header(msg.get("Message-ID", "")) or f"imap-uid-{uid}"
+    from_email = _decode_header(msg.get("From", ""))
+    to_email = _decode_header(msg.get("To", ""))
+    body = _extract_text(msg)
+
+    reservation_id = _match_reservation_id(subject)
+    if not reservation_id:
+        return False, None
+
+    if service.message_exists(message_id):
+        return False, reservation_id
+
+    service.add_reservation_message(
+        reservation_id=reservation_id,
+        direction="inbound",
+        subject=subject,
+        body=body,
+        from_email=from_email,
+        to_email=to_email,
+        message_id=message_id,
+    )
+    return True, reservation_id
+
+
+def _poll_loop() -> None:
+    if not (IMAP_HOST and IMAP_USER and IMAP_PASSWORD):
+        print("[IMAP] Manjkajo IMAP nastavitve. Polling ne bo zagnan.")
+        return
+
+    service = ReservationService()
+    last_uid = _load_last_uid()
+
+    while True:
+        try:
+            mail = _imap_connect()
+            mail.login(IMAP_USER, IMAP_PASSWORD)
+            mail.select("INBOX")
+            search_query = f"(UID {last_uid + 1}:*)"
+            status, data = mail.uid("search", None, search_query)
+            if status == "OK" and data and data[0]:
+                uids = [int(u) for u in data[0].split()]
+                for uid in uids:
+                    status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+                    if status != "OK" or not msg_data:
+                        continue
+                    msg_bytes = msg_data[0][1]
+                    processed, _ = _process_message(service, uid, msg_bytes)
+                    if processed:
+                        mail.uid("store", str(uid), "+FLAGS", "(\\Seen)")
+                    last_uid = max(last_uid, uid)
+                _save_last_uid(last_uid)
+            mail.logout()
+        except Exception as exc:
+            print(f"[IMAP] Napaka pri polling-u: {exc}")
+        time.sleep(IMAP_POLL_INTERVAL)
+
+
+def start_imap_poller() -> None:
+    """Zažene IMAP polling v ozadju."""
+    thread = threading.Thread(target=_poll_loop, daemon=True)
+    thread.start()

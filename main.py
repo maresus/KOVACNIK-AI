@@ -9,12 +9,17 @@ from app.services.chat_router import router as chat_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
 from app.services.webhook_router import router as webhook_router
+from app.services.imap_poll_service import start_imap_poller
 
 # Naloži .env v okolje ob zagonu (za SMTP ipd.)
 load_dotenv()
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
+
+@app.on_event("startup")
+def startup_tasks() -> None:
+    start_imap_poller()
 
 @app.get("/health")
 def health_check() -> dict[str, str]:

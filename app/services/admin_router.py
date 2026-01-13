@@ -31,6 +31,17 @@ def _log(event: str, **kwargs) -> None:
         pass
 
 
+def _ensure_subject_tag(reservation_id: Optional[int], subject: str) -> str:
+    if not reservation_id:
+        return subject or ""
+    tag = f"Rezervacija #{reservation_id}"
+    if tag.lower() in (subject or "").lower():
+        return subject
+    if subject:
+        return f"{tag} - {subject}"
+    return tag
+
+
 def _normalize_room_id(room: Optional[str]) -> Optional[str]:
     if not room:
         return None
@@ -334,6 +345,16 @@ def confirm_reservation(reservation_id: int, data: Optional[ConfirmReservationRe
     )
     res = service.get_reservation(reservation_id) or res
     send_reservation_confirmed(res)
+    subject = _ensure_subject_tag(reservation_id, "Potrditev rezervacije")
+    service.add_reservation_message(
+        reservation_id=reservation_id,
+        direction="outbound",
+        subject=subject,
+        body="Rezervacija potrjena.",
+        from_email=os.getenv("ADMIN_EMAIL", "info@kovacnik.com"),
+        to_email=res.get("email") or "",
+        message_id=None,
+    )
     return {"success": True, "email_sent": True, "room": requested_room or requested_location}
 
 
@@ -346,6 +367,16 @@ def reject_reservation(reservation_id: int):
     service.update_reservation(reservation_id, status="rejected")
     res = service.get_reservation(reservation_id) or res
     send_reservation_rejected(res)
+    subject = _ensure_subject_tag(reservation_id, "Zavrnjena rezervacija")
+    service.add_reservation_message(
+        reservation_id=reservation_id,
+        direction="outbound",
+        subject=subject,
+        body="Rezervacija zavrnjena.",
+        from_email=os.getenv("ADMIN_EMAIL", "info@kovacnik.com"),
+        to_email=res.get("email") or "",
+        message_id=None,
+    )
     return {"success": True, "email_sent": True}
 
 
@@ -354,7 +385,18 @@ def send_message(data: SendMessageRequest):
     """Pošlje sporočilo gostu in opcijsko status nastavi na 'processing'."""
     if not data.email:
         raise HTTPException(status_code=400, detail="Email manjka")
-    send_custom_message(data.email, data.subject, data.body)
+    subject = _ensure_subject_tag(data.reservation_id, data.subject or "")
+    send_custom_message(data.email, subject, data.body)
+    if data.reservation_id:
+        service.add_reservation_message(
+            reservation_id=data.reservation_id,
+            direction="outbound",
+            subject=subject,
+            body=data.body,
+            from_email=os.getenv("ADMIN_EMAIL", "info@kovacnik.com"),
+            to_email=data.email,
+            message_id=None,
+        )
     if data.set_processing:
         service.update_reservation(
             data.reservation_id,
@@ -362,6 +404,13 @@ def send_message(data: SendMessageRequest):
             guest_message=data.body,
         )
     return {"ok": True}
+
+
+@router.get("/api/admin/reservations/{reservation_id}/messages")
+def get_reservation_messages(reservation_id: int):
+    """Vrne sporočila za izbrano rezervacijo."""
+    messages = service.list_reservation_messages(reservation_id)
+    return {"messages": messages}
 
 
 @router.get("/api/admin/stats")

@@ -162,6 +162,21 @@ class ReservationService:
                     )
                     """
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS reservation_messages (
+                        id SERIAL PRIMARY KEY,
+                        reservation_id INTEGER NOT NULL,
+                        direction TEXT NOT NULL,
+                        subject TEXT,
+                        body TEXT,
+                        from_email TEXT,
+                        to_email TEXT,
+                        message_id TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
                 # dodaj manjkajoče stolpce na obstoječo tabelo (robustnost)
                 for col, definition in new_columns:
                     cur.execute(
@@ -236,6 +251,21 @@ class ReservationService:
                     status TEXT DEFAULT 'new',
                     created_at TEXT NOT NULL,
                     source TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reservation_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    reservation_id INTEGER NOT NULL,
+                    direction TEXT NOT NULL,
+                    subject TEXT,
+                    body TEXT,
+                    from_email TEXT,
+                    to_email TEXT,
+                    message_id TEXT,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
@@ -1107,6 +1137,102 @@ class ReservationService:
                 "month": len(month_sessions),
                 "year": len(year_sessions),
             }
+        finally:
+            cur.close()
+            conn.close()
+
+    def add_reservation_message(
+        self,
+        reservation_id: int,
+        direction: str,
+        subject: str,
+        body: str,
+        from_email: str,
+        to_email: str,
+        message_id: Optional[str] = None,
+    ) -> bool:
+        """Shrani sporočilo vezano na rezervacijo (inbound/outbound)."""
+        created_at = datetime.now().isoformat()
+        conn = self._conn()
+        cur = conn.cursor()
+        try:
+            ph = self._placeholder()
+            cur.execute(
+                (
+                    "INSERT INTO reservation_messages "
+                    "(reservation_id, direction, subject, body, from_email, to_email, message_id, created_at) "
+                    f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+                ),
+                (
+                    reservation_id,
+                    direction,
+                    subject,
+                    body,
+                    from_email,
+                    to_email,
+                    message_id,
+                    created_at,
+                ),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            return False
+        finally:
+            cur.close()
+            conn.close()
+
+    def list_reservation_messages(self, reservation_id: int) -> list[Dict[str, Any]]:
+        """Vrne vsa sporočila za rezervacijo, urejena po času."""
+        conn = self._conn()
+        cur = conn.cursor()
+        try:
+            ph = self._placeholder()
+            cur.execute(
+                (
+                    "SELECT reservation_id, direction, subject, body, from_email, to_email, message_id, created_at "
+                    f"FROM reservation_messages WHERE reservation_id = {ph} ORDER BY created_at ASC"
+                ),
+                (reservation_id,),
+            )
+            rows = cur.fetchall()
+            messages = []
+            for row in rows:
+                if isinstance(row, dict):
+                    messages.append(dict(row))
+                else:
+                    messages.append(
+                        {
+                            "reservation_id": row[0],
+                            "direction": row[1],
+                            "subject": row[2],
+                            "body": row[3],
+                            "from_email": row[4],
+                            "to_email": row[5],
+                            "message_id": row[6],
+                            "created_at": row[7],
+                        }
+                    )
+            return messages
+        finally:
+            cur.close()
+            conn.close()
+
+    def message_exists(self, message_id: str) -> bool:
+        """Preveri, ali je message_id že shranjen."""
+        if not message_id:
+            return False
+        conn = self._conn()
+        cur = conn.cursor()
+        try:
+            ph = self._placeholder()
+            cur.execute(
+                f"SELECT COUNT(1) FROM reservation_messages WHERE message_id = {ph}",
+                (message_id,),
+            )
+            row = cur.fetchone()
+            count = list(row.values())[0] if isinstance(row, dict) else row[0]
+            return count > 0
         finally:
             cur.close()
             conn.close()
