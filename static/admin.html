@@ -992,7 +992,7 @@
     function renderPending(resList) {
       const container = qs('pending-container');
       if (!container) return;
-      const pending = (resList || []).filter(r => r.status === 'pending');
+      const pending = (resList || []).filter(r => r.status === 'pending' || r.status === 'processing');
       let html = `<h3 style="margin-bottom:8px;">Čakajoče rezervacije</h3>`;
       if (!pending.length) {
         container.innerHTML = html + `<div style="padding:10px; border:1px solid #f1e4c7; background:#fffaf0; border-radius:10px;">Ni čakajočih rezervacij ✓</div>`;
@@ -1011,6 +1011,7 @@
             <span class="res-actions">
               <button class="btn-inline success" onclick="openConfirm('${dataStr}')">✅ Potrdi</button>
               <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌</button>
+              <button class="btn-inline" onclick="openEdit('${dataStr}')">✏️</button>
               <button class="btn-inline" onclick="openEmailModal('${dataStr}')">✉</button>
               <span class="msg-badge" data-msg-badge="${r.id}" style="display:none"></span>
             </span>
@@ -1244,15 +1245,27 @@
       `;
     }
 
+    function isTableReservation(r) {
+      if (!r) return false;
+      const type = (r.reservation_type || '').toLowerCase();
+      if (type === 'table' || type === 'miza') return true;
+      const loc = (r.location || '').toLowerCase();
+      if (loc.includes('pri peči') || loc.includes('pri vrtu')) return true;
+      if (r.time) return true;
+      if (r.event_type) return true;
+      return false;
+    }
+
     function openConfirm(dataStr) {
       const r = JSON.parse(decodeURIComponent(dataStr));
+      const isTable = isTableReservation(r);
       qs('confirm-id').value = r.id;
-      qs('confirm-type').value = r.reservation_type || 'room';
+      qs('confirm-type').value = isTable ? 'table' : 'room';
       qs('confirm-title').textContent = `Potrdi rezervacijo #${r.id} (${r.name || 'gost'})`;
       const select = qs('confirm-choice');
       const hint = qs('confirm-hint');
       select.innerHTML = '';
-      if (r.reservation_type === 'table') {
+      if (isTable) {
         qs('confirm-label').textContent = 'Izberi jedilnico';
         hint.textContent = r.location ? `Gost je izbral: ${r.location}` : 'Gost ni izbral jedilnice.';
         ['Pri peči', 'Pri vrtu'].forEach(opt => {
@@ -1740,12 +1753,21 @@
       updateBadge(resId, false);
     }
 
-    async function loadReservationMessages(resId, targetId, markAsSeen = false) {
+    async function loadReservationMessages(resId, targetId, markAsSeen = false, attempt = 1) {
       const container = qs(targetId);
       if (!container) return;
       container.textContent = 'Nalagam sporočila...';
       try {
         const res = await fetch(`${API_BASE}/reservations/${resId}/messages`);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          const statusMsg = `Napaka pri nalaganju sporočil (${res.status}).`;
+          container.textContent = errText ? `${statusMsg} ${errText.slice(0,120)}` : statusMsg;
+          if (attempt === 1) {
+            setTimeout(() => loadReservationMessages(resId, targetId, markAsSeen, 2), 1500);
+          }
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         const messages = data.messages || [];
         if (!messages.length) {
@@ -1767,7 +1789,10 @@
           markSeen(resId, lastInbound);
         }
       } catch (err) {
-        container.textContent = 'Napaka pri nalaganju sporočil.';
+        container.textContent = 'Napaka pri nalaganju sporočil (omrežna napaka).';
+        if (attempt === 1) {
+          setTimeout(() => loadReservationMessages(resId, targetId, markAsSeen, 2), 1500);
+        }
       }
     }
 
