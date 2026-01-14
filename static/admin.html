@@ -151,11 +151,11 @@
     .btn-inline {
       border: 1px solid var(--border);
       background: #fff;
-      border-radius: 8px;
-      padding: 6px 10px;
+      border-radius: 10px;
+      padding: 8px 12px;
       cursor: pointer;
-      font-weight: 600;
-      font-size: 12px;
+      font-weight: 700;
+      font-size: 14px;
       color: #4b3a28;
     }
     .btn-inline.danger { color: #b3261e; border-color: #f3c7c2; }
@@ -299,6 +299,10 @@
         <div class="subtitle" id="current-date"></div>
       </div>
       <div class="actions">
+        <div id="imap-indicator" class="muted" style="font-size:12px; margin-right:6px;"></div>
+        <button class="btn secondary" id="unreadBtn" title="Novi odgovori">
+          🔔 Odgovori <span id="unreadCount" class="msg-badge" style="display:none; margin-left:6px;"></span>
+        </button>
         <button class="btn secondary" onclick="exportCsv()">📥 Izvozi CSV</button>
         <button class="btn" onclick="loadAll()">🔄 Osveži podatke</button>
         <a class="btn secondary" href="/admin/conversations">💬 Pogovori</a>
@@ -879,13 +883,23 @@
     }
 
     async function loadAll() {
-      const tasks = [loadStats(), loadUsageStats(), loadQuestionStats(), loadReservations()];
+      const tasks = [loadStats(), loadUsageStats(), loadQuestionStats(), loadReservations(), loadImapStatus()];
       if (currentTab === 'room') {
         tasks.push(renderCalendar());
       } else {
         tasks.push(renderTableCalendar());
       }
       await Promise.all(tasks);
+    }
+
+    const unreadBtn = qs('unreadBtn');
+    if (unreadBtn) {
+      unreadBtn.addEventListener('click', () => {
+        const target = qs('pending-container');
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
     }
 
     function resetFilters() {
@@ -936,6 +950,21 @@
         qs('stat-table').textContent = data.po_tipu?.table ?? 0;
       } catch (e) {
         console.error('Stats error', e);
+      }
+    }
+
+    async function loadImapStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/imap_status`);
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const el = qs('imap-indicator');
+        if (!el) return;
+        const last = data.last_poll_at ? `IMAP: ${data.last_poll_at}` : 'IMAP: -';
+        const err = data.last_error ? ` • napaka: ${data.last_error}` : '';
+        el.textContent = `${last}${err}`;
+      } catch (e) {
+        // ignore
       }
     }
 
@@ -1641,6 +1670,7 @@
       }
       renderCalendar();
       renderTableCalendar();
+      renderReservations(lastReservations || []);
       qs('month-select').value = calendarMonth.toString();
       qs('year-input').value = calendarYear.toString();
     }
@@ -1816,6 +1846,7 @@
     async function checkUnreadForReservations(resList) {
       const candidates = (resList || []).filter(r => ['pending','processing'].includes(r.status));
       const seenMap = getSeenMap();
+      let unreadCount = 0;
       for (const r of candidates) {
         try {
           const res = await fetch(`${API_BASE}/reservations/${r.id}/messages`);
@@ -1826,11 +1857,24 @@
           const lastSeen = seenMap[r.id];
           if (lastInbound && (!lastSeen || lastInbound > lastSeen)) {
             updateBadge(r.id, true);
+            unreadCount += 1;
           } else {
             updateBadge(r.id, false);
           }
         } catch (e) {
           // ignore
+        }
+      }
+      const countEl = qs('unreadCount');
+      if (countEl) {
+        if (unreadCount > 0) {
+          countEl.style.display = 'inline-block';
+          countEl.textContent = String(unreadCount);
+          countEl.style.width = 'auto';
+          countEl.style.height = 'auto';
+          countEl.style.padding = '2px 6px';
+        } else {
+          countEl.style.display = 'none';
         }
       }
     }

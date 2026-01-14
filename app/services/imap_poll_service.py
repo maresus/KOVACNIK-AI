@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import time
+from datetime import datetime
 from email import message_from_bytes
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
@@ -87,9 +88,29 @@ def _load_last_uid() -> int:
         return 0
 
 
-def _save_last_uid(uid: int) -> None:
+def load_state() -> dict:
     path = _state_path()
-    path.write_text(json.dumps({"last_uid": uid}), encoding="utf-8")
+    if not path.exists():
+        return {"last_uid": 0, "last_poll_at": None, "last_error": None}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {
+            "last_uid": int(data.get("last_uid", 0)),
+            "last_poll_at": data.get("last_poll_at"),
+            "last_error": data.get("last_error"),
+        }
+    except Exception:
+        return {"last_uid": 0, "last_poll_at": None, "last_error": None}
+
+
+def _save_state(uid: int, last_poll_at: Optional[str], last_error: Optional[str]) -> None:
+    path = _state_path()
+    payload = {
+        "last_uid": uid,
+        "last_poll_at": last_poll_at,
+        "last_error": last_error,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _imap_connect() -> imaplib.IMAP4:
@@ -136,6 +157,7 @@ def _poll_loop() -> None:
 
     service = ReservationService()
     last_uid = _load_last_uid()
+    last_error: Optional[str] = None
 
     while True:
         try:
@@ -155,9 +177,11 @@ def _poll_loop() -> None:
                     if processed:
                         mail.uid("store", str(uid), "+FLAGS", "(\\Seen)")
                     last_uid = max(last_uid, uid)
-                _save_last_uid(last_uid)
+                _save_state(last_uid, datetime.now().isoformat(timespec="seconds"), last_error)
             mail.logout()
         except Exception as exc:
+            last_error = str(exc)
+            _save_state(last_uid, datetime.now().isoformat(timespec="seconds"), last_error)
             print(f"[IMAP] Napaka pri polling-u: {exc}")
         time.sleep(IMAP_POLL_INTERVAL)
 
