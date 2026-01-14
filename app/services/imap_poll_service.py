@@ -215,7 +215,7 @@ def resync_last_messages(limit: int = 50) -> dict:
         status, data = mail.uid("search", None, "ALL")
         if status != "OK" or not data or not data[0]:
             mail.logout()
-            return {"ok": True, "processed": 0}
+            return {"ok": True, "processed": 0, "scanned": 0}
         uids = [int(u) for u in data[0].split()]
         for uid in uids[-limit:]:
             status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
@@ -226,6 +226,41 @@ def resync_last_messages(limit: int = 50) -> dict:
             if processed_now:
                 processed += 1
         mail.logout()
-        return {"ok": True, "processed": processed}
+        return {"ok": True, "processed": processed, "scanned": min(limit, len(uids))}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def preview_last_messages(limit: int = 10) -> dict:
+    """Vrne osnovne podatke zadnjih N sporočil (subject/from/date)."""
+    if not (IMAP_HOST and IMAP_USER and IMAP_PASSWORD):
+        return {"ok": False, "error": "IMAP nastavitve manjkajo."}
+    limit = max(1, min(limit, 50))
+    try:
+        mail = _imap_connect()
+        mail.login(IMAP_USER, IMAP_PASSWORD)
+        mail.select("INBOX")
+        status, data = mail.uid("search", None, "ALL")
+        if status != "OK" or not data or not data[0]:
+            mail.logout()
+            return {"ok": True, "messages": []}
+        uids = [int(u) for u in data[0].split()]
+        preview = []
+        for uid in uids[-limit:]:
+            status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+            if status != "OK" or not msg_data:
+                continue
+            msg_bytes = msg_data[0][1]
+            msg = message_from_bytes(msg_bytes)
+            preview.append(
+                {
+                    "uid": uid,
+                    "subject": _decode_header(msg.get("Subject", "")),
+                    "from": _decode_header(msg.get("From", "")),
+                    "date": _decode_header(msg.get("Date", "")),
+                }
+            )
+        mail.logout()
+        return {"ok": True, "messages": preview}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}

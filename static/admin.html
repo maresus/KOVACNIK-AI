@@ -301,6 +301,9 @@
       </div>
       <div class="actions">
         <div id="imap-indicator" class="muted" style="font-size:12px; margin-right:6px;"></div>
+        <button class="btn secondary" id="imapPreviewBtn" title="Prikaži zadnja sporočila (subject)">
+          📬 IMAP preview
+        </button>
         <button class="btn secondary" id="imapResyncBtn" title="Ročno preberi zadnja sporočila">
           🔁 IMAP resync
         </button>
@@ -970,6 +973,27 @@
       } catch (e) {
         // ignore
       }
+    }
+
+    const imapPreviewBtn = qs('imapPreviewBtn');
+    if (imapPreviewBtn) {
+      imapPreviewBtn.addEventListener('click', async () => {
+        imapPreviewBtn.disabled = true;
+        try {
+          const res = await fetch(`${API_BASE}/imap_preview?limit=10`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            toast(data.error || 'IMAP preview ni uspel.', 'error');
+          } else {
+            const rows = (data.messages || []).map(m => `• ${m.subject || '-'} — ${m.from || '-'} (${m.date || '-'})`);
+            alert(rows.length ? rows.join('\n') : 'Ni sporočil v inboxu.');
+          }
+        } catch (e) {
+          toast('IMAP preview ni uspel.', 'error');
+        } finally {
+          imapPreviewBtn.disabled = false;
+        }
+      });
     }
 
     const imapResyncBtn = qs('imapResyncBtn');
