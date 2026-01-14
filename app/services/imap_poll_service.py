@@ -164,20 +164,29 @@ def _poll_loop() -> None:
             mail = _imap_connect()
             mail.login(IMAP_USER, IMAP_PASSWORD)
             mail.select("INBOX")
-            search_query = f"(UID {last_uid + 1}:*)"
-            status, data = mail.uid("search", None, search_query)
+            uids: set[int] = set()
+            if last_uid:
+                search_query = f"(UID {last_uid + 1}:*)"
+                status, data = mail.uid("search", None, search_query)
+                if status == "OK" and data and data[0]:
+                    uids.update(int(u) for u in data[0].split())
+
+            status, data = mail.uid("search", None, "UNSEEN")
             if status == "OK" and data and data[0]:
-                uids = [int(u) for u in data[0].split()]
-                for uid in uids:
-                    status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
-                    if status != "OK" or not msg_data:
-                        continue
-                    msg_bytes = msg_data[0][1]
-                    processed, _ = _process_message(service, uid, msg_bytes)
-                    if processed:
-                        mail.uid("store", str(uid), "+FLAGS", "(\\Seen)")
-                    last_uid = max(last_uid, uid)
-                _save_state(last_uid, datetime.now().isoformat(timespec="seconds"), last_error)
+                uids.update(int(u) for u in data[0].split())
+
+            for uid in sorted(uids):
+                status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+                if status != "OK" or not msg_data:
+                    continue
+                msg_bytes = msg_data[0][1]
+                processed, _ = _process_message(service, uid, msg_bytes)
+                if processed:
+                    mail.uid("store", str(uid), "+FLAGS", "(\\Seen)")
+                last_uid = max(last_uid, uid)
+
+            last_error = None
+            _save_state(last_uid, datetime.now().isoformat(timespec="seconds"), last_error)
             mail.logout()
         except Exception as exc:
             last_error = str(exc)
