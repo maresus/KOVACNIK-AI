@@ -4086,6 +4086,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     state = get_reservation_state(session_id)
     inquiry_state = get_inquiry_state(session_id)
     needs_followup = False
+    detected_lang = detect_language(payload.message)
 
     if is_switch_topic_command(payload.message):
         reset_reservation_state(state)
@@ -4123,8 +4124,6 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     conversation_history.append({"role": "user", "content": payload.message})
     if len(conversation_history) > 12:
         conversation_history = conversation_history[-12:]
-
-    detected_lang = detect_language(payload.message)
 
     def finalize(reply_text: str, intent_value: str, followup_flag: bool = False) -> ChatResponse:
         nonlocal needs_followup
