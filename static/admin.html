@@ -1006,7 +1006,13 @@
           if (!res.ok || data.ok === false) {
             toast(data.error || 'IMAP resync ni uspel.', 'error');
           } else {
-            toast(`IMAP resync OK (najdeno: ${data.processed || 0})`, 'success');
+            const processed = data.processed || 0;
+            const matched = data.matched || 0;
+            const scanned = data.scanned || 0;
+            toast(`IMAP resync OK (najdeno: ${processed}, ujemanja: ${matched}, pregledano: ${scanned})`, 'success');
+            if (data.sample_subjects && data.sample_subjects.length) {
+              console.log('[IMAP preview subjects]', data.sample_subjects);
+            }
             loadAll();
           }
         } catch (e) {

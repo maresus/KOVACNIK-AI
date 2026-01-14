@@ -212,6 +212,9 @@ def resync_last_messages(limit: int = 50) -> dict:
     limit = max(1, min(limit, 200))
     service = ReservationService()
     processed = 0
+    matched = 0
+    scanned = 0
+    sample_subjects: list[str] = []
     try:
         mail = _imap_connect()
         mail.login(IMAP_USER, IMAP_PASSWORD)
@@ -225,12 +228,25 @@ def resync_last_messages(limit: int = 50) -> dict:
             status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
             if status != "OK" or not msg_data:
                 continue
+            scanned += 1
             msg_bytes = msg_data[0][1]
+            msg = message_from_bytes(msg_bytes)
+            subject = _decode_header(msg.get("Subject", ""))
+            if subject and len(sample_subjects) < 5:
+                sample_subjects.append(subject)
+            if _match_reservation_id(subject):
+                matched += 1
             processed_now, _ = _process_message(service, uid, msg_bytes)
             if processed_now:
                 processed += 1
         mail.logout()
-        return {"ok": True, "processed": processed, "scanned": min(limit, len(uids))}
+        return {
+            "ok": True,
+            "processed": processed,
+            "matched": matched,
+            "scanned": scanned,
+            "sample_subjects": sample_subjects,
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
