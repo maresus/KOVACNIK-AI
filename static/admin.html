@@ -2020,7 +2020,7 @@
         admin_notes: qs('room-edit-admin-notes').value,
       };
       const res = await fetch(`${API_BASE}/reservations/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -2052,7 +2052,7 @@
         admin_notes: qs('table-edit-admin-notes').value,
       };
       const res = await fetch(`${API_BASE}/reservations/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
