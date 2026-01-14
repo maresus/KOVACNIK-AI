@@ -21,7 +21,7 @@ IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "").strip()
 IMAP_SSL = os.getenv("IMAP_SSL", "").strip().lower() in {"1", "true", "yes"}
 IMAP_POLL_INTERVAL = int(os.getenv("IMAP_POLL_INTERVAL", "300"))
 
-RESERVATION_ID_RE = re.compile(r"rezervacija\\s*#(\\d+)", re.IGNORECASE)
+RESERVATION_ID_RE = re.compile(r"rezervacija\s*#(\d+)", re.IGNORECASE)
 
 
 def _decode_header(value: Optional[str]) -> str:
