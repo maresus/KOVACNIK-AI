@@ -1031,6 +1031,27 @@ class ReservationService:
 
     def get_top_questions(self, limit: int = 10) -> list[dict]:
         """Vrne najpogostejša vprašanja."""
+        def is_noise(text: str) -> bool:
+            if not text:
+                return True
+            cleaned = text.strip()
+            lowered = cleaned.lower()
+            if len(lowered) < 4:
+                return True
+            if lowered in {"da", "ne", "ja", "ok", "okej", "hvala", "super"}:
+                return True
+            if "@" in cleaned:
+                return True
+            if re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", lowered):
+                return True
+            if re.search(r"\d{7,}", cleaned.replace(" ", "")):
+                return True
+            if re.fullmatch(r"[\d\s./-]+", cleaned):
+                return True
+            if re.search(r"\d{1,2}\.\d{1,2}\.\d{2,4}", cleaned):
+                return True
+            return False
+
         conn = self._conn()
         ph = self._placeholder()
         try:
@@ -1042,9 +1063,17 @@ class ReservationService:
                 "ORDER BY count DESC "
                 f"LIMIT {ph}"
             )
-            cur.execute(sql, (limit,))
+            cur.execute(sql, (max(limit * 10, 200),))
             rows = cur.fetchall()
-            return [dict(row) for row in rows]
+            filtered = []
+            for row in rows:
+                item = dict(row)
+                if is_noise(item.get("user_message", "")):
+                    continue
+                filtered.append(item)
+                if len(filtered) >= limit:
+                    break
+            return filtered
         finally:
             cur.close()
             conn.close()

@@ -386,12 +386,14 @@ def send_guest_confirmation(data: Dict[str, Any]) -> bool:
     if not email:
         return False
     
+    rid = data.get('id')
+    tag = f"Rezervacija #{rid}" if rid else "Rezervacija"
     if data.get('reservation_type') == 'room':
         html = _guest_room_confirmation_html(data)
-        subject = "Vaše povpraševanje za sobo – Kovačnik"
+        subject = f"{tag} - Povpraševanje za sobo"
     else:
         html = _guest_table_confirmation_html(data)
-        subject = "Vaše povpraševanje za mizo – Kovačnik"
+        subject = f"{tag} - Povpraševanje za mizo"
     
     return _send_email(email, subject, html)
 
@@ -409,7 +411,9 @@ def send_admin_notification(data: Dict[str, Any], confirm_url: str = "", reject_
         True če uspešno poslano
     """
     res_type = "sobe" if data.get('reservation_type') == 'room' else "mize"
-    subject = f"Nova rezervacija {res_type} – {data.get('name', 'Neznano')}"
+    rid = data.get('id')
+    tag = f"Rezervacija #{rid}" if rid else "Rezervacija"
+    subject = f"{tag} - Nova rezervacija {res_type} – {data.get('name', 'Neznano')}"
     
     html = _admin_new_reservation_html(data, confirm_url, reject_url)
     return _send_email(ADMIN_EMAIL, subject, html)
@@ -422,7 +426,9 @@ def send_reservation_confirmed(data: Dict[str, Any]) -> bool:
         return False
     
     html = _guest_confirmed_html(data)
-    subject = "Rezervacija potrjena – Kovačnik"
+    rid = data.get('id')
+    tag = f"Rezervacija #{rid}" if rid else "Rezervacija"
+    subject = f"{tag} - Rezervacija potrjena"
     return _send_email(email, subject, html)
 
 
@@ -433,7 +439,9 @@ def send_reservation_rejected(data: Dict[str, Any]) -> bool:
         return False
     
     html = _guest_rejected_html(data)
-    subject = "Obvestilo o rezervaciji – Kovačnik"
+    rid = data.get('id')
+    tag = f"Rezervacija #{rid}" if rid else "Rezervacija"
+    subject = f"{tag} - Rezervacija zavrnjena"
     return _send_email(email, subject, html)
 
 
