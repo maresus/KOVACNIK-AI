@@ -1040,6 +1040,9 @@ class ReservationService:
                 return True
             if lowered in {"da", "ne", "ja", "ok", "okej", "hvala", "super"}:
                 return True
+            # izloči vprašanja, povezana z rezervacijami
+            if re.search(r"(rezerv|booking|reserve|soba|miza|nočitev|nocit|room|table)", lowered):
+                return True
             if "@" in cleaned:
                 return True
             if re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", lowered):
