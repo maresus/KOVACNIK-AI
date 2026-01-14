@@ -13,7 +13,7 @@ from app.services.email_service import (
     send_reservation_rejected,
 )
 from app.services.reservation_service import ROOMS, TOTAL_TABLE_CAPACITY, ReservationService
-from app.services.imap_poll_service import load_state
+from app.services.imap_poll_service import load_state, resync_last_messages
 
 router = APIRouter(tags=["admin"])
 service = ReservationService()
@@ -418,6 +418,12 @@ def get_reservation_messages(reservation_id: int):
 def get_imap_status():
     """Vrne stanje IMAP pollinga."""
     return load_state()
+
+
+@router.post("/api/admin/imap_resync")
+def imap_resync(limit: int = 50):
+    """Ročno prebere zadnjih N sporočil iz IMAP."""
+    return resync_last_messages(limit=limit)
 
 
 @router.get("/api/admin/stats")

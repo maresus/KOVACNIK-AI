@@ -199,3 +199,33 @@ def start_imap_poller() -> None:
     """Zažene IMAP polling v ozadju."""
     thread = threading.Thread(target=_poll_loop, daemon=True)
     thread.start()
+
+
+def resync_last_messages(limit: int = 50) -> dict:
+    """Ročno prebere zadnjih N sporočil in jih poskusi ujemati na rezervacije."""
+    if not (IMAP_HOST and IMAP_USER and IMAP_PASSWORD):
+        return {"ok": False, "error": "IMAP nastavitve manjkajo."}
+    limit = max(1, min(limit, 200))
+    service = ReservationService()
+    processed = 0
+    try:
+        mail = _imap_connect()
+        mail.login(IMAP_USER, IMAP_PASSWORD)
+        mail.select("INBOX")
+        status, data = mail.uid("search", None, "ALL")
+        if status != "OK" or not data or not data[0]:
+            mail.logout()
+            return {"ok": True, "processed": 0}
+        uids = [int(u) for u in data[0].split()]
+        for uid in uids[-limit:]:
+            status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+            if status != "OK" or not msg_data:
+                continue
+            msg_bytes = msg_data[0][1]
+            processed_now, _ = _process_message(service, uid, msg_bytes)
+            if processed_now:
+                processed += 1
+        mail.logout()
+        return {"ok": True, "processed": processed}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
