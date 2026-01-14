@@ -1205,7 +1205,8 @@ class ReservationService:
             )
             conn.commit()
             return True
-        except Exception:
+        except Exception as exc:
+            print(f"[IMAP] Napaka pri shranjevanju sporočila: {exc}")
             return False
         finally:
             cur.close()

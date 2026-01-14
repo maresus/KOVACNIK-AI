@@ -138,7 +138,7 @@ def _process_message(
     if service.message_exists(message_id):
         return False, reservation_id
 
-    service.add_reservation_message(
+    ok = service.add_reservation_message(
         reservation_id=reservation_id,
         direction="inbound",
         subject=subject,
@@ -147,6 +147,10 @@ def _process_message(
         to_email=to_email,
         message_id=message_id,
     )
+    if not ok:
+        print(f"[IMAP] Neuspešen zapis sporočila (reservation_id={reservation_id})")
+        return False, reservation_id
+    print(f"[IMAP] Zabeležen odgovor za rezervacijo #{reservation_id}")
     return True, reservation_id
 
 
