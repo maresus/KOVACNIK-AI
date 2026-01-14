@@ -986,7 +986,7 @@
           if (!res.ok || data.ok === false) {
             toast(data.error || 'IMAP preview ni uspel.', 'error');
           } else {
-            const rows = (data.messages || []).map(m => `• ${m.subject || '-'} — ${m.from || '-'} (${m.date || '-'})`);
+            const rows = (data.messages || []).map(m => `• [${m.folder || 'INBOX'}] ${m.subject || '-'} — ${m.from || '-'} (${m.date || '-'})`);
             alert(rows.length ? rows.join('\n') : 'Ni sporočil v inboxu.');
           }
         } catch (e) {

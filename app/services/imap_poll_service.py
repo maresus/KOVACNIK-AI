@@ -119,6 +119,33 @@ def _imap_connect() -> imaplib.IMAP4:
     return imaplib.IMAP4(IMAP_HOST, IMAP_PORT)
 
 
+def _list_folders(mail: imaplib.IMAP4) -> list[str]:
+    """Vrne seznam map v mailboxu."""
+    folders: list[str] = []
+    status, data = mail.list()
+    if status != "OK" or not data:
+        return ["INBOX"]
+    for raw in data:
+        if not raw:
+            continue
+        line = raw.decode(errors="ignore")
+        match = re.search(r'"([^"]+)"\\s*$', line)
+        if match:
+            folders.append(match.group(1))
+        else:
+            parts = line.split()
+            if parts:
+                folders.append(parts[-1].strip('"'))
+    # vedno zagotovi INBOX na začetku
+    uniq = []
+    for f in folders:
+        if f not in uniq:
+            uniq.append(f)
+    if "INBOX" not in uniq:
+        uniq.insert(0, "INBOX")
+    return uniq
+
+
 def _process_message(
     service: ReservationService,
     uid: int,
@@ -218,27 +245,30 @@ def resync_last_messages(limit: int = 50) -> dict:
     try:
         mail = _imap_connect()
         mail.login(IMAP_USER, IMAP_PASSWORD)
-        mail.select("INBOX")
-        status, data = mail.uid("search", None, "ALL")
-        if status != "OK" or not data or not data[0]:
-            mail.logout()
-            return {"ok": True, "processed": 0, "scanned": 0}
-        uids = [int(u) for u in data[0].split()]
-        for uid in uids[-limit:]:
-            status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
-            if status != "OK" or not msg_data:
+        folders = _list_folders(mail)
+        for folder in folders:
+            status, _ = mail.select(folder)
+            if status != "OK":
                 continue
-            scanned += 1
-            msg_bytes = msg_data[0][1]
-            msg = message_from_bytes(msg_bytes)
-            subject = _decode_header(msg.get("Subject", ""))
-            if subject and len(sample_subjects) < 5:
-                sample_subjects.append(subject)
-            if _match_reservation_id(subject):
-                matched += 1
-            processed_now, _ = _process_message(service, uid, msg_bytes)
-            if processed_now:
-                processed += 1
+            status, data = mail.uid("search", None, "ALL")
+            if status != "OK" or not data or not data[0]:
+                continue
+            uids = [int(u) for u in data[0].split()]
+            for uid in uids[-limit:]:
+                status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+                if status != "OK" or not msg_data:
+                    continue
+                scanned += 1
+                msg_bytes = msg_data[0][1]
+                msg = message_from_bytes(msg_bytes)
+                subject = _decode_header(msg.get("Subject", ""))
+                if subject and len(sample_subjects) < 5:
+                    sample_subjects.append(f"[{folder}] {subject}")
+                if _match_reservation_id(subject):
+                    matched += 1
+                processed_now, _ = _process_message(service, uid, msg_bytes)
+                if processed_now:
+                    processed += 1
         mail.logout()
         return {
             "ok": True,
@@ -259,27 +289,31 @@ def preview_last_messages(limit: int = 10) -> dict:
     try:
         mail = _imap_connect()
         mail.login(IMAP_USER, IMAP_PASSWORD)
-        mail.select("INBOX")
-        status, data = mail.uid("search", None, "ALL")
-        if status != "OK" or not data or not data[0]:
-            mail.logout()
-            return {"ok": True, "messages": []}
-        uids = [int(u) for u in data[0].split()]
         preview = []
-        for uid in uids[-limit:]:
-            status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
-            if status != "OK" or not msg_data:
+        folders = _list_folders(mail)
+        for folder in folders:
+            status, _ = mail.select(folder)
+            if status != "OK":
                 continue
-            msg_bytes = msg_data[0][1]
-            msg = message_from_bytes(msg_bytes)
-            preview.append(
-                {
-                    "uid": uid,
-                    "subject": _decode_header(msg.get("Subject", "")),
-                    "from": _decode_header(msg.get("From", "")),
-                    "date": _decode_header(msg.get("Date", "")),
-                }
-            )
+            status, data = mail.uid("search", None, "ALL")
+            if status != "OK" or not data or not data[0]:
+                continue
+            uids = [int(u) for u in data[0].split()]
+            for uid in uids[-limit:]:
+                status, msg_data = mail.uid("fetch", str(uid), "(RFC822)")
+                if status != "OK" or not msg_data:
+                    continue
+                msg_bytes = msg_data[0][1]
+                msg = message_from_bytes(msg_bytes)
+                preview.append(
+                    {
+                        "uid": uid,
+                        "folder": folder,
+                        "subject": _decode_header(msg.get("Subject", "")),
+                        "from": _decode_header(msg.get("From", "")),
+                        "date": _decode_header(msg.get("Date", "")),
+                    }
+                )
         mail.logout()
         return {"ok": True, "messages": preview}
     except Exception as exc:
