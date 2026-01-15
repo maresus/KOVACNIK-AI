@@ -177,6 +177,17 @@ class ReservationService:
                     )
                     """
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS knowledge_feedback (
+                        id SERIAL PRIMARY KEY,
+                        question TEXT NOT NULL,
+                        suggestion TEXT NOT NULL,
+                        status TEXT DEFAULT 'new',
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
                 # dodaj manjkajoče stolpce na obstoječo tabelo (robustnost)
                 for col, definition in new_columns:
                     cur.execute(
@@ -265,6 +276,17 @@ class ReservationService:
                     from_email TEXT,
                     to_email TEXT,
                     message_id TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS knowledge_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    question TEXT NOT NULL,
+                    suggestion TEXT NOT NULL,
+                    status TEXT DEFAULT 'new',
                     created_at TEXT NOT NULL
                 )
                 """
@@ -1187,6 +1209,36 @@ class ReservationService:
                 "start_rate_pct": start_rate,
                 "completion_rate_pct": completion_rate,
             }
+        finally:
+            cur.close()
+            conn.close()
+
+    def create_knowledge_feedback(self, question: str, suggestion: str) -> Optional[int]:
+        """Zabeleži predlog za izboljšavo baze znanja."""
+        if not question or not suggestion:
+            return None
+        created_at = datetime.now().isoformat(timespec="seconds")
+        ph = self._placeholder()
+        conn = self._conn()
+        feedback_id: Optional[int] = None
+        try:
+            cur = conn.cursor()
+            sql = (
+                "INSERT INTO knowledge_feedback (question, suggestion, status, created_at) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph})"
+            )
+            params = (question, suggestion, "new", created_at)
+            if self.use_postgres:
+                sql += " RETURNING id"
+            cur.execute(sql, params)
+            if self.use_postgres:
+                fetched = cur.fetchone()
+                if fetched:
+                    feedback_id = fetched["id"] if isinstance(fetched, dict) else fetched[0]
+            else:
+                feedback_id = cur.lastrowid
+            conn.commit()
+            return int(feedback_id) if feedback_id is not None else None
         finally:
             cur.close()
             conn.close()

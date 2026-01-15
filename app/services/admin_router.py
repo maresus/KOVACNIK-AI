@@ -148,6 +148,11 @@ class AdminCreateReservation(BaseModel):
     special_needs: Optional[str] = None
 
 
+class KnowledgeFeedbackRequest(BaseModel):
+    question: str
+    suggestion: str
+
+
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page() -> HTMLResponse:
     """Postreže statično datoteko admin UI (static/admin.html)."""
@@ -227,6 +232,21 @@ def get_lost_intents(limit: int = 10):
 def get_funnel_stats(days: int = 30):
     _log("funnel_stats", days=days)
     return service.get_funnel_stats(days=days)
+
+
+@router.get("/api/admin/missed_questions")
+def get_missed_questions(limit: int = 5):
+    _log("missed_questions", limit=limit)
+    return {"items": service.get_lost_intents(limit=limit)}
+
+
+@router.post("/api/admin/knowledge_feedback")
+def create_knowledge_feedback(payload: KnowledgeFeedbackRequest):
+    _log("knowledge_feedback", question=payload.question[:60] if payload.question else "")
+    feedback_id = service.create_knowledge_feedback(payload.question.strip(), payload.suggestion.strip())
+    if not feedback_id:
+        raise HTTPException(status_code=400, detail="Neveljaven predlog.")
+    return {"ok": True, "id": feedback_id}
 
 
 @router.get("/api/admin/reservations")

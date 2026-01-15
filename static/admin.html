@@ -363,6 +363,17 @@
       <div id="funnel-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;"></div>
     </div>
 
+    <div class="card list-card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <div style="font-weight:700;">Top 5 zgrešenih odgovorov</div>
+          <div class="muted">Hitro izboljševanje baze znanja</div>
+        </div>
+        <button class="btn secondary" id="refreshMissedBtn">Osveži</button>
+      </div>
+      <ol id="missed-questions-list" style="margin-top:10px;"></ol>
+    </div>
+
   <div class="month-picker">
     <label for="month-select">Mesec:</label>
     <select id="month-select" onchange="selectMonth(this.value)">
@@ -714,6 +725,26 @@
     </div>
   </div>
 
+  <div class="modal" id="kb-fix-modal">
+    <div class="modal-body">
+      <div class="modal-title">🛠️ Popravi v bazi znanja</div>
+      <form id="kb-fix-form">
+        <div class="form-group">
+          <label>Vprašanje</label>
+          <input type="text" id="kb-fix-question" readonly>
+        </div>
+        <div class="form-group">
+          <label>Predlagan popravek / odgovor</label>
+          <textarea id="kb-fix-suggestion" rows="4" placeholder="Vnesi izboljšan odgovor ali pravilno informacijo..." required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" onclick="closeKbFixModal()">Prekliči</button>
+          <button type="submit" class="btn">Shrani predlog</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Nova soba -->
   <div class="modal" id="new-room-modal">
     <div class="modal-body">
@@ -870,6 +901,10 @@
       if (refreshLostBtn) {
         refreshLostBtn.addEventListener('click', loadLostIntents);
       }
+      const refreshMissedBtn = qs('refreshMissedBtn');
+      if (refreshMissedBtn) {
+        refreshMissedBtn.addEventListener('click', loadMissedQuestions);
+      }
       loadAll(); // auto load ob prvem prikazu
     });
 
@@ -925,6 +960,7 @@
         loadQuestionStats(),
         loadLostIntents(),
         loadFunnelStats(),
+        loadMissedQuestions(),
         loadReservations(),
         loadImapStatus(),
       ];
@@ -1137,6 +1173,27 @@
         `).join('');
       } catch (e) {
         console.error('Funnel stats error', e);
+      }
+    }
+
+    async function loadMissedQuestions() {
+      try {
+        const res = await fetch(`${API_BASE}/missed_questions?limit=5`);
+        const data = await res.json();
+        const list = data.items || [];
+        const target = qs('missed-questions-list');
+        if (!list.length) {
+          target.innerHTML = '<li class="muted">Ni podatkov.</li>';
+          return;
+        }
+        target.innerHTML = list.map(item => `
+          <li style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <span>${escapeHtml(item.user_message || '-')} <span class="count">(${item.count || 0})</span></span>
+            <button class="btn-inline" onclick="openKbFixModal('${encodeURIComponent(item.user_message || '')}')">🛠️ Popravi v bazi</button>
+          </li>
+        `).join('');
+      } catch (e) {
+        console.error('Missed questions error', e);
       }
     }
 
@@ -1422,6 +1479,37 @@
         </div>
       `;
     }
+
+    function openKbFixModal(question) {
+      qs('kb-fix-question').value = decodeURIComponent(question || '');
+      qs('kb-fix-suggestion').value = '';
+      qs('kb-fix-modal').classList.add('active');
+    }
+
+    function closeKbFixModal() {
+      qs('kb-fix-modal').classList.remove('active');
+    }
+
+    qs('kb-fix-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = qs('kb-fix-question').value.trim();
+      const suggestion = qs('kb-fix-suggestion').value.trim();
+      if (!question || !suggestion) {
+        toast('Prosim vnesi predlog.', 'error');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/knowledge_feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, suggestion }),
+      });
+      if (!res.ok) {
+        toast('Predloga ni bilo mogoče shraniti.', 'error');
+        return;
+      }
+      toast('Predlog shranjen.', 'success');
+      closeKbFixModal();
+    });
 
     function isTableReservation(r) {
       if (!r) return false;
