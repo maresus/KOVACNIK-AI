@@ -346,6 +346,23 @@
       <ol id="top-questions-list" style="margin-top:10px;"></ol>
     </div>
 
+    <div class="card list-card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <div style="font-weight:700;">Lost intents (top 10)</div>
+          <div class="muted">Vprašanja, kjer je bil potreben follow‑up</div>
+        </div>
+        <button class="btn secondary" id="refreshLostBtn">Osveži</button>
+      </div>
+      <ol id="lost-intents-list" style="margin-top:10px;"></ol>
+    </div>
+
+    <div class="card list-card">
+      <div style="font-weight:700; margin-bottom:6px;">Rezervacijski funnel (zadnjih 30 dni)</div>
+      <div class="muted" style="margin-bottom:10px;">Začetek → dokončana rezervacija</div>
+      <div id="funnel-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;"></div>
+    </div>
+
   <div class="month-picker">
     <label for="month-select">Mesec:</label>
     <select id="month-select" onchange="selectMonth(this.value)">
@@ -849,6 +866,10 @@
       if (refreshQuestionsBtn) {
         refreshQuestionsBtn.addEventListener('click', loadQuestionStats);
       }
+      const refreshLostBtn = qs('refreshLostBtn');
+      if (refreshLostBtn) {
+        refreshLostBtn.addEventListener('click', loadLostIntents);
+      }
       loadAll(); // auto load ob prvem prikazu
     });
 
@@ -890,7 +911,15 @@
     }
 
     async function loadAll() {
-      const tasks = [loadStats(), loadUsageStats(), loadQuestionStats(), loadReservations(), loadImapStatus()];
+      const tasks = [
+        loadStats(),
+        loadUsageStats(),
+        loadQuestionStats(),
+        loadLostIntents(),
+        loadFunnelStats(),
+        loadReservations(),
+        loadImapStatus(),
+      ];
       if (currentTab === 'room') {
         tasks.push(renderCalendar());
       } else {
@@ -1055,6 +1084,51 @@
         `).join('');
       } catch (e) {
         console.error('Question stats error', e);
+      }
+    }
+
+    async function loadLostIntents() {
+      try {
+        const res = await fetch(`${API_BASE}/lost_intents?limit=10`);
+        const data = await res.json();
+        const list = data.items || [];
+        const target = qs('lost-intents-list');
+        if (!list.length) {
+          target.innerHTML = '<li class="muted">Ni podatkov.</li>';
+          return;
+        }
+        target.innerHTML = list.map(item => `
+          <li>
+            ${escapeHtml(item.user_message || '-')}
+            <span class="count">(${item.count || 0})</span>
+          </li>
+        `).join('');
+      } catch (e) {
+        console.error('Lost intents error', e);
+      }
+    }
+
+    async function loadFunnelStats() {
+      try {
+        const res = await fetch(`${API_BASE}/funnel_stats?days=30`);
+        const data = await res.json();
+        const target = qs('funnel-grid');
+        if (!target) return;
+        const rows = [
+          { label: 'Seje skupaj', value: data.total_sessions ?? 0 },
+          { label: 'Začete rezervacije', value: data.reservation_started ?? 0 },
+          { label: 'Dokončane rezervacije', value: data.reservation_completed ?? 0 },
+          { label: 'Start rate', value: `${data.start_rate_pct ?? 0}%` },
+          { label: 'Completion rate', value: `${data.completion_rate_pct ?? 0}%` },
+        ];
+        target.innerHTML = rows.map(row => `
+          <div class="stat" style="min-height:70px;">
+            <div class="label">${row.label}</div>
+            <div class="value">${row.value}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Funnel stats error', e);
       }
     }
 

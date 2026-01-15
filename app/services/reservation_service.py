@@ -1081,6 +1081,116 @@ class ReservationService:
             cur.close()
             conn.close()
 
+    def get_lost_intents(self, limit: int = 10) -> list[dict]:
+        """Vrne najpogostejša vprašanja, kjer je sistem potreboval follow-up."""
+        def is_noise(text: str) -> bool:
+            if not text:
+                return True
+            cleaned = text.strip()
+            lowered = cleaned.lower()
+            if len(lowered) < 4:
+                return True
+            if lowered in {"da", "ne", "ja", "ok", "okej", "hvala", "super"}:
+                return True
+            if "@" in cleaned:
+                return True
+            if re.search(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", lowered):
+                return True
+            if re.search(r"\d{7,}", cleaned.replace(" ", "")):
+                return True
+            if re.fullmatch(r"[\d\s./-]+", cleaned):
+                return True
+            if re.search(r"\d{1,2}\.\d{1,2}\.\d{2,4}", cleaned):
+                return True
+            return False
+
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            if self.use_postgres:
+                sql = (
+                    "SELECT user_message, COUNT(*) as count "
+                    "FROM conversations "
+                    "WHERE needs_followup = TRUE "
+                    "GROUP BY user_message "
+                    "ORDER BY count DESC "
+                    f"LIMIT {ph}"
+                )
+            else:
+                sql = (
+                    "SELECT user_message, COUNT(*) as count "
+                    "FROM conversations "
+                    "WHERE needs_followup = 1 "
+                    "GROUP BY user_message "
+                    "ORDER BY count DESC "
+                    f"LIMIT {ph}"
+                )
+            cur.execute(sql, (max(limit * 10, 200),))
+            rows = cur.fetchall()
+            filtered = []
+            for row in rows:
+                item = dict(row)
+                if is_noise(item.get("user_message", "")):
+                    continue
+                filtered.append(item)
+                if len(filtered) >= limit:
+                    break
+            return filtered
+        finally:
+            cur.close()
+            conn.close()
+
+    def get_funnel_stats(self, days: int = 30) -> dict:
+        """Vrne osnovni funnel za rezervacije v zadnjih N dneh."""
+        days = max(1, int(days or 30))
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            base_where = f"created_at >= {ph}"
+            params = (cutoff,)
+            cur.execute(
+                f"SELECT COUNT(DISTINCT session_id) as count FROM conversations "
+                f"WHERE session_id IS NOT NULL AND session_id != '' AND {base_where}",
+                params,
+            )
+            total_sessions = cur.fetchone()
+            total = list(total_sessions.values())[0] if isinstance(total_sessions, dict) else total_sessions[0]
+
+            cur.execute(
+                f"SELECT COUNT(DISTINCT session_id) as count FROM conversations "
+                f"WHERE session_id IS NOT NULL AND session_id != '' AND {base_where} "
+                "AND intent LIKE 'reservation%' AND intent NOT IN ('reservation_completed','reservation_cancel')",
+                params,
+            )
+            started_row = cur.fetchone()
+            started = list(started_row.values())[0] if isinstance(started_row, dict) else started_row[0]
+
+            cur.execute(
+                f"SELECT COUNT(DISTINCT session_id) as count FROM conversations "
+                f"WHERE session_id IS NOT NULL AND session_id != '' AND {base_where} "
+                "AND intent = 'reservation_completed'",
+                params,
+            )
+            completed_row = cur.fetchone()
+            completed = list(completed_row.values())[0] if isinstance(completed_row, dict) else completed_row[0]
+
+            start_rate = round((started / total) * 100, 1) if total else 0.0
+            completion_rate = round((completed / started) * 100, 1) if started else 0.0
+            return {
+                "days": days,
+                "total_sessions": int(total or 0),
+                "reservation_started": int(started or 0),
+                "reservation_completed": int(completed or 0),
+                "start_rate_pct": start_rate,
+                "completion_rate_pct": completion_rate,
+            }
+        finally:
+            cur.close()
+            conn.close()
+
     # --- inquiries -------------------------------------------
     def create_inquiry(
         self,

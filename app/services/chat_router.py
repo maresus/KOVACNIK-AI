@@ -3549,6 +3549,15 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
                 "kids": reservation_state.get("kids", ""),
                 "kids_ages": reservation_state.get("kids_ages", ""),
             }
+            session_id = reservation_state.get("session_id")
+            if session_id:
+                reservation_service.log_conversation(
+                    session_id=session_id,
+                    user_message="(auto) reservation completed",
+                    bot_response="(auto) reservation completed",
+                    intent="reservation_completed",
+                    needs_followup=False,
+                )
             _send_reservation_emails_async(email_data)
             saved_lang = reservation_state.get("language", "si")
             reset_reservation_state(state)
@@ -3830,6 +3839,15 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
                 "kids": reservation_state.get("people_kids", ""),
                 "kids_ages": reservation_state.get("kids_ages", ""),
             }
+            session_id = reservation_state.get("session_id")
+            if session_id:
+                reservation_service.log_conversation(
+                    session_id=session_id,
+                    user_message="(auto) reservation completed",
+                    bot_response="(auto) reservation completed",
+                    intent="reservation_completed",
+                    needs_followup=False,
+                )
             _send_reservation_emails_async(email_data)
             reset_reservation_state(state)
             final_response = (
@@ -4089,6 +4107,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     detected_lang = detect_language(payload.message)
     # vedno osveži jezik seje, da se lahko sproti preklaplja
     state["language"] = detected_lang
+    state["session_id"] = session_id
 
     if is_switch_topic_command(payload.message):
         reset_reservation_state(state)

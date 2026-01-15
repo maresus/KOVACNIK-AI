@@ -217,6 +217,18 @@ def get_question_stats(limit: int = 10):
     return {"questions": service.get_top_questions(limit=limit)}
 
 
+@router.get("/api/admin/lost_intents")
+def get_lost_intents(limit: int = 10):
+    _log("lost_intents", limit=limit)
+    return {"items": service.get_lost_intents(limit=limit)}
+
+
+@router.get("/api/admin/funnel_stats")
+def get_funnel_stats(days: int = 30):
+    _log("funnel_stats", days=days)
+    return service.get_funnel_stats(days=days)
+
+
 @router.get("/api/admin/reservations")
 def get_reservations(
     limit: int = 100,
