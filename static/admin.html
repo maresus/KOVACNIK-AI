@@ -254,6 +254,8 @@
     }
     .tab.active { background: var(--brand); color: #fff; }
     .tab.small { padding: 6px 10px; font-size: 12px; }
+    .vip-badge { background: #2f8f5b; color: #fff; border-radius: 999px; padding: 2px 6px; font-size: 11px; margin-left: 6px; }
+    .group-badge { background: #c27d00; color: #fff; border-radius: 999px; padding: 2px 6px; font-size: 11px; margin-left: 6px; }
 
     .card {
       background: var(--card);
@@ -550,6 +552,7 @@
   <div class="modal" id="edit-room-modal">
     <div class="modal-body">
       <div class="modal-title">🛏️ Uredi rezervacijo sobe #<span id="room-edit-id"></span></div>
+      <div class="muted" id="room-edit-flags" style="margin-top:-6px; margin-bottom:10px;"></div>
       <form id="room-edit-form">
         <input type="hidden" id="room-edit-hidden-id">
         <div class="form-grid">
@@ -613,6 +616,10 @@
           <textarea id="room-edit-admin-notes" rows="2"></textarea>
         </div>
         <div class="form-group">
+          <label>Timeline</label>
+          <div id="room-edit-timeline" class="message-thread">Ni dogodkov.</div>
+        </div>
+        <div class="form-group">
           <label>
             Sporočila (email)
             <button type="button" class="msg-refresh" onclick="refreshMessages('room')">⟳ Osveži</button>
@@ -631,6 +638,7 @@
   <div class="modal" id="edit-table-modal">
     <div class="modal-body">
       <div class="modal-title">🍽️ Uredi rezervacijo mize #<span id="table-edit-id"></span></div>
+      <div class="muted" id="table-edit-flags" style="margin-top:-6px; margin-bottom:10px;"></div>
       <form id="table-edit-form">
         <input type="hidden" id="table-edit-hidden-id">
         <div class="form-grid">
@@ -700,6 +708,10 @@
         <div class="form-group">
           <label>Admin opombe (interno)</label>
           <textarea id="table-edit-admin-notes" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Timeline</label>
+          <div id="table-edit-timeline" class="message-thread">Ni dogodkov.</div>
         </div>
         <div class="form-group">
           <label>
@@ -1219,6 +1231,62 @@
     }
 
     let lastReservations = [];
+    let currentRoomReservation = null;
+    let currentTableReservation = null;
+
+    function isRepeatGuest(r) {
+      if (!r) return false;
+      if (!r.email && !r.phone) return false;
+      return (lastReservations || []).some(o => {
+        if (!o || o.id === r.id) return false;
+        if (o.status !== 'confirmed') return false;
+        const sameEmail = r.email && o.email && String(o.email).toLowerCase() === String(r.email).toLowerCase();
+        const samePhone = r.phone && o.phone && String(o.phone).replace(/\s+/g, '') === String(r.phone).replace(/\s+/g, '');
+        return sameEmail || samePhone;
+      });
+    }
+
+    function isLargeGroup(r) {
+      const people = parseInt(r?.people || 0);
+      return people >= 8;
+    }
+
+    function renderGuestBadges(r) {
+      let badges = '';
+      if (isRepeatGuest(r)) badges += '<span class="vip-badge">VIP</span>';
+      if (isLargeGroup(r)) badges += '<span class="group-badge">Velika skupina</span>';
+      return badges;
+    }
+
+    function renderTimeline(reservation, messages, targetId) {
+      const container = qs(targetId);
+      if (!container) return;
+      const events = [];
+      if (reservation?.created_at) {
+        events.push({ ts: reservation.created_at, label: 'Rezervacija ustvarjena' });
+      }
+      if (reservation?.confirmed_at) {
+        events.push({ ts: reservation.confirmed_at, label: 'Rezervacija potrjena' });
+      }
+      (messages || []).forEach(m => {
+        const direction = (m.direction || '').toLowerCase();
+        const label = direction === 'inbound'
+          ? `Odgovor gosta: ${m.subject || ''}`
+          : `Poslano gostu: ${m.subject || ''}`;
+        events.push({ ts: m.created_at || '', label });
+      });
+      if (!events.length) {
+        container.textContent = 'Ni dogodkov.';
+        return;
+      }
+      const sorted = events.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+      container.innerHTML = sorted.map(e => `
+        <div class="msg">
+          <div class="meta">${escapeHtml(e.ts || '')}</div>
+          <div>${escapeHtml(e.label || '')}</div>
+        </div>
+      `).join('');
+    }
 
     async function loadReservations() {
       const query = buildQuery();
@@ -1260,7 +1328,7 @@
         return `
           <div class="reservation-row" style="grid-template-columns: 120px 150px 120px 100px 1fr 160px;">
             <span class="res-date">${r.date || '-'}</span>
-            <span class="res-guest">${r.name || 'Gost'}</span>
+            <span class="res-guest">${r.name || 'Gost'} ${renderGuestBadges(r)}</span>
             <span class="res-room">${r.reservation_type === 'table' ? 'Miza' : 'Soba'}</span>
             <span class="res-people">${r.people || '-'} oseb</span>
             <span class="res-room">${r.location || '-'}</span>
@@ -1460,6 +1528,7 @@
         : (r.location && !String(r.location).toLowerCase().includes('dodelimo') ? r.location : '-');
       const nightsDisplay = r.reservation_type === 'table' ? '-' : (r.nights || '-');
       const guestName = r.name || 'Gost';
+      const badges = renderGuestBadges(r);
       const peopleLabel = `${r.people || '-'} oseb${kidsInfo}`;
       const dateLabel = showDate ? (r.date || '-') : '';
       if (r.isMainDay) {
@@ -1467,7 +1536,7 @@
           <div class="reservation-row">
             <span class="res-id">#${r.id}</span>
             <span class="res-date">${dateLabel}</span>
-            <span class="res-guest">${guestName}</span>
+            <span class="res-guest">${guestName} ${badges}</span>
             <span class="res-nights">${r.reservation_type === 'table' ? '-' : `${r.nights || 1} noči${r.totalDays ? ` (${r.date} - ${r.endDate || ''})` : ''}`}</span>
             <span class="res-people">${peopleLabel}</span>
             <span class="res-room">${roomDisplay || '-'}</span>
@@ -2073,6 +2142,11 @@
             <div>${escapeHtml(m.body || '')}</div>
           </div>
         `).join('');
+        if (targetId === 'room-edit-messages') {
+          renderTimeline(currentRoomReservation, messages, 'room-edit-timeline');
+        } else if (targetId === 'table-edit-messages') {
+          renderTimeline(currentTableReservation, messages, 'table-edit-timeline');
+        }
         if (markAsSeen && lastInbound) {
           markSeen(resId, lastInbound);
         }
@@ -2128,6 +2202,7 @@
     }
 
     function openRoomEditModal(r) {
+      currentRoomReservation = r;
       qs('room-edit-id').textContent = r.id;
       qs('room-edit-hidden-id').value = r.id;
       qs('room-edit-status').value = r.status || 'pending';
@@ -2142,12 +2217,15 @@
       qs('room-edit-phone').value = r.phone || '';
       qs('room-edit-note').value = r.note || '';
       qs('room-edit-admin-notes').value = r.admin_notes || '';
+      qs('room-edit-flags').innerHTML = renderGuestBadges(r) || '';
+      renderTimeline(r, [], 'room-edit-timeline');
       loadReservationMessages(r.id, 'room-edit-messages', true);
       qs('edit-room-modal').classList.add('active');
     }
     function closeRoomEditModal() { qs('edit-room-modal').classList.remove('active'); }
 
     function openTableEditModal(r) {
+      currentTableReservation = r;
       qs('table-edit-id').textContent = r.id;
       qs('table-edit-hidden-id').value = r.id;
       qs('table-edit-status').value = r.status || 'pending';
@@ -2163,6 +2241,8 @@
       qs('table-edit-phone').value = r.phone || '';
       qs('table-edit-special-needs').value = r.special_needs || '';
       qs('table-edit-admin-notes').value = r.admin_notes || '';
+      qs('table-edit-flags').innerHTML = renderGuestBadges(r) || '';
+      renderTimeline(r, [], 'table-edit-timeline');
       loadReservationMessages(r.id, 'table-edit-messages', true);
       qs('edit-table-modal').classList.add('active');
     }
