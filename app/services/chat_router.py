@@ -4087,6 +4087,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     inquiry_state = get_inquiry_state(session_id)
     needs_followup = False
     detected_lang = detect_language(payload.message)
+    # vedno osveži jezik seje, da se lahko sproti preklaplja
+    state["language"] = detected_lang
 
     if is_switch_topic_command(payload.message):
         reset_reservation_state(state)
