@@ -253,6 +253,7 @@
       box-shadow: var(--shadow);
     }
     .tab.active { background: var(--brand); color: #fff; }
+    .tab.small { padding: 6px 10px; font-size: 12px; }
 
     .card {
       background: var(--card);
@@ -337,24 +338,23 @@
 
     <div class="card list-card">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <div style="font-weight:700;">Najpogostejša vprašanja (top 10)</div>
-          <div class="muted">Povzetek iz vseh pogovorov</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="tab small active" id="tab-questions" onclick="setAnalyticsTab('questions')">Najpogostejša vprašanja</button>
+          <button class="tab small" id="tab-lost" onclick="setAnalyticsTab('lost')">Lost intents</button>
         </div>
-        <button class="btn secondary" id="refreshQuestionsBtn">Osveži</button>
-      </div>
-      <ol id="top-questions-list" style="margin-top:10px;"></ol>
-    </div>
-
-    <div class="card list-card">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <div style="font-weight:700;">Lost intents (top 10)</div>
-          <div class="muted">Vprašanja, kjer je bil potreben follow‑up</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn secondary" id="refreshQuestionsBtn">Osveži</button>
+          <button class="btn secondary" id="refreshLostBtn">Osveži</button>
         </div>
-        <button class="btn secondary" id="refreshLostBtn">Osveži</button>
       </div>
-      <ol id="lost-intents-list" style="margin-top:10px;"></ol>
+      <div id="questions-pane" style="margin-top:10px;">
+        <div class="muted">Povzetek iz vseh pogovorov</div>
+        <ol id="top-questions-list" style="margin-top:10px;"></ol>
+      </div>
+      <div id="lost-pane" style="margin-top:10px; display:none;">
+        <div class="muted">Vprašanja, kjer je bil potreben follow‑up</div>
+        <ol id="lost-intents-list" style="margin-top:10px;"></ol>
+      </div>
     </div>
 
     <div class="card list-card">
@@ -885,6 +885,14 @@
       if (!silent) {
         loadAll();
       }
+    }
+
+    function setAnalyticsTab(tab) {
+      const isQuestions = tab === 'questions';
+      qs('tab-questions').classList.toggle('active', isQuestions);
+      qs('tab-lost').classList.toggle('active', !isQuestions);
+      qs('questions-pane').style.display = isQuestions ? '' : 'none';
+      qs('lost-pane').style.display = isQuestions ? 'none' : '';
     }
 
     function toast(message, type = 'info', duration = 4000) {
