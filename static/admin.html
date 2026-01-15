@@ -300,7 +300,20 @@
         <div class="title">🏠 Kovačnik - Rezervacije</div>
         <div class="subtitle" id="current-date"></div>
       </div>
-      <div class="actions">
+    </header>
+
+    <div class="tabs" id="view-tabs">
+      <button class="tab active" id="tab-view-res" onclick="setViewTab('reservations')">📋 Rezervacije</button>
+      <button class="tab" id="tab-view-tools" onclick="setViewTab('tools')">🧰 Orodja & analitika</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
+      <button class="tab" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
+    </div>
+
+    <div id="view-tools" style="display:none;">
+      <div class="actions" style="margin-bottom:16px; flex-wrap:wrap;">
         <div id="imap-indicator" class="muted" style="font-size:12px; margin-right:6px;"></div>
         <button class="btn secondary" id="imapPreviewBtn" title="Prikaži zadnja sporočila (subject)">
           📬 IMAP preview
@@ -316,13 +329,47 @@
         <a class="btn secondary" href="/admin/conversations">💬 Pogovori</a>
         <a class="btn secondary" href="/admin/inquiries">📝 Povpraševanja</a>
       </div>
-    </header>
 
-    <div class="tabs">
-      <button class="tab active" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
-      <button class="tab" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
+      <div class="card list-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="tab small active" id="tab-questions" onclick="setAnalyticsTab('questions')">Najpogostejša vprašanja</button>
+            <button class="tab small" id="tab-lost" onclick="setAnalyticsTab('lost')">Lost intents</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" id="refreshQuestionsBtn">Osveži</button>
+            <button class="btn secondary" id="refreshLostBtn">Osveži</button>
+          </div>
+        </div>
+        <div id="questions-pane" style="margin-top:10px;">
+          <div class="muted">Povzetek iz vseh pogovorov</div>
+          <ol id="top-questions-list" style="margin-top:10px;"></ol>
+        </div>
+        <div id="lost-pane" style="margin-top:10px; display:none;">
+          <div class="muted">Vprašanja, kjer je bil potreben follow‑up</div>
+          <ol id="lost-intents-list" style="margin-top:10px;"></ol>
+        </div>
+      </div>
+
+      <div class="card list-card">
+        <div style="font-weight:700; margin-bottom:6px;">Rezervacijski funnel (zadnjih 30 dni)</div>
+        <div class="muted" style="margin-bottom:10px;">Začetek → dokončana rezervacija</div>
+        <div id="funnel-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;"></div>
+      </div>
+
+      <div class="card list-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <div style="font-weight:700;">Top 5 zgrešenih odgovorov</div>
+            <div class="muted">Hitro izboljševanje baze znanja</div>
+          </div>
+          <button class="btn secondary" id="refreshMissedBtn">Osveži</button>
+        </div>
+        <ol id="missed-questions-list" style="margin-top:10px;"></ol>
+      </div>
     </div>
 
+    <div id="view-reservations">
     <div class="stats" id="stats-cards">
       <div class="stat"><div class="label">Danes</div><div class="value" id="stat-danes">0</div><div class="hint">Rezervacije</div></div>
       <div class="stat"><div class="label">Ta teden</div><div class="value" id="stat-teden">0</div><div class="hint">Rezervacije</div></div>
@@ -334,44 +381,6 @@
       <div class="stat"><div class="label">🤖 AI danes</div><div class="value" id="stat-ai-today">0</div></div>
       <div class="stat"><div class="label">🤖 AI ta mesec</div><div class="value" id="stat-ai-month">0</div></div>
       <div class="stat"><div class="label">🤖 AI letos</div><div class="value" id="stat-ai-year">0</div></div>
-    </div>
-
-    <div class="card list-card">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="tab small active" id="tab-questions" onclick="setAnalyticsTab('questions')">Najpogostejša vprašanja</button>
-          <button class="tab small" id="tab-lost" onclick="setAnalyticsTab('lost')">Lost intents</button>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button class="btn secondary" id="refreshQuestionsBtn">Osveži</button>
-          <button class="btn secondary" id="refreshLostBtn">Osveži</button>
-        </div>
-      </div>
-      <div id="questions-pane" style="margin-top:10px;">
-        <div class="muted">Povzetek iz vseh pogovorov</div>
-        <ol id="top-questions-list" style="margin-top:10px;"></ol>
-      </div>
-      <div id="lost-pane" style="margin-top:10px; display:none;">
-        <div class="muted">Vprašanja, kjer je bil potreben follow‑up</div>
-        <ol id="lost-intents-list" style="margin-top:10px;"></ol>
-      </div>
-    </div>
-
-    <div class="card list-card">
-      <div style="font-weight:700; margin-bottom:6px;">Rezervacijski funnel (zadnjih 30 dni)</div>
-      <div class="muted" style="margin-bottom:10px;">Začetek → dokončana rezervacija</div>
-      <div id="funnel-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;"></div>
-    </div>
-
-    <div class="card list-card">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <div style="font-weight:700;">Top 5 zgrešenih odgovorov</div>
-          <div class="muted">Hitro izboljševanje baze znanja</div>
-        </div>
-        <button class="btn secondary" id="refreshMissedBtn">Osveži</button>
-      </div>
-      <ol id="missed-questions-list" style="margin-top:10px;"></ol>
     </div>
 
   <div class="month-picker">
@@ -873,6 +882,8 @@
     </div>
   </div>
 
+  </div>
+
   <script>
     const API_BASE = '/api/admin';
     let currentTab = 'room';
@@ -889,6 +900,7 @@
     document.getElementById('current-date').textContent = new Date().toLocaleDateString('sl-SI', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' });
 
     document.addEventListener('DOMContentLoaded', () => {
+      setViewTab('reservations');
       setTab('room', true);
       setInterval(loadStats, 60000);
       qs('month-select').value = calendarMonth.toString();
@@ -920,6 +932,14 @@
       if (!silent) {
         loadAll();
       }
+    }
+
+    function setViewTab(tab) {
+      const isRes = tab === 'reservations';
+      qs('tab-view-res').classList.toggle('active', isRes);
+      qs('tab-view-tools').classList.toggle('active', !isRes);
+      qs('view-reservations').style.display = isRes ? '' : 'none';
+      qs('view-tools').style.display = isRes ? 'none' : '';
     }
 
     function setAnalyticsTab(tab) {
