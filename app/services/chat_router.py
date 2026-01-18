@@ -5062,6 +5062,7 @@ def chat_stream(payload: ChatRequestWithSession):
     last_interaction = now
     state = get_reservation_state(session_id)
     inquiry_state = get_inquiry_state(session_id)
+    availability_state = get_availability_state(state)
 
     def stream_and_log(reply_chunks):
         collected: list[str] = []
@@ -5080,8 +5081,8 @@ def chat_stream(payload: ChatRequestWithSession):
         if len(conversation_history) > 12:
             conversation_history[:] = conversation_history[-12:]
 
-    # Če je rezervacija aktivna ali gre za rezervacijo, uporabimo obstoječo pot (brez pravega streama)
-    if state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
+    # Če je aktivna availability ali rezervacija, uporabimo obstoječo pot (brez pravega streama)
+    if availability_state.get("active") or state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
         response = chat_endpoint(payload)
         return StreamingResponse(
             _stream_text_chunks(response.reply),
