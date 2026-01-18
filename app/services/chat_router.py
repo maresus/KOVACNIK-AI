@@ -3044,6 +3044,17 @@ def handle_availability_followup(message: str, state: dict[str, Any]) -> Optiona
             reset_availability_state(state)
             return "V redu. Kako vam lahko se pomagam?"
         return handle_availability_query(message, state, force=True)
+    if not is_affirmative(message) and not is_negative(message):
+        has_update = (
+            extract_date(message)
+            or extract_date_range(message)
+            or extract_time(message)
+            or parse_people_count(message).get("total")
+            or detect_availability_type(message)
+            or is_availability_query(message)
+        )
+        if has_update:
+            return handle_availability_query(message, state, force=True)
     return None
 
 
