@@ -2732,6 +2732,46 @@ def extract_date(text: str) -> Optional[str]:
     if "pojutri" in lowered:
         return (today + timedelta(days=2)).strftime("%d.%m.%Y")
 
+    weekday_map = {
+        "ponedeljek": 0,
+        "torek": 1,
+        "sreda": 2,
+        "sredo": 2,
+        "četrtek": 3,
+        "cetrtek": 3,
+        "petek": 4,
+        "sobota": 5,
+        "soboto": 5,
+        "nedelja": 6,
+        "nedeljo": 6,
+    }
+
+    def _next_weekday(base: datetime, target: int, include_today: bool) -> datetime:
+        days_ahead = (target - base.weekday()) % 7
+        if days_ahead == 0 and not include_today:
+            days_ahead = 7
+        return base + timedelta(days=days_ahead)
+
+    next_match = re.search(r"\bnaslednj\w*\s+(ponedeljek|torek|sredo|sreda|četrtek|cetrtek|petek|soboto|sobota|nedeljo|nedelja)\b", lowered)
+    if next_match:
+        day_word = next_match.group(1)
+        target = weekday_map.get(day_word)
+        if target is not None:
+            days_ahead = (target - today.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            extra_week = 0 if days_ahead == 7 else 7
+            candidate = today + timedelta(days=days_ahead + extra_week)
+            return candidate.strftime("%d.%m.%Y")
+
+    this_match = re.search(r"\b(ta|to|tej)\s+(ponedeljek|torek|sredo|sreda|četrtek|cetrtek|petek|soboto|sobota|nedeljo|nedelja)\b", lowered)
+    if this_match:
+        day_word = this_match.group(2)
+        target = weekday_map.get(day_word)
+        if target is not None:
+            candidate = _next_weekday(today, target, include_today=True)
+            return candidate.strftime("%d.%m.%Y")
+
     return None
 
 
