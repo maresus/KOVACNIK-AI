@@ -4517,11 +4517,6 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         if is_availability_query(payload.message):
             availability_reply = handle_availability_query(payload.message, state)
             if availability_reply:
-                if state.get("step"):
-                    cont = get_booking_continuation(state.get("step"), state)
-                    availability_reply = (
-                        f"{availability_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{cont}"
-                    )
                 availability_reply = maybe_translate(availability_reply, detected_lang)
                 return finalize(availability_reply, "availability_check", followup_flag=False)
         if state.get("step") is not None:
