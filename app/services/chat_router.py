@@ -2668,7 +2668,7 @@ def extract_nights(message: str) -> Optional[int]:
     cleaned = re.sub(r"(vikend|weekend|sobota|nedelja)", " ", cleaned, flags=re.IGNORECASE)
 
     # 1) številka ob besedi noč/nočitev
-    match = re.search(r"(\d+)\s*(noč|noc|nočit|nocit|nočitev|noči)", cleaned, re.IGNORECASE)
+    match = re.search(r"(\d+)\s*(noč|noc|noči|noci|nočit|nocit|nočitev)", cleaned, re.IGNORECASE)
     if match:
         return int(match.group(1))
 
@@ -4263,7 +4263,7 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
             if range_data:
                 prefilled_date = range_data[0]
             prefilled_nights = None
-            if "nočit" in message.lower() or "nocit" in message.lower() or "noči" in message.lower():
+            if any(token in message.lower() for token in ["nočit", "nocit", "noči", "noci"]):
                 prefilled_nights = extract_nights(message)
             if range_data and not prefilled_nights:
                 prefilled_nights = nights_from_range(range_data[0], range_data[1])
@@ -4540,7 +4540,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             question_like = (
                 "?" in payload.message
                 or is_info_only_question(payload.message)
-                or is_info_query(payload.message)
+                or (is_info_query(payload.message) and not is_reservation_related(payload.message))
                 or any(word in lowered_message for word in ["gospodar", "družin", "lastnik", "kmetij"])
             )
             if question_like:
