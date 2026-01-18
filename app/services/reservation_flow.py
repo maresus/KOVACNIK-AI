@@ -188,6 +188,7 @@ def _handle_room_reservation_impl(
     is_affirmative: Any,
     validate_reservation_rules_fn: Any,
     advance_after_room_people_fn: Any,
+    reset_reservation_state: Any,
     send_reservation_emails_async: Any,
     reservation_pending_message: str,
 ) -> str:
@@ -508,6 +509,7 @@ def handle_room_reservation(
     is_affirmative: Any,
     validate_reservation_rules_fn: Any,
     advance_after_room_people_fn: Any,
+    reset_reservation_state: Any,
     send_reservation_emails_async: Any,
     reservation_pending_message: str,
 ) -> str:
@@ -518,6 +520,7 @@ def handle_room_reservation(
         is_affirmative,
         validate_reservation_rules_fn,
         advance_after_room_people_fn,
+        reset_reservation_state,
         send_reservation_emails_async,
         reservation_pending_message,
     )
@@ -946,6 +949,7 @@ def handle_reservation_flow(
             is_affirmative,
             validate_reservation_rules_fn,
             advance_after_room_people_fn,
+            reset_reservation_state,
             send_reservation_emails_async,
             reservation_pending_message,
         )
