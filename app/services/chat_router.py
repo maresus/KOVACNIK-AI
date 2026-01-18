@@ -2912,12 +2912,15 @@ def start_reservation_from_availability(state: dict[str, Any]) -> Optional[str]:
         state["date"] = date
         state["time"] = time_val
         state["people"] = int(people)
+        state["adults"] = None
+        state["kids"] = None
+        state["kids_ages"] = None
         state["location"] = location or "Jedilnica (dodelimo ob prihodu)"
-        state["step"] = "awaiting_name"
+        state["step"] = "awaiting_kids_info"
         reset_availability_state(state)
         return (
             f"Odlicno, mizo lahko rezerviram za {date} ob {time_val}. "
-            "Prosim se ime in priimek nosilca rezervacije."
+            "Imate otroke? Koliko in koliko so stari?"
         )
     return None
 
