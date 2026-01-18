@@ -2954,7 +2954,11 @@ def handle_availability_query(message: str, state: dict[str, Any], force: bool =
         availability_state["can_reserve"] = False
         return _availability_prompt_missing_date()
 
-    people = parse_people_count(message).get("total") or availability_state.get("people")
+    awaiting = availability_state.get("awaiting")
+    if awaiting in {"date", "time"} and availability_state.get("people"):
+        people = availability_state.get("people")
+    else:
+        people = parse_people_count(message).get("total") or availability_state.get("people")
     if people:
         availability_state["people"] = int(people)
     else:
@@ -3002,6 +3006,8 @@ def handle_availability_query(message: str, state: dict[str, Any], force: bool =
                 availability_state["awaiting"] = "time"
             else:
                 availability_state["awaiting"] = "date"
+            if availability_state["awaiting"] == "date" and "dd.mm" not in lower_error:
+                return error_message + " Prosimo poslji datum sobote ali nedelje (DD.MM.YYYY)."
             return error_message
         available, location, suggestions = reservation_service.check_table_availability(
             date, time_val, availability_state["people"]
@@ -3030,6 +3036,9 @@ def handle_availability_followup(message: str, state: dict[str, Any]) -> Optiona
     availability_state = get_availability_state(state)
     if not availability_state.get("active"):
         return None
+    if any(word in message.lower() for word in EXIT_KEYWORDS):
+        reset_availability_state(state)
+        return "V redu, prekinjam preverjanje. Kako vam lahko pomagam?"
     if availability_state.get("awaiting"):
         if is_negative(message):
             reset_availability_state(state)
