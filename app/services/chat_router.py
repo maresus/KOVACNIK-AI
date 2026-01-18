@@ -1216,6 +1216,7 @@ def _blank_reservation_state() -> dict[str, Optional[str | int]]:
         "language": None,
         "dinner_people": None,
         "note": None,
+        "availability": None,
     }
 
 
@@ -1249,6 +1250,30 @@ def get_inquiry_state(session_id: str) -> dict[str, Optional[str]]:
 
 def reset_inquiry_state(state: dict[str, Optional[str]]) -> None:
     state.update(_blank_inquiry_state())
+
+
+def _blank_availability_state() -> dict[str, Optional[str | int | bool]]:
+    return {
+        "active": False,
+        "type": None,
+        "date": None,
+        "time": None,
+        "people": None,
+        "nights": None,
+        "location": None,
+        "awaiting": None,
+        "can_reserve": False,
+    }
+
+
+def get_availability_state(state: dict[str, Any]) -> dict[str, Any]:
+    if not state.get("availability"):
+        state["availability"] = _blank_availability_state()
+    return state["availability"]
+
+
+def reset_availability_state(state: dict[str, Any]) -> None:
+    state["availability"] = _blank_availability_state()
 
 last_product_query: Optional[str] = None
 last_info_query: Optional[str] = None
@@ -2757,13 +2782,27 @@ def extract_time(text: str) -> Optional[str]:
     """
     Vrne prvi čas v formatu HH:MM (sprejme 13:00, 13.00 ali 1300).
     """
-    match = re.search(r"\b(\d{1,2})[:\.]?(\d{2})\b", text)
-    if not match:
+    match = re.search(r"\b(\d{1,2})[:](\d{2})\b", text)
+    if match:
+        hour, minute = int(match.group(1)), int(match.group(2))
+        if hour <= 23 and minute <= 59:
+            return f"{hour:02d}:{minute:02d}"
         return None
-    hour, minute = int(match.group(1)), int(match.group(2))
-    if hour > 23 or minute > 59:
-        return None
-    return f"{hour:02d}:{minute:02d}"
+
+    for match in re.finditer(r"\b(\d{1,2})\.(\d{2})\b", text):
+        tail = text[match.end():]
+        if tail.lstrip().startswith(".") and re.match(r"\.\d{2,4}", tail.lstrip()):
+            continue
+        hour, minute = int(match.group(1)), int(match.group(2))
+        if hour <= 23 and minute <= 59:
+            return f"{hour:02d}:{minute:02d}"
+
+    match = re.search(r"\b(\d{1,2})(\d{2})\b", text)
+    if match:
+        hour, minute = int(match.group(1)), int(match.group(2))
+        if hour <= 23 and minute <= 59:
+            return f"{hour:02d}:{minute:02d}"
+    return None
 
 
 def _contains_any(text: str, tokens: list[str]) -> bool:
@@ -2826,34 +2865,112 @@ def _availability_prompt_missing_time() -> str:
     return "Ob kateri uri zelite mizo? (12:00-20:00, zadnji prihod 15:00)"
 
 
-def handle_availability_query(message: str) -> Optional[str]:
-    if not is_availability_query(message):
+def start_reservation_from_availability(state: dict[str, Any]) -> Optional[str]:
+    availability_state = get_availability_state(state)
+    if not availability_state.get("can_reserve"):
+        return None
+    res_type = availability_state.get("type")
+    snapshot = {
+        "type": availability_state.get("type"),
+        "date": availability_state.get("date"),
+        "time": availability_state.get("time"),
+        "people": availability_state.get("people"),
+        "nights": availability_state.get("nights"),
+        "location": availability_state.get("location"),
+        "language": state.get("language"),
+        "session_id": state.get("session_id"),
+    }
+    reset_reservation_state(state)
+    if snapshot.get("language"):
+        state["language"] = snapshot.get("language")
+    if snapshot.get("session_id"):
+        state["session_id"] = snapshot.get("session_id")
+    if res_type == "room":
+        state["type"] = "room"
+        state["date"] = snapshot.get("date")
+        state["nights"] = snapshot.get("nights")
+        state["people"] = snapshot.get("people")
+        reset_availability_state(state)
+        return handle_reservation_flow("rezervacija sobe", state)
+    if res_type == "table":
+        date = snapshot.get("date") or ""
+        time_val = snapshot.get("time") or ""
+        people = snapshot.get("people") or 0
+        ok, error_message = reservation_service.validate_table_rules(date, time_val)
+        if not ok:
+            reset_availability_state(state)
+            return error_message
+        available, location, suggestions = reservation_service.check_table_availability(
+            date, time_val, int(people)
+        )
+        if not available:
+            reset_availability_state(state)
+            if suggestions:
+                return "Izbran termin je zaseden. Predlagani prosti termini: " + "; ".join(suggestions) + "."
+            return "Izbran termin je zaseden. Zelite drug datum ali uro?"
+        state["type"] = "table"
+        state["date"] = date
+        state["time"] = time_val
+        state["people"] = int(people)
+        state["location"] = location or "Jedilnica (dodelimo ob prihodu)"
+        state["step"] = "awaiting_name"
+        reset_availability_state(state)
+        return (
+            f"Odlicno, mizo lahko rezerviram za {date} ob {time_val}. "
+            "Prosim se ime in priimek nosilca rezervacije."
+        )
+    return None
+
+
+def handle_availability_query(message: str, state: dict[str, Any], force: bool = False) -> Optional[str]:
+    if not force and not is_availability_query(message):
         return None
 
-    res_type = detect_availability_type(message)
-    if not res_type:
+    availability_state = get_availability_state(state)
+    availability_state["active"] = True
+
+    res_type = detect_availability_type(message) or availability_state.get("type")
+    if res_type:
+        availability_state["type"] = res_type
+    else:
+        availability_state["awaiting"] = "type"
+        availability_state["can_reserve"] = False
         return _availability_prompt_missing_type()
 
-    date = extract_date(message)
+    date = extract_date(message) or availability_state.get("date")
     date_range = extract_date_range(message)
-    nights = extract_nights(message)
+    nights = extract_nights(message) or availability_state.get("nights")
     if res_type == "room" and date_range:
         date = date_range[0]
         nights = nights_from_range(*date_range)
 
-    if not date:
+    if date:
+        availability_state["date"] = date
+    else:
+        availability_state["awaiting"] = "date"
+        availability_state["can_reserve"] = False
         return _availability_prompt_missing_date()
 
-    people = parse_people_count(message).get("total")
-    if not people:
+    people = parse_people_count(message).get("total") or availability_state.get("people")
+    if people:
+        availability_state["people"] = int(people)
+    else:
+        availability_state["awaiting"] = "people"
+        availability_state["can_reserve"] = False
         return _availability_prompt_missing_people(res_type)
 
     if res_type == "room":
         if not nights:
+            availability_state["awaiting"] = "nights"
+            availability_state["can_reserve"] = False
             return _availability_prompt_missing_nights()
+        availability_state["nights"] = int(nights)
         available, alternative = reservation_service.check_room_availability(
-            date, int(nights), int(people)
+            availability_state["date"], availability_state["nights"], availability_state["people"]
         )
+        availability_state["awaiting"] = None
+        availability_state["can_reserve"] = available
+        availability_state["location"] = None
         if not available:
             if alternative:
                 return (
@@ -2862,20 +2979,33 @@ def handle_availability_query(message: str) -> Optional[str]:
                 )
             return "Zal je termin zaseden. Zelite drug datum ali manjse stevilo oseb?"
         return (
-            f"Da, termin {date} za {people} oseb je prost (za {nights} nocitev). "
-            "Zelite, da pripravim rezervacijo?"
+            f"Da, soba je prosta {availability_state['date']} za {availability_state['people']} oseb "
+            f"(za {availability_state['nights']} nocitev). Zelite, da pripravim rezervacijo?"
         )
 
     if res_type == "table":
-        time_val = extract_time(message)
+        cleaned = re.sub(r"\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b", " ", message)
+        time_val = extract_time(cleaned) or availability_state.get("time")
         if not time_val:
+            availability_state["awaiting"] = "time"
+            availability_state["can_reserve"] = False
             return _availability_prompt_missing_time()
+        availability_state["time"] = time_val
         ok, error_message = reservation_service.validate_table_rules(date, time_val)
         if not ok:
+            availability_state["can_reserve"] = False
+            lower_error = error_message.lower()
+            if any(token in lower_error for token in ["uro", "ura", "zadnji prihod", "kuhinja"]):
+                availability_state["awaiting"] = "time"
+            else:
+                availability_state["awaiting"] = "date"
             return error_message
         available, location, suggestions = reservation_service.check_table_availability(
-            date, time_val, int(people)
+            date, time_val, availability_state["people"]
         )
+        availability_state["awaiting"] = None
+        availability_state["can_reserve"] = available
+        availability_state["location"] = location
         if not available:
             if suggestions:
                 return (
@@ -2886,10 +3016,22 @@ def handle_availability_query(message: str) -> Optional[str]:
             return "Izbran termin je zaseden. Zelite drug datum ali uro?"
         location_text = f" ({location})" if location else ""
         return (
-            f"Da, za {people} oseb imamo prosto {date} ob {time_val}{location_text}. "
+            f"Da, miza je prosta {date} ob {time_val} za {availability_state['people']} oseb{location_text}. "
             "Zelite, da pripravim rezervacijo?"
         )
 
+    return None
+
+
+def handle_availability_followup(message: str, state: dict[str, Any]) -> Optional[str]:
+    availability_state = get_availability_state(state)
+    if not availability_state.get("active"):
+        return None
+    if availability_state.get("awaiting"):
+        if is_negative(message):
+            reset_availability_state(state)
+            return "V redu. Kako vam lahko se pomagam?"
+        return handle_availability_query(message, state, force=True)
     return None
 
 
@@ -2971,6 +3113,11 @@ def is_affirmative(message: str) -> bool:
         "yep",
         "yeah",
     }
+
+
+def is_negative(message: str) -> bool:
+    lowered = message.strip().lower()
+    return lowered in {"ne", "no", "ne hvala", "no thanks"}
 
 
 def get_last_assistant_message() -> str:
@@ -4252,14 +4399,54 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     state["language"] = detected_lang
     state["session_id"] = session_id
 
+    def finalize(reply_text: str, intent_value: str, followup_flag: bool = False) -> ChatResponse:
+        nonlocal needs_followup
+        global conversation_history
+        final_reply = reply_text
+        flag = followup_flag or needs_followup or is_unknown_response(final_reply)
+        if flag:
+            final_reply = get_unknown_response(detected_lang)
+        conv_id = reservation_service.log_conversation(
+            session_id=session_id,
+            user_message=payload.message,
+            bot_response=final_reply,
+            intent=intent_value,
+            needs_followup=flag,
+        )
+        if flag:
+            unknown_question_state[session_id] = {"question": payload.message, "conv_id": conv_id}
+        conversation_history.append({"role": "assistant", "content": final_reply})
+        if len(conversation_history) > 12:
+            conversation_history = conversation_history[-12:]
+        return ChatResponse(reply=final_reply)
+
     if is_switch_topic_command(payload.message):
         reset_reservation_state(state)
         reset_inquiry_state(inquiry_state)
+        reset_availability_state(state)
         reply = "Seveda — zamenjamo temo. Kako vam lahko pomagam?"
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "switch_topic", followup_flag=False)
 
+    availability_followup = handle_availability_followup(payload.message, state)
+    if availability_followup:
+        availability_followup = maybe_translate(availability_followup, detected_lang)
+        return finalize(availability_followup, "availability_followup", followup_flag=False)
+
+    availability_state = get_availability_state(state)
+    if availability_state.get("active") and availability_state.get("can_reserve") and is_negative(payload.message):
+        reset_availability_state(state)
+        reply = "V redu. Kako vam lahko pomagam?"
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "availability_declined", followup_flag=False)
+
     if state.get("step") is None and is_affirmative(payload.message):
+        availability_state = get_availability_state(state)
+        if availability_state.get("active") and availability_state.get("can_reserve"):
+            reply = start_reservation_from_availability(state)
+            if reply:
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "availability_to_reservation", followup_flag=False)
         last_bot = get_last_assistant_message().lower()
         if last_bot_mentions_reservation(last_bot):
             if any(token in last_bot for token in ["mizo", "miza", "table"]):
@@ -4288,27 +4475,6 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     conversation_history.append({"role": "user", "content": payload.message})
     if len(conversation_history) > 12:
         conversation_history = conversation_history[-12:]
-
-    def finalize(reply_text: str, intent_value: str, followup_flag: bool = False) -> ChatResponse:
-        nonlocal needs_followup
-        global conversation_history
-        final_reply = reply_text
-        flag = followup_flag or needs_followup or is_unknown_response(final_reply)
-        if flag:
-            final_reply = get_unknown_response(detected_lang)
-        conv_id = reservation_service.log_conversation(
-            session_id=session_id,
-            user_message=payload.message,
-            bot_response=final_reply,
-            intent=intent_value,
-            needs_followup=flag,
-        )
-        if flag:
-            unknown_question_state[session_id] = {"question": payload.message, "conv_id": conv_id}
-        conversation_history.append({"role": "assistant", "content": final_reply})
-        if len(conversation_history) > 12:
-            conversation_history = conversation_history[-12:]
-        return ChatResponse(reply=final_reply)
 
     # inquiry flow
     if state.get("step") is None and inquiry_state.get("step"):
@@ -4348,6 +4514,16 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
 
     # V2 router/exec (opcijsko)
     if USE_FULL_KB_LLM:
+        if is_availability_query(payload.message):
+            availability_reply = handle_availability_query(payload.message, state)
+            if availability_reply:
+                if state.get("step"):
+                    cont = get_booking_continuation(state.get("step"), state)
+                    availability_reply = (
+                        f"{availability_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{cont}"
+                    )
+                availability_reply = maybe_translate(availability_reply, detected_lang)
+                return finalize(availability_reply, "availability_check", followup_flag=False)
         if state.get("step") is not None:
             if should_switch_from_reservation(payload.message, state):
                 reset_reservation_state(state)
@@ -4386,7 +4562,7 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             )
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "clarify_inquiry", followup_flag=False)
-        availability_reply = handle_availability_query(payload.message)
+        availability_reply = handle_availability_query(payload.message, state)
         if availability_reply:
             availability_reply = maybe_translate(availability_reply, detected_lang)
             return finalize(availability_reply, "availability_check", followup_flag=False)
