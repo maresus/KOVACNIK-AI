@@ -2,6 +2,7 @@ import re
 import random
 import json
 import os
+import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
@@ -82,6 +83,7 @@ USE_ROUTER_V2 = True
 USE_FULL_KB_LLM = True
 INQUIRY_RECIPIENT = os.getenv("INQUIRY_RECIPIENT", "satlermarko@gmail.com")
 SHORT_MODE = os.getenv("SHORT_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
+_router_logger = logging.getLogger("router_v2")
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
@@ -2008,7 +2010,10 @@ def _validate_reservation_rules_bound(arrival_date_str: str, nights: int) -> Tup
     return reservation_validate_reservation_rules(arrival_date_str, nights, reservation_service)
 
 
-def _advance_after_room_people_bound(reservation_state: dict[str, Optional[str | int]]) -> str:
+def _advance_after_room_people_bound(
+    reservation_state: dict[str, Optional[str | int]],
+    _reservation_service: Any = None,
+) -> str:
     return reservation_advance_after_room_people(reservation_state, reservation_service)
 
 
@@ -2767,6 +2772,26 @@ def chat_stream(payload: ChatRequestWithSession):
     state = get_reservation_state(session_id)
     inquiry_state = get_inquiry_state(session_id)
     availability_state = get_availability_state(state)
+    try:
+        info_key = detect_info_intent(payload.message)
+        product_key = detect_product_intent(payload.message)
+        _router_logger.info(
+            json.dumps(
+                {
+                    "intent": "STREAM",
+                    "confidence": 0.5,
+                    "info_key": info_key,
+                    "product_key": product_key,
+                    "is_interrupt": bool(state.get("step") and (info_key or product_key)),
+                    "booking_step": state.get("step"),
+                    "message": payload.message[:200],
+                    "metrics": {},
+                },
+                ensure_ascii=False,
+            )
+        )
+    except Exception:
+        pass
 
     def stream_and_log(reply_chunks):
         collected: list[str] = []
