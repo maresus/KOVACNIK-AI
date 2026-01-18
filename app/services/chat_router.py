@@ -355,6 +355,22 @@ CRITICAL_INFO_KEYS = {
     "kapaciteta_mize",
 }
 
+AVAILABILITY_TOOL_SCHEMA = {
+    "name": "check_availability",
+    "description": "Preveri razpolozljivost sobe ali mize v bazi za izbran datum.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "type": {"type": "string", "enum": ["room", "table"]},
+            "date": {"type": "string", "description": "Format: DD.MM.YYYY"},
+            "time": {"type": "string", "description": "Format: HH:MM (samo za mize)"},
+            "people": {"type": "integer"},
+            "nights": {"type": "integer"},
+        },
+        "required": ["type", "date"],
+    },
+}
+
 def _send_reservation_emails_async(payload: dict) -> None:
     def _worker() -> None:
         try:
@@ -2750,6 +2766,133 @@ def extract_time(text: str) -> Optional[str]:
     return f"{hour:02d}:{minute:02d}"
 
 
+def _contains_any(text: str, tokens: list[str]) -> bool:
+    return any(tok in text for tok in tokens)
+
+
+def detect_availability_type(message: str) -> Optional[str]:
+    lowered = message.lower()
+    room_tokens = ["soba", "sobo", "sobe", "nocitev", "preno", "room", "zimmer"]
+    table_tokens = ["miza", "mizo", "mize", "kosilo", "vecerja", "table", "tisch"]
+    has_room = _contains_any(lowered, room_tokens)
+    has_table = _contains_any(lowered, table_tokens)
+    if has_room and has_table:
+        return None
+    if has_room:
+        return "room"
+    if has_table:
+        return "table"
+    return None
+
+
+def is_availability_query(message: str) -> bool:
+    lowered = message.lower()
+    trigger_tokens = [
+        "prosto",
+        "prosta",
+        "proste",
+        "razpoloz",
+        "razpolo",
+        "na voljo",
+        "zaseden",
+        "zasedeno",
+        "termin",
+        "datum",
+    ]
+    if not _contains_any(lowered, trigger_tokens):
+        return False
+    return True
+
+
+def _availability_prompt_missing_type() -> str:
+    return "Zelite preveriti prosto sobo ali mizo?"
+
+
+def _availability_prompt_missing_date() -> str:
+    return "Za kateri datum zelite preveriti razpolozljivost? (DD.MM.YYYY)"
+
+
+def _availability_prompt_missing_people(res_type: str) -> str:
+    if res_type == "table":
+        return "Za koliko oseb zelite preveriti mizo?"
+    return "Za koliko oseb zelite preveriti prosto sobo?"
+
+
+def _availability_prompt_missing_nights() -> str:
+    return "Za koliko nocitev zelite preveriti?"
+
+
+def _availability_prompt_missing_time() -> str:
+    return "Ob kateri uri zelite mizo? (12:00-20:00, zadnji prihod 15:00)"
+
+
+def handle_availability_query(message: str) -> Optional[str]:
+    if not is_availability_query(message):
+        return None
+
+    res_type = detect_availability_type(message)
+    if not res_type:
+        return _availability_prompt_missing_type()
+
+    date = extract_date(message)
+    date_range = extract_date_range(message)
+    nights = extract_nights(message)
+    if res_type == "room" and date_range:
+        date = date_range[0]
+        nights = nights_from_range(*date_range)
+
+    if not date:
+        return _availability_prompt_missing_date()
+
+    people = parse_people_count(message).get("total")
+    if not people:
+        return _availability_prompt_missing_people(res_type)
+
+    if res_type == "room":
+        if not nights:
+            return _availability_prompt_missing_nights()
+        available, alternative = reservation_service.check_room_availability(
+            date, int(nights), int(people)
+        )
+        if not available:
+            if alternative:
+                return (
+                    "Zal je termin zaseden. Najblizji prost termin je "
+                    f"{alternative}. Zelite, da preverim ta datum ali pripravim rezervacijo?"
+                )
+            return "Zal je termin zaseden. Zelite drug datum ali manjse stevilo oseb?"
+        return (
+            f"Da, termin {date} za {people} oseb je prost (za {nights} nocitev). "
+            "Zelite, da pripravim rezervacijo?"
+        )
+
+    if res_type == "table":
+        time_val = extract_time(message)
+        if not time_val:
+            return _availability_prompt_missing_time()
+        ok, error_message = reservation_service.validate_table_rules(date, time_val)
+        if not ok:
+            return error_message
+        available, location, suggestions = reservation_service.check_table_availability(
+            date, time_val, int(people)
+        )
+        if not available:
+            if suggestions:
+                return (
+                    "Izbran termin je zaseden. Predlagani prosti termini: "
+                    + "; ".join(suggestions)
+                    + ". Zelite, da rezerviram enega od njih?"
+                )
+            return "Izbran termin je zaseden. Zelite drug datum ali uro?"
+        location_text = f" ({location})" if location else ""
+        return (
+            f"Da, za {people} oseb imamo prosto {date} ob {time_val}{location_text}. "
+            "Zelite, da pripravim rezervacijo?"
+        )
+
+    return None
+
+
 def detect_reset_request(message: str) -> bool:
     lowered = message.lower()
     reset_words = [
@@ -4243,6 +4386,10 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             )
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "clarify_inquiry", followup_flag=False)
+        availability_reply = handle_availability_query(payload.message)
+        if availability_reply:
+            availability_reply = maybe_translate(availability_reply, detected_lang)
+            return finalize(availability_reply, "availability_check", followup_flag=False)
         try:
             intent_result = _llm_route_reservation(payload.message)
         except Exception as exc:
@@ -4774,6 +4921,12 @@ def chat_stream(payload: ChatRequestWithSession):
         )
 
     if is_ambiguous_reservation_request(payload.message) or is_ambiguous_inquiry_request(payload.message):
+        response = chat_endpoint(payload)
+        return StreamingResponse(
+            _stream_text_chunks(response.reply),
+            media_type="text/plain",
+        )
+    if is_availability_query(payload.message):
         response = chat_endpoint(payload)
         return StreamingResponse(
             _stream_text_chunks(response.reply),
