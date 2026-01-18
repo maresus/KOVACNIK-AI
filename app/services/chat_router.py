@@ -3447,48 +3447,49 @@ def handle_room_reservation(message: str, state: dict[str, Optional[str | int]])
     return translate_response(response, lang)
 
 
+def proceed_after_table_people(reservation_state: dict[str, Optional[str | int]]) -> str:
+    people = int(reservation_state.get("people") or 0)
+    available, location, suggestions = reservation_service.check_table_availability(
+        reservation_state["date"] or "",
+        reservation_state["time"] or "",
+        people,
+    )
+    if not available:
+        reservation_state["step"] = "awaiting_table_time"
+        alt = (
+            "Predlagani prosti termini: " + "; ".join(suggestions)
+            if suggestions
+            else "Prosim izberite drugo uro ali enega od naslednjih vikendov."
+        )
+        return f"Izbran termin je zaseden. {alt}"
+    # če imamo lokacijo že izbranega prostora
+    if location:
+        reservation_state["location"] = location
+        reservation_state["step"] = "awaiting_name"
+        return f"Lokacija: {location}. Odlično. Prosim še ime in priimek nosilca rezervacije."
+
+    # če ni vnaprej dodelil, ponudimo izbiro med razpoložljivimi
+    # če so na voljo oba prostora, vprašamo za izbiro
+    possible = []
+    occupancy = reservation_service._table_room_occupancy()
+    norm_time = reservation_service._parse_time(reservation_state["time"] or "")
+    for room in ["Jedilnica Pri peči", "Jedilnica Pri vrtu"]:
+        used = occupancy.get((reservation_state["date"], norm_time, room), 0)
+        cap = 15 if "peč" in room.lower() else 35
+        if used + people <= cap:
+            possible.append(room)
+    if len(possible) <= 1:
+        reservation_state["location"] = possible[0] if possible else "Jedilnica (dodelimo ob prihodu)"
+        reservation_state["step"] = "awaiting_name"
+        return "Odlično. Prosim še ime in priimek nosilca rezervacije."
+    reservation_state["available_locations"] = possible
+    reservation_state["step"] = "awaiting_table_location"
+    return "Imamo prosto v: " + " ali ".join(possible) + ". Kje bi želeli sedeti?"
+
+
 def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str | int]]) -> str:
     reservation_state = state
     step = reservation_state["step"]
-
-    def proceed_after_table_people() -> str:
-        people = int(reservation_state.get("people") or 0)
-        available, location, suggestions = reservation_service.check_table_availability(
-            reservation_state["date"] or "",
-            reservation_state["time"] or "",
-            people,
-        )
-        if not available:
-            reservation_state["step"] = "awaiting_table_time"
-            alt = (
-                "Predlagani prosti termini: " + "; ".join(suggestions)
-                if suggestions
-                else "Prosim izberite drugo uro ali enega od naslednjih vikendov."
-            )
-            return f"Izbran termin je zaseden. {alt}"
-        # če imamo lokacijo že izbranega prostora
-        if location:
-            reservation_state["location"] = location
-            reservation_state["step"] = "awaiting_name"
-            return f"Lokacija: {location}. Odlično. Prosim še ime in priimek nosilca rezervacije."
-
-        # če ni vnaprej dodelil, ponudimo izbiro med razpoložljivimi
-        # če so na voljo oba prostora, vprašamo za izbiro
-        possible = []
-        occupancy = reservation_service._table_room_occupancy()
-        norm_time = reservation_service._parse_time(reservation_state["time"] or "")
-        for room in ["Jedilnica Pri peči", "Jedilnica Pri vrtu"]:
-            used = occupancy.get((reservation_state["date"], norm_time, room), 0)
-            cap = 15 if "peč" in room.lower() else 35
-            if used + people <= cap:
-                possible.append(room)
-        if len(possible) <= 1:
-            reservation_state["location"] = possible[0] if possible else "Jedilnica (dodelimo ob prihodu)"
-            reservation_state["step"] = "awaiting_name"
-            return "Odlično. Prosim še ime in priimek nosilca rezervacije."
-        reservation_state["available_locations"] = possible
-        reservation_state["step"] = "awaiting_table_location"
-        return "Imamo prosto v: " + " ali ".join(possible) + ". Kje bi želeli sedeti?"
 
     if step == "awaiting_table_date":
         proposed = extract_date(message) or ""
@@ -3837,8 +3838,8 @@ def handle_reservation_flow(message: str, state: dict[str, Optional[str | int]])
                 reservation_state["step"] = "awaiting_kids_ages"
                 return _tr("Koliko so stari otroci?")
 
-            reservation_state["step"] = "awaiting_table_people"
-            return _tr(_handle_table_reservation_impl(message, reservation_state))
+            reply = proceed_after_table_people(reservation_state)
+            return _tr(reply)
         reservation_state["step"] = "awaiting_type"
         return _tr("Kako vam lahko pomagam – rezervacija sobe ali mize za kosilo?")
 
