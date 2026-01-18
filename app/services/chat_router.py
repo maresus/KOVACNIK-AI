@@ -3758,11 +3758,13 @@ def _handle_room_reservation_impl(message: str, state: dict[str, Optional[str | 
         return advance_after_room_people(reservation_state)
 
     if step == "awaiting_kids_info":
-        text = message.lower()
+        text = message.lower().strip()
         if any(word in text for word in ["ne", "brez", "ni", "nimam"]):
             reservation_state["kids"] = 0
             reservation_state["kids_ages"] = ""
             return advance_after_room_people(reservation_state)
+        if is_affirmative(text):
+            return "Koliko otrok?"
         kids_parsed = parse_kids_response(message)
         if kids_parsed["kids"] is not None:
             reservation_state["kids"] = kids_parsed["kids"]
@@ -4060,11 +4062,13 @@ def _handle_table_reservation_impl(message: str, state: dict[str, Optional[str |
         return "Za koliko oseb pripravimo mizo?"
 
     if step == "awaiting_kids_info":
-        text = message.lower()
+        text = message.lower().strip()
         if any(word in text for word in ["ne", "brez", "ni", "nimam"]):
             reservation_state["kids"] = 0
             reservation_state["kids_ages"] = ""
             return proceed_after_table_people()
+        if is_affirmative(text):
+            return "Koliko otrok?"
         kids_parsed = parse_kids_response(message)
         if kids_parsed["kids"] is not None:
             reservation_state["kids"] = kids_parsed["kids"]
