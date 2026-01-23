@@ -59,6 +59,7 @@
       color: #fff;
       box-shadow: 0 8px 20px rgba(123,94,59,0.25);
     }
+    .btn.large { padding: 12px 18px; font-size: 14px; }
     .btn.secondary { background: #f1ede5; color: #4b3a28; box-shadow: none; }
     .btn:hover { transform: translateY(-1px); }
 
@@ -165,12 +166,41 @@
     .month-picker { display:flex; gap:10px; align-items:center; margin: 10px 0; flex-wrap: wrap; }
     .month-picker select, .month-picker input { width: auto; }
     .inline-actions { display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0; }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 0.6fr;
+      gap: 16px;
+      align-items: start;
+      margin-top: 12px;
+    }
+    .sidebar-sticky {
+      position: sticky;
+      top: 12px;
+      max-height: calc(100vh - 160px);
+      overflow: auto;
+    }
+    .sidebar-compact {
+      max-height: calc(100vh - 220px);
+      font-size: 13px;
+    }
+    .sidebar-compact h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+    .sidebar-compact .day-item {
+      padding: 8px;
+      margin-bottom: 6px;
+    }
 
     @media (max-width: 960px) {
       .reservation-row {
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         font-size: 13px;
       }
+      .overview-grid { grid-template-columns: 1fr; }
+      .sidebar-sticky { position: static; max-height: none; }
+      .modal-columns { grid-template-columns: 1fr; }
+      .modal-col-right { position: static; max-height: none; }
     }
 
     /* Modal */
@@ -183,11 +213,12 @@
       z-index: 1000;
       padding: 16px;
     }
+    .modal.email-modal { z-index: 1200; }
     .modal.active { display: flex; }
     .modal-body {
       background: #fff;
       border-radius: 16px;
-      max-width: 720px;
+      max-width: 980px;
       width: 100%;
       max-height: 90vh;
       overflow: auto;
@@ -196,18 +227,38 @@
       display: grid;
       gap: 12px;
     }
+    .modal-columns {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+    }
+    .modal-col { display: grid; gap: 12px; }
+    .modal-col-right {
+      position: sticky;
+      top: 10px;
+      align-self: start;
+      max-height: calc(90vh - 80px);
+      overflow: auto;
+    }
     .modal-title { font-size: 1.2rem; font-weight: 700; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     .form-group { display: grid; gap: 6px; }
     label { font-weight: 600; font-size: 13px; color: #3b2d1e; }
     textarea { min-height: 90px; }
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+    .sticky-actions {
+      position: sticky;
+      bottom: 0;
+      background: #fff;
+      padding: 10px 0 0;
+      border-top: 1px solid #efe6d9;
+    }
     .message-thread {
       background: #faf8f3;
       border: 1px solid #e6e2da;
       border-radius: 8px;
       padding: 10px;
-      max-height: 180px;
+      max-height: 340px;
       overflow-y: auto;
       font-size: 13px;
       color: #1f2937;
@@ -242,6 +293,7 @@
     }
 
     .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tabs.equal .tab { flex: 1; text-align: center; }
     .tab {
       border: 1px solid var(--border);
       background: #fff;
@@ -309,7 +361,7 @@
       <button class="tab" id="tab-view-tools" onclick="setViewTab('tools')">🧰 Orodja & analitika</button>
     </div>
 
-    <div class="tabs">
+    <div class="tabs equal">
       <button class="tab active" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
       <button class="tab" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
       <a class="tab" id="tab-inquiries" href="/admin/inquiries">📝 Povpraševanja</a>
@@ -405,66 +457,72 @@
     <label for="year-input">Leto:</label>
     <input id="year-input" type="number" style="width:100px;" value="">
     <button class="btn secondary" onclick="applyMonthYear()">Nastavi</button>
+    <button class="btn secondary" onclick="showTodayOverview()">Danes</button>
   </div>
 
   <div class="inline-actions">
     <button class="btn" onclick="openNewRoom()">+ Nova rezervacija sobe</button>
     <button class="btn secondary" onclick="openNewTable()">+ Nova rezervacija mize</button>
+    <div id="imap-indicator-main" class="muted" style="font-size:12px; align-self:center;"></div>
   </div>
 
   <div id="pending-container" class="card" style="margin-top:12px;"></div>
 
-  <div id="room-calendar-block" class="card" style="margin-top: 20px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <button class="btn secondary" onclick="changeMonth(-1)">◀ Prejšnji</button>
-      <h3 id="calendar-title" style="margin: 0;">Koledar (sobe)</h3>
-      <button class="btn secondary" onclick="changeMonth(1)">Naslednji ▶</button>
+  <div id="room-overview" class="overview-grid">
+    <div id="room-calendar-block" class="card" style="margin-top: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <button class="btn secondary" onclick="changeMonth(-1)">◀ Prejšnji</button>
+        <h3 id="calendar-title" style="margin: 0;">Koledar (sobe)</h3>
+        <button class="btn secondary" onclick="changeMonth(1)">Naslednji ▶</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; margin-bottom: 8px;">
+        <div style="font-weight: 600; color: #7a7a7a;">PON</div>
+        <div style="font-weight: 600; color: #7a7a7a;">TOR</div>
+        <div style="font-weight: 600; color: #7a7a7a;">SRE</div>
+        <div style="font-weight: 600; color: #7a7a7a;">ČET</div>
+        <div style="font-weight: 600; color: #7a7a7a;">PET</div>
+        <div style="font-weight: 600; color: #7a7a7a;">SOB</div>
+        <div style="font-weight: 600; color: #7a7a7a;">NED</div>
+      </div>
+
+      <div id="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;">
+      </div>
+
+      <div style="margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap;">
+        <span style="font-weight:600;">Legenda:</span>
+        <span style="color:#27ae60;">Potrjeno</span>
+      <span style="color:#c27d00;">Čaka (tudi brez dodeljene sobe)</span>
+        <span style="color:#e74c3c;">Današnji dan = rdeča obroba</span>
+        <span style="color:#7a7a7a;">Prikazani so vsi zasedeni dnevi bivanja (check-in do noči pred odhodom). Klik na dan pokaže podrobnosti.</span>
+      </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; margin-bottom: 8px;">
-      <div style="font-weight: 600; color: #7a7a7a;">PON</div>
-      <div style="font-weight: 600; color: #7a7a7a;">TOR</div>
-      <div style="font-weight: 600; color: #7a7a7a;">SRE</div>
-      <div style="font-weight: 600; color: #7a7a7a;">ČET</div>
-      <div style="font-weight: 600; color: #7a7a7a;">PET</div>
-      <div style="font-weight: 600; color: #7a7a7a;">SOB</div>
-      <div style="font-weight: 600; color: #7a7a7a;">NED</div>
-    </div>
-
-    <div id="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;">
-    </div>
-
-    <div style="margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap;">
-      <span style="font-weight:600;">Legenda:</span>
-      <span style="color:#27ae60;">Potrjeno</span>
-      <span style="color:#c27d00;">Čaka</span>
-      <span style="color:#e74c3c;">Današnji dan = rdeča obroba</span>
-      <span style="color:#7a7a7a;">Prikazani so vsi zasedeni dnevi bivanja (check-in do noči pred odhodom). Klik na dan pokaže podrobnosti.</span>
-    </div>
-  </div>
-
-  <div id="table-calendar-block" class="card" style="margin-top: 12px; display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <button class="btn secondary" onclick="changeMonth(-1)">◀ Prejšnji</button>
-      <h3 id="table-calendar-title" style="margin: 0;">Koledar (mize)</h3>
-      <button class="btn secondary" onclick="changeMonth(1)">Naslednji ▶</button>
-    </div>
-    <div id="table-calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;"></div>
-    <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px;">
-      <span>💚 <50% kapacitete</span>
-      <span>💛 50-80%</span>
-      <span>❤️ >80%</span>
+    <div id="day-sidebar" class="card sidebar-sticky sidebar-compact" style="display: none;">
+      <h4 id="sidebar-date">Izberi dan</h4>
+      <div id="sidebar-content"></div>
     </div>
   </div>
 
-  <div id="day-sidebar" class="card" style="margin-top: 12px; display: none;">
-    <h4 id="sidebar-date">Izberi dan</h4>
-    <div id="sidebar-content"></div>
-  </div>
+  <div id="table-overview" class="overview-grid" style="display: none;">
+    <div id="table-calendar-block" class="card" style="margin-top: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <button class="btn secondary" onclick="changeMonth(-1)">◀ Prejšnji</button>
+        <h3 id="table-calendar-title" style="margin: 0;">Koledar (mize)</h3>
+        <button class="btn secondary" onclick="changeMonth(1)">Naslednji ▶</button>
+      </div>
+      <div id="table-calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;"></div>
+      <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px;">
+        <span>💚 <50% kapacitete</span>
+        <span>💛 50-80%</span>
+        <span>❤️ >80%</span>
+      </div>
+    </div>
 
-  <div id="table-sidebar" class="card" style="margin-top: 12px; display: none;">
-    <h4 id="table-sidebar-date">Izberi dan</h4>
-    <div id="table-sidebar-content"></div>
+    <div id="table-sidebar" class="card sidebar-sticky sidebar-compact">
+      <h4 id="table-sidebar-date">Izberi dan</h4>
+      <div id="table-sidebar-content"></div>
+    </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -513,7 +571,7 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Email modal -->
-  <div class="modal" id="email-modal">
+  <div class="modal email-modal" id="email-modal">
     <div class="modal-body">
       <div class="modal-title">✉ Pošlji sporočilo <span id="email-modal-name"></span></div>
       <form id="email-form">
@@ -555,78 +613,81 @@
       <div class="muted" id="room-edit-flags" style="margin-top:-6px; margin-bottom:10px;"></div>
       <form id="room-edit-form">
         <input type="hidden" id="room-edit-hidden-id">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Status</label>
-            <select id="room-edit-status">
-              <option value="pending">Čaka</option>
-              <option value="processing">V obdelavi</option>
-              <option value="confirmed">Potrjeno</option>
-              <option value="rejected">Zavrnjeno</option>
-            </select>
+        <div class="modal-columns">
+          <div class="modal-col">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Status</label>
+                <select id="room-edit-status">
+                  <option value="pending">Čaka</option>
+                  <option value="processing">V obdelavi</option>
+                  <option value="confirmed">Potrjeno</option>
+                  <option value="rejected">Zavrnjeno</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Datum prihoda</label>
+                <input type="date" id="room-edit-date" required>
+              </div>
+              <div class="form-group">
+                <label>Število nočitev</label>
+                <input type="number" id="room-edit-nights" min="1" required>
+              </div>
+              <div class="form-group">
+                <label>Soba</label>
+                <select id="room-edit-location">
+                  <option value="">Nedoločeno (dodeli ob potrditvi)</option>
+                  <option value="ALJAZ">ALJAŽ</option>
+                  <option value="JULIJA">JULIJA</option>
+                  <option value="ANA">ANA</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Število oseb</label>
+                <input type="number" id="room-edit-people" min="1" required>
+              </div>
+              <div class="form-group">
+                <label>Število otrok</label>
+                <input type="number" id="room-edit-kids" min="0">
+              </div>
+              <div class="form-group">
+                <label>Starost otrok</label>
+                <input type="text" id="room-edit-kids-ages" placeholder="npr. 8 in 6 let">
+              </div>
+              <div class="form-group">
+                <label>Ime in priimek</label>
+                <input type="text" id="room-edit-name" required>
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="room-edit-email" required>
+              </div>
+              <div class="form-group">
+                <label>Telefon</label>
+                <input type="tel" id="room-edit-phone">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Opombe gosta</label>
+              <textarea id="room-edit-note" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Admin opombe (interno)</label>
+              <textarea id="room-edit-admin-notes" rows="2"></textarea>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Datum prihoda</label>
-            <input type="date" id="room-edit-date" required>
-          </div>
-          <div class="form-group">
-            <label>Število nočitev</label>
-            <input type="number" id="room-edit-nights" min="1" required>
-          </div>
-          <div class="form-group">
-            <label>Soba</label>
-            <select id="room-edit-location">
-              <option value="">Nedoločeno (dodeli ob potrditvi)</option>
-              <option value="ALJAZ">ALJAŽ</option>
-              <option value="JULIJA">JULIJA</option>
-              <option value="ANA">ANA</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Število oseb</label>
-            <input type="number" id="room-edit-people" min="1" required>
-          </div>
-          <div class="form-group">
-            <label>Število otrok</label>
-            <input type="number" id="room-edit-kids" min="0">
-          </div>
-          <div class="form-group">
-            <label>Starost otrok</label>
-            <input type="text" id="room-edit-kids-ages" placeholder="npr. 8 in 6 let">
-          </div>
-          <div class="form-group">
-            <label>Ime in priimek</label>
-            <input type="text" id="room-edit-name" required>
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="room-edit-email" required>
-          </div>
-          <div class="form-group">
-            <label>Telefon</label>
-            <input type="tel" id="room-edit-phone">
+          <div class="modal-col modal-col-right">
+            <div class="form-group">
+              <label>
+                Komunikacija
+                <button type="button" class="msg-refresh" onclick="refreshMessages('room')">⟳ Osveži</button>
+              </label>
+              <div id="room-edit-comms" class="message-thread">Ni sporočil.</div>
+            </div>
           </div>
         </div>
-        <div class="form-group" style="margin-top: 12px;">
-          <label>Opombe gosta</label>
-          <textarea id="room-edit-note" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Admin opombe (interno)</label>
-          <textarea id="room-edit-admin-notes" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Timeline</label>
-          <div id="room-edit-timeline" class="message-thread">Ni dogodkov.</div>
-        </div>
-        <div class="form-group">
-          <label>
-            Sporočila (email)
-            <button type="button" class="msg-refresh" onclick="refreshMessages('room')">⟳ Osveži</button>
-          </label>
-          <div id="room-edit-messages" class="message-thread">Ni sporočil.</div>
-        </div>
-        <div class="modal-actions">
+        <div class="modal-actions sticky-actions">
+          <button type="button" class="btn large" onclick="openEmailModalFromCurrent('room')">✉ Odgovori</button>
           <button type="button" class="btn secondary" onclick="closeRoomEditModal()">Prekliči</button>
           <button type="submit" class="btn">💾 Shrani</button>
         </div>
@@ -641,86 +702,89 @@
       <div class="muted" id="table-edit-flags" style="margin-top:-6px; margin-bottom:10px;"></div>
       <form id="table-edit-form">
         <input type="hidden" id="table-edit-hidden-id">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Status</label>
-            <select id="table-edit-status">
-              <option value="pending">Čaka</option>
-              <option value="processing">V obdelavi</option>
-              <option value="confirmed">Potrjeno</option>
-              <option value="rejected">Zavrnjeno</option>
-            </select>
+        <div class="modal-columns">
+          <div class="modal-col">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Status</label>
+                <select id="table-edit-status">
+                  <option value="pending">Čaka</option>
+                  <option value="processing">V obdelavi</option>
+                  <option value="confirmed">Potrjeno</option>
+                  <option value="rejected">Zavrnjeno</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Datum</label>
+                <input type="date" id="table-edit-date" required>
+              </div>
+              <div class="form-group">
+                <label>Čas prihoda</label>
+                <input type="time" id="table-edit-time" required>
+              </div>
+              <div class="form-group">
+                <label>Jedilnica</label>
+                <select id="table-edit-location">
+                  <option value="Pri peči">Pri peči (kapaciteta 15 oseb)</option>
+                  <option value="Pri vrtu">Pri vrtu (kapaciteta 35 oseb)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Število oseb</label>
+                <input type="number" id="table-edit-people" min="1" required>
+              </div>
+              <div class="form-group">
+                <label>Število otrok</label>
+                <input type="number" id="table-edit-kids" min="0">
+              </div>
+              <div class="form-group">
+                <label>Starost otrok</label>
+                <input type="text" id="table-edit-kids-ages" placeholder="npr. 5 in 3 let">
+              </div>
+              <div class="form-group">
+                <label>Tip dogodka</label>
+                <select id="table-edit-event-type">
+                  <option value="">-</option>
+                  <option value="Kosilo">Kosilo</option>
+                  <option value="Večerja">Večerja</option>
+                  <option value="Praznovanje">Praznovanje</option>
+                  <option value="Poslovno">Poslovno kosilo/večerja</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Ime in priimek</label>
+                <input type="text" id="table-edit-name" required>
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="table-edit-email" required>
+              </div>
+              <div class="form-group">
+                <label>Telefon</label>
+                <input type="tel" id="table-edit-phone">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Posebne potrebe (alergije, visoki stolčki...)</label>
+              <textarea id="table-edit-special-needs" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Admin opombe (interno)</label>
+              <textarea id="table-edit-admin-notes" rows="2"></textarea>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Datum</label>
-            <input type="date" id="table-edit-date" required>
-          </div>
-          <div class="form-group">
-            <label>Čas prihoda</label>
-            <input type="time" id="table-edit-time" required>
-          </div>
-          <div class="form-group">
-            <label>Jedilnica</label>
-            <select id="table-edit-location">
-              <option value="Pri peči">Pri peči (kapaciteta 15 oseb)</option>
-              <option value="Pri vrtu">Pri vrtu (kapaciteta 35 oseb)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Število oseb</label>
-            <input type="number" id="table-edit-people" min="1" required>
-          </div>
-          <div class="form-group">
-            <label>Število otrok</label>
-            <input type="number" id="table-edit-kids" min="0">
-          </div>
-          <div class="form-group">
-            <label>Starost otrok</label>
-            <input type="text" id="table-edit-kids-ages" placeholder="npr. 5 in 3 let">
-          </div>
-          <div class="form-group">
-            <label>Tip dogodka</label>
-            <select id="table-edit-event-type">
-              <option value="">-</option>
-              <option value="Kosilo">Kosilo</option>
-              <option value="Večerja">Večerja</option>
-              <option value="Praznovanje">Praznovanje</option>
-              <option value="Poslovno">Poslovno kosilo/večerja</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Ime in priimek</label>
-            <input type="text" id="table-edit-name" required>
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="table-edit-email" required>
-          </div>
-          <div class="form-group">
-            <label>Telefon</label>
-            <input type="tel" id="table-edit-phone">
+          <div class="modal-col modal-col-right">
+            <div class="form-group">
+              <label>
+                Komunikacija
+                <button type="button" class="msg-refresh" onclick="refreshMessages('table')">⟳ Osveži</button>
+              </label>
+              <div id="table-edit-comms" class="message-thread">Ni sporočil.</div>
+            </div>
           </div>
         </div>
-        <div class="form-group" style="margin-top: 12px;">
-          <label>Posebne potrebe (alergije, visoki stolčki...)</label>
-          <textarea id="table-edit-special-needs" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Admin opombe (interno)</label>
-          <textarea id="table-edit-admin-notes" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Timeline</label>
-          <div id="table-edit-timeline" class="message-thread">Ni dogodkov.</div>
-        </div>
-        <div class="form-group">
-          <label>
-            Sporočila (email)
-            <button type="button" class="msg-refresh" onclick="refreshMessages('table')">⟳ Osveži</button>
-          </label>
-          <div id="table-edit-messages" class="message-thread">Ni sporočil.</div>
-        </div>
-        <div class="modal-actions">
+        <div class="modal-actions sticky-actions">
+          <button type="button" class="btn large" onclick="openEmailModalFromCurrent('table')">✉ Odgovori</button>
           <button type="button" class="btn secondary" onclick="closeTableEditModal()">Prekliči</button>
           <button type="submit" class="btn">💾 Shrani</button>
         </div>
@@ -938,10 +1002,8 @@
       qs('tab-room').classList.toggle('active', tab === 'room');
       qs('tab-table').classList.toggle('active', tab === 'table');
       qs('filter-type').value = tab;
-      qs('room-calendar-block').style.display = tab === 'room' ? '' : 'none';
-      qs('day-sidebar').style.display = tab === 'room' ? 'block' : 'none';
-      qs('table-calendar-block').style.display = tab === 'table' ? '' : 'none';
-      qs('table-sidebar').style.display = tab === 'table' ? 'block' : 'none';
+      qs('room-overview').style.display = tab === 'room' ? '' : 'none';
+      qs('table-overview').style.display = tab === 'table' ? '' : 'none';
       if (!silent) {
         loadAll();
       }
@@ -1003,6 +1065,34 @@
         tasks.push(renderTableCalendar());
       }
       await Promise.all(tasks);
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && active.tagName === 'SELECT') active.blur();
+      }, 0);
+      if (currentTab === 'room' && !selectedRoomDayKey) {
+        showDayDetails(todayKey(), {});
+      }
+      if (currentTab === 'table' && !selectedTableDayKey) {
+        showTableDayDetails(todayKey(), {});
+      }
+    }
+
+    function refreshSelectedDay() {
+      if (currentTab === 'room' && selectedRoomDayKey) {
+        showDayDetails(selectedRoomDayKey, {});
+      }
+      if (currentTab === 'table' && selectedTableDayKey) {
+        showTableDayDetails(selectedTableDayKey, {});
+      }
+    }
+
+    function showTodayOverview() {
+      const key = todayKey();
+      if (currentTab === 'room') {
+        showDayDetails(key, {});
+      } else {
+        showTableDayDetails(key, {});
+      }
     }
 
     const unreadBtn = qs('unreadBtn');
@@ -1071,11 +1161,12 @@
         const res = await fetch(`${API_BASE}/imap_status`);
         if (!res.ok) return;
         const data = await res.json().catch(() => ({}));
-        const el = qs('imap-indicator');
-        if (!el) return;
         const last = data.last_poll_at ? `IMAP: ${data.last_poll_at}` : 'IMAP: -';
         const err = data.last_error ? ` • napaka: ${data.last_error}` : '';
-        el.textContent = `${last}${err}`;
+        ['imap-indicator', 'imap-indicator-main'].forEach((id) => {
+          const el = qs(id);
+          if (el) el.textContent = `${last}${err}`;
+        });
       } catch (e) {
         // ignore
       }
@@ -1258,34 +1349,24 @@
       return badges;
     }
 
-    function renderTimeline(reservation, messages, targetId) {
-      const container = qs(targetId);
-      if (!container) return;
-      const events = [];
+    function buildConversationEntries(reservation, messages) {
+      const entries = [];
       if (reservation?.created_at) {
-        events.push({ ts: reservation.created_at, label: 'Rezervacija ustvarjena' });
+        entries.push({ ts: reservation.created_at, label: 'Rezervacija ustvarjena', kind: 'event' });
       }
       if (reservation?.confirmed_at) {
-        events.push({ ts: reservation.confirmed_at, label: 'Rezervacija potrjena' });
+        entries.push({ ts: reservation.confirmed_at, label: 'Rezervacija potrjena', kind: 'event' });
       }
       (messages || []).forEach(m => {
-        const direction = (m.direction || '').toLowerCase();
-        const label = direction === 'inbound'
-          ? `Odgovor gosta: ${m.subject || ''}`
-          : `Poslano gostu: ${m.subject || ''}`;
-        events.push({ ts: m.created_at || '', label });
+        entries.push({
+          ts: m.created_at || '',
+          direction: (m.direction || '').toLowerCase(),
+          subject: m.subject || '',
+          body: m.body || '',
+          kind: 'message',
+        });
       });
-      if (!events.length) {
-        container.textContent = 'Ni dogodkov.';
-        return;
-      }
-      const sorted = events.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-      container.innerHTML = sorted.map(e => `
-        <div class="msg">
-          <div class="meta">${escapeHtml(e.ts || '')}</div>
-          <div>${escapeHtml(e.label || '')}</div>
-        </div>
-      `).join('');
+      return entries.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
     }
 
     async function loadReservations() {
@@ -1521,6 +1602,116 @@
       return `${day}.${month}.${year}`;
     }
 
+    function todayKey() {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}.${month}.${year}`;
+    }
+
+    let selectedRoomDayKey = '';
+    let selectedTableDayKey = '';
+
+    function extractDinner(note) {
+      if (!note) return '';
+      const match = String(note).match(/Večerje?:\\s*([^\\n]+)/i);
+      return match ? match[1].trim() : '';
+    }
+
+    function parseDDMMYYYY(value) {
+      if (!value) return null;
+      const parts = String(value).split('.');
+      if (parts.length !== 3) return null;
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function ddmmyyyyToIso(dateStr) {
+      const d = parseDDMMYYYY(dateStr);
+      if (!d) return '';
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function dateKeyToDate(dateKey) {
+      return parseDDMMYYYY(dateKey);
+    }
+
+    function dayStatusLabel(dateKey, startDateStr, nights) {
+      const start = parseDDMMYYYY(startDateStr);
+      const day = dateKeyToDate(dateKey);
+      if (!start || !day) return '';
+      const nightsInt = parseInt(nights || 1, 10) || 1;
+      const checkout = new Date(start);
+      checkout.setDate(checkout.getDate() + nightsInt);
+      const startKey = formatDate(start);
+      const checkoutKey = formatDate(checkout);
+      const dayKey = formatDate(day);
+      if (dayKey === startKey) return 'Check-in';
+      if (dayKey === checkoutKey) return 'Check-out';
+      return 'Bivanje';
+    }
+
+    function renderSummary(targetId, r) {
+      const el = qs(targetId);
+      if (!el || !r) return;
+      const dinner = extractDinner(r.note || '');
+      const kids = r.kids ? `${r.kids}${r.kids_small ? ' (' + r.kids_small + ')' : ''}` : '-';
+      const lines = [
+        ['Status', r.status || '-'],
+        ['Datum', r.date || '-'],
+        ['Ura', r.time || '-'],
+        ['Nočitve', r.nights || '-'],
+        ['Osebe', r.people || '-'],
+        ['Otroci', kids],
+        ['Lokacija', r.location || '-'],
+        ['Večerja', dinner || '-'],
+        ['Telefon', r.phone || '-'],
+        ['Email', r.email || '-'],
+        ['Vir', r.source || '-'],
+        ['Ustvarjeno', r.created_at || '-'],
+      ];
+      const note = r.note || '';
+      const adminNotes = r.admin_notes || '';
+      const eventType = r.event_type || '';
+      const specialNeeds = r.special_needs || '';
+      const detailBlocks = [
+        eventType ? ['Dogodek', eventType] : null,
+        specialNeeds ? ['Posebne potrebe', specialNeeds] : null,
+        note ? ['Opombe gosta', note] : null,
+        adminNotes ? ['Admin opombe', adminNotes] : null,
+      ].filter(Boolean);
+      const summaryLines = lines.map(([label, value]) => `
+        <div class="line" style="justify-content:space-between; gap:8px;">
+          <span class="muted">${escapeHtml(label)}</span>
+          <strong>${escapeHtml(String(value))}</strong>
+        </div>
+      `).join('');
+      const detailLines = detailBlocks.map(([label, value]) => `
+        <div style="margin-top:8px;">
+          <div class="muted" style="font-weight:700; font-size:12px; margin-bottom:4px;">${escapeHtml(label)}</div>
+          <div>${escapeHtml(String(value))}</div>
+        </div>
+      `).join('');
+      el.innerHTML = summaryLines + detailLines;
+    }
+
+    function formatTimestamp(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return String(ts);
+      return d.toLocaleString('sl-SI', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
     function renderReservationRow(r, showDate = false) {
       const kidsInfo = r.kids ? ` (${r.kids} otrok${r.kids_small ? ': ' + r.kids_small : ''})` : '';
       const roomDisplay = r.reservation_type === 'table'
@@ -1692,6 +1883,14 @@
       qs('email-template').value = '';
       qs('email-modal').classList.add('active');
     }
+    function openEmailModalFromCurrent(type) {
+      const res = type === 'room' ? currentRoomReservation : currentTableReservation;
+      if (!res) {
+        toast('Najprej izberi rezervacijo.', 'warning');
+        return;
+      }
+      openEmailModal(encodeURIComponent(JSON.stringify(res)));
+    }
     function closeEmailModal() { qs('email-modal').classList.remove('active'); }
     const emailTpl = qs('email-template');
     if (emailTpl) {
@@ -1729,6 +1928,11 @@
           }
           toast('Email poslan ✓', 'success');
           closeEmailModal();
+          if (qs('edit-room-modal')?.classList.contains('active')) {
+            refreshMessages('room');
+          } else if (qs('edit-table-modal')?.classList.contains('active')) {
+            refreshMessages('table');
+          }
         } catch (err) {
           toast('Napaka pri pošiljanju emaila.', 'error');
         }
@@ -1772,7 +1976,8 @@
       }
       toast('Rezervacija potrjena.', 'success');
       closeConfirmModal();
-      loadAll();
+      await loadAll();
+      refreshSelectedDay();
     }
 
     qs('confirm-form').addEventListener('submit', async (e) => {
@@ -1862,15 +2067,18 @@
 
         const rooms = document.createElement('div');
         rooms.style.cssText = 'font-size: 12px; line-height: 1.4;';
-        const confirmedList = Array.from(new Set(dayData.confirmed || []));
-        const pendingList = Array.from(new Set(dayData.pending || []));
+        const normalizeRoomLabel = (name) => name === 'ND' ? 'Nedodeljeno' : name;
+        const confirmedList = Array.from(new Set(dayData.confirmed || [])).map(normalizeRoomLabel);
+        const pendingList = Array.from(new Set(dayData.pending || [])).map(normalizeRoomLabel);
         if (confirmedList.length) {
           rooms.innerHTML += `<div style="color:#2e7d32; font-weight:600;">Potrjeno: ${confirmedList.join(', ')}</div>`;
         }
         if (pendingList.length) {
           rooms.innerHTML += `<div style="color:#c27d00; font-weight:600;">Čaka: ${pendingList.join(', ')}</div>`;
           // quick actions za pending
-          const pendingActions = (dayData.reservations || []).filter(r => r.status === 'pending');
+        const pendingActions = (dayData.reservations || []).filter(
+          r => r.status === 'pending' && ddmmyyyyToIso(r.date) === dateKey
+        );
           if (pendingActions.length) {
             rooms.innerHTML += pendingActions.map(r => {
               const dataStr = encodeURIComponent(JSON.stringify(r));
@@ -2016,6 +2224,7 @@
       if (!sidebar || !dateTitle || !content) return;
       sidebar.style.display = 'block';
       dateTitle.textContent = dateKey;
+      selectedRoomDayKey = dateKey;
       try {
         const res = await fetch(`${API_BASE}/reservations?date_from=${dateKey}&date_to=${dateKey}&type=room&limit=50`);
         const data = await res.json();
@@ -2026,20 +2235,24 @@
         }
         const sorted = reservations.sort((a,b) => (a.created_at || '').localeCompare(b.created_at || ''));
         content.innerHTML = sorted.map(r => `
-          <div style="border: 1px solid #e6e2da; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <div class="day-item" style="border: 1px solid #e6e2da; border-radius: 8px;">
             <div style="font-weight: 600;">${r.name || 'Gost'}</div>
             <div style="color: #7a7a7a; font-size: 13px;">
               ${r.people || '-'} oseb ${r.kids ? '(' + r.kids + ' otrok)' : ''}<br>
               ${r.location || 'Soba ni dodeljena'}<br>
+              ${dayStatusLabel(dateKey, r.date, r.nights) ? dayStatusLabel(dateKey, r.date, r.nights) + '<br>' : ''}
               <span class="badge status-${r.status}">${r.status}</span><br>
               ${[r.email, r.phone].filter(Boolean).join(' | ')}
             </div>
-            ${r.status === 'pending' ? `
-              <div style="margin-top: 8px;">
+            ${r.note ? `<div style="color:#7a7a7a;font-size:12px;margin-top:6px;"><strong>Opombe gosta:</strong> ${escapeHtml(r.note)}</div>` : ''}
+            ${r.admin_notes ? `<div style="color:#7a7a7a;font-size:12px;margin-top:4px;"><strong>Admin:</strong> ${escapeHtml(r.admin_notes)}</div>` : ''}
+            <div style="margin-top: 8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn-inline" onclick="openEdit('${encodeURIComponent(JSON.stringify(r))}')">✏️ Uredi</button>
+              ${r.status === 'pending' ? `
                 <button class="btn-inline success" onclick="openConfirm('${encodeURIComponent(JSON.stringify(r))}')">✅ Potrdi</button>
                 <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌ Zavrni</button>
-              </div>
-            ` : ''}
+              ` : ''}
+            </div>
           </div>
         `).join('');
       } catch (e) {
@@ -2054,6 +2267,7 @@
       if (!sidebar || !dateTitle || !content) return;
       sidebar.style.display = 'block';
       dateTitle.textContent = dateKey;
+      selectedTableDayKey = dateKey;
       const reservations = dayData.reservations || [];
       if (!reservations.length) {
         content.innerHTML = '<p style="color:#7a7a7a;">Ni rezervacij za ta dan.</p>';
@@ -2062,10 +2276,20 @@
       content.innerHTML = reservations
         .sort((a,b) => (a.time || '').localeCompare(b.time || ''))
         .map(r => `
-          <div style="border: 1px solid #e6e2da; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+          <div class="day-item" style="border: 1px solid #e6e2da; border-radius: 8px;">
             <div style="font-weight: 600;">${r.name || 'Gost'} (${r.people || 0} oseb)</div>
             <div style="color:#7a7a7a;font-size:13px;">${r.time || '-'} | ${r.location || ''} | ${r.status || ''}</div>
             <div style="color:#7a7a7a;font-size:13px;">${[r.email, r.phone].filter(Boolean).join(' | ')}</div>
+            ${r.note ? `<div style="color:#7a7a7a;font-size:12px;margin-top:6px;"><strong>Opombe gosta:</strong> ${escapeHtml(r.note)}</div>` : ''}
+            ${r.special_needs ? `<div style="color:#7a7a7a;font-size:12px;margin-top:4px;"><strong>Posebne potrebe:</strong> ${escapeHtml(r.special_needs)}</div>` : ''}
+            ${r.admin_notes ? `<div style="color:#7a7a7a;font-size:12px;margin-top:4px;"><strong>Admin:</strong> ${escapeHtml(r.admin_notes)}</div>` : ''}
+            <div style="margin-top: 8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn-inline" onclick="openEdit('${encodeURIComponent(JSON.stringify(r))}')">✏️ Uredi</button>
+              ${r.status === 'pending' ? `
+                <button class="btn-inline success" onclick="openConfirm('${encodeURIComponent(JSON.stringify(r))}')">✅ Potrdi</button>
+                <button class="btn-inline danger" onclick="rejectReservation(${r.id})">❌ Zavrni</button>
+              ` : ''}
+            </div>
           </div>
         `).join('');
     }
@@ -2083,6 +2307,10 @@
 
     function openEdit(dataStr) {
       const r = JSON.parse(decodeURIComponent(dataStr));
+      if (!r.id) {
+        toast('Rezervacije ni mogoče odpreti (manjka ID).', 'warning');
+        return;
+      }
       if (r.reservation_type === 'table') {
         openTableEditModal(r);
       } else {
@@ -2133,20 +2361,30 @@
         }
         const inbound = messages.filter(m => (m.direction || '').toLowerCase() === 'inbound');
         const lastInbound = inbound.length ? inbound[inbound.length - 1].created_at : null;
-        container.innerHTML = messages.map(m => `
+        const reservation = targetId === 'room-edit-comms' ? currentRoomReservation : currentTableReservation;
+        const entries = buildConversationEntries(reservation, messages);
+        if (!entries.length) {
+          container.textContent = 'Ni sporočil.';
+          return;
+        }
+        container.innerHTML = entries.map(e => {
+          const isEvent = e.kind === 'event';
+          const when = formatTimestamp(e.ts || '');
+          const label = isEvent
+            ? 'Sistem'
+            : (e.direction === 'inbound' ? 'Gost' : (e.direction === 'outbound' ? 'Moj odgovor' : 'Sistem'));
+          const title = isEvent ? (e.label || '') : (e.subject || '');
+          const body = isEvent ? '' : (e.body || '');
+          return `
           <div class="msg">
             <div class="meta">
-              ${escapeHtml(m.direction || '')} • ${escapeHtml(m.created_at || '')}
+              ${escapeHtml(label)}${when ? ' • ' + escapeHtml(when) : ''}
             </div>
-            <div><strong>${escapeHtml(m.subject || '')}</strong></div>
-            <div>${escapeHtml(m.body || '')}</div>
+            <div><strong>${escapeHtml(title)}</strong></div>
+            ${body ? `<div>${escapeHtml(body)}</div>` : ''}
           </div>
-        `).join('');
-        if (targetId === 'room-edit-messages') {
-          renderTimeline(currentRoomReservation, messages, 'room-edit-timeline');
-        } else if (targetId === 'table-edit-messages') {
-          renderTimeline(currentTableReservation, messages, 'table-edit-timeline');
-        }
+        `;
+        }).join('');
         if (markAsSeen && lastInbound) {
           markSeen(resId, lastInbound);
         }
@@ -2160,7 +2398,7 @@
 
     function refreshMessages(type) {
       const id = type === 'room' ? qs('room-edit-hidden-id').value : qs('table-edit-hidden-id').value;
-      const target = type === 'room' ? 'room-edit-messages' : 'table-edit-messages';
+      const target = type === 'room' ? 'room-edit-comms' : 'table-edit-comms';
       if (!id) return;
       loadReservationMessages(id, target, false);
     }
@@ -2218,9 +2456,12 @@
       qs('room-edit-note').value = r.note || '';
       qs('room-edit-admin-notes').value = r.admin_notes || '';
       qs('room-edit-flags').innerHTML = renderGuestBadges(r) || '';
-      renderTimeline(r, [], 'room-edit-timeline');
-      loadReservationMessages(r.id, 'room-edit-messages', true);
+      loadReservationMessages(r.id, 'room-edit-comms', true);
       qs('edit-room-modal').classList.add('active');
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && active.tagName === 'SELECT') active.blur();
+      }, 0);
     }
     function closeRoomEditModal() { qs('edit-room-modal').classList.remove('active'); }
 
@@ -2231,7 +2472,7 @@
       qs('table-edit-status').value = r.status || 'pending';
       qs('table-edit-date').value = parseDate(r.date);
       qs('table-edit-time').value = r.time || '12:00';
-      qs('table-edit-location').value = r.location || 'Pri peči';
+      qs('table-edit-location').value = normalizeTable(r.location);
       qs('table-edit-people').value = r.people || 1;
       qs('table-edit-kids').value = r.kids || 0;
       qs('table-edit-kids-ages').value = r.kids_small || '';
@@ -2242,9 +2483,12 @@
       qs('table-edit-special-needs').value = r.special_needs || '';
       qs('table-edit-admin-notes').value = r.admin_notes || '';
       qs('table-edit-flags').innerHTML = renderGuestBadges(r) || '';
-      renderTimeline(r, [], 'table-edit-timeline');
-      loadReservationMessages(r.id, 'table-edit-messages', true);
+      loadReservationMessages(r.id, 'table-edit-comms', true);
       qs('edit-table-modal').classList.add('active');
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && active.tagName === 'SELECT') active.blur();
+      }, 0);
     }
     function closeTableEditModal() { qs('edit-table-modal').classList.remove('active'); }
 
@@ -2271,6 +2515,13 @@
       if (upper.includes('JULIJA')) return 'JULIJA';
       if (upper.includes('ANA')) return 'ANA';
       return '';
+    }
+    function normalizeTable(location) {
+      if (!location) return 'Pri peči';
+      const lower = String(location).toLowerCase();
+      if (lower.includes('peč')) return 'Pri peči';
+      if (lower.includes('vrt')) return 'Pri vrtu';
+      return 'Pri peči';
     }
 
     qs('room-edit-form').addEventListener('submit', async (e) => {

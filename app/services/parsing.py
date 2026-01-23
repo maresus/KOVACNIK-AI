@@ -67,12 +67,15 @@ def parse_people_count(message: str) -> dict[str, Optional[str | int]]:
         result["total"] = (result["adults"] or 0) + (result["kids"] or 0)
         return result
 
-    total_match = re.search(r"(\d+)\s*(oseb|osbe)", message, re.IGNORECASE)
+    cleaned = re.sub(r"\d{1,2}\.\d{1,2}\.\d{2,4}", " ", message)
+    cleaned = re.sub(r"\d{1,2}:\d{2}", " ", cleaned)
+
+    total_match = re.search(r"(\d+)\s*(oseb|osbe)", cleaned, re.IGNORECASE)
     if total_match:
         result["total"] = int(total_match.group(1))
         return result
 
-    digits = re.findall(r"\d+", message)
+    digits = re.findall(r"\d+", cleaned)
     if len(digits) == 1:
         result["total"] = int(digits[0])
     elif len(digits) == 2:
@@ -202,6 +205,19 @@ def extract_date(text: str) -> Optional[str]:
     if match:
         day, month, year = match.groups()
         return f"{int(day):02d}.{int(month):02d}.{int(year):04d}"
+
+    short_match = re.search(r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})(?!\s*[./-]\s*\d{2,4})\b", text)
+    if short_match:
+        day, month = short_match.groups()
+        try:
+            candidate = datetime(today.year, int(month), int(day))
+        except ValueError:
+            candidate = None
+        if candidate is None:
+            return None
+        if candidate.date() < today.date():
+            candidate = datetime(today.year + 1, int(month), int(day))
+        return candidate.strftime("%d.%m.%Y")
 
     if "danes" in lowered:
         return today.strftime("%d.%m.%Y")

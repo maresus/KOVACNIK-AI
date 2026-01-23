@@ -282,6 +282,10 @@ def _llm_answer_full_kb(message: str, language: str = "si") -> str:
                 if text:
                     outputs.append(text)
         answer = "\n".join(outputs).strip()
+    if not answer:
+        return "Seveda, z veseljem pomagam. Kaj vas zanima?"
+    # Strip accidental tool-call artifacts.
+    answer = re.sub(r"(?mi)^\s*`?reservation_intent`?\s*$", "", answer).strip()
     return answer or "Seveda, z veseljem pomagam. Kaj vas zanima?"
 
 
@@ -346,16 +350,9 @@ def get_mini_rag_answer(question: str) -> Optional[str]:
     return f"{snippet}{url_line}"
 
 UNKNOWN_RESPONSES = [
-    "Tega odgovora nimam pri roki. Pišite na info@kovacnik.com in vam pomagamo.",
-    "Nisem prepričana o tem podatku. Prosím, napišite na info@kovacnik.com in bomo preverili.",
-    "Trenutno nimam točne informacije. Pošljite nam email na info@kovacnik.com.",
-    "Žal nimam odgovora. Najbolje, da nam pišete na info@kovacnik.com.",
-    "Tole moram preveriti. Pišite na info@kovacnik.com in vam odgovorimo.",
-    "Nimam tega zapisanega. Lahko prosim pošljete vprašanje na info@kovacnik.com?",
-    "Za to nimam podatka. Kontaktirajte nas na info@kovacnik.com in bomo pogledali.",
-    "Hvala za vprašanje, nimam pa odgovora pri roki. Pišite na info@kovacnik.com.",
-    "To vprašanje je specifično, prosim napišite na info@kovacnik.com in skupaj najdemo odgovor.",
-    "Tu mi manjka podatek. Email: info@kovacnik.com — z veseljem preverimo.",
+    "Za to nimam podatka.",
+    "Tega žal ne vem.",
+    "Nimam informacije o tem.",
 ]
 
 SEMANTIC_THRESHOLD = 0.75
@@ -471,9 +468,9 @@ THANKS_RESPONSES = [
     "Hvala vam! Se vidimo pri nas! 😊",
 ]
 UNKNOWN_RESPONSES = [
-    "Ojoj, tega žal ne vem točno. 🤔 Lahko pa povprašam in vam sporočim - mi zaupate vaš email?",
-    "Hmm, tega nimam v svojih zapiskih. Če mi pustite email, vam z veseljem poizvem in odgovorim.",
-    "Na to vprašanje žal nimam odgovora pri roki. Lahko vam poizvem - mi zaupate vaš elektronski naslov?",
+    "Tega žal ne vem.",
+    "Za to nimam podatka.",
+    "Nimam informacije o tem.",
 ]
 
 reservation_service = ReservationService()
@@ -1540,6 +1537,13 @@ def is_affirmative(message: str) -> bool:
         "potrjujem",
         "potrdim",
         "potrdi",
+        "zelim",
+        "želim",
+        "zelimo",
+        "želimo",
+        "rad bi",
+        "rada bi",
+        "bi",
         "yes",
         "oui",
         "ok",
@@ -1556,11 +1560,77 @@ def is_negative(message: str) -> bool:
     return lowered in {"ne", "no", "ne hvala", "no thanks"}
 
 
+def is_confirmation_question(text: str) -> bool:
+    lowered = text.lower()
+    return any(
+        token in lowered
+        for token in [
+            "želite",
+            "zelite",
+            "potrdite",
+            "potrdim",
+            "potrdi",
+            "potrditi",
+            "confirm",
+            "would you like",
+            "can i",
+        ]
+    )
+
+
+def llm_is_affirmative(message: str, last_bot: str, detected_lang: str) -> bool:
+    try:
+        prompt = (
+            "Answer with YES or NO only.\n"
+            f"Assistant: {last_bot}\n"
+            f"User: {message}\n"
+        )
+        if detected_lang == "en":
+            prompt += "\nThe user is writing in English."
+        elif detected_lang == "de":
+            prompt += "\nThe user is writing in German."
+        verdict = generate_llm_answer(prompt, history=[]).strip().lower()
+        return verdict.startswith("yes") or verdict.startswith("da")
+    except Exception:
+        return False
+
+
 def get_last_assistant_message() -> str:
     for msg in reversed(conversation_history):
         if msg.get("role") == "assistant":
             return msg.get("content", "")
     return ""
+
+def get_last_user_message() -> str:
+    for msg in reversed(conversation_history):
+        if msg.get("role") == "user":
+            return msg.get("content", "")
+    return ""
+
+
+def get_last_reservation_user_message() -> str:
+    for msg in reversed(conversation_history):
+        if msg.get("role") != "user":
+            continue
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        if (
+            is_reservation_related(content)
+            or extract_date(content)
+            or extract_date_range(content)
+            or parse_people_count(content).get("total")
+        ):
+            return content
+    return ""
+
+
+def set_reservation_type_from_text(state: dict, text: str) -> None:
+    lowered = text.lower()
+    if any(token in lowered for token in ["mizo", "miza", "table"]):
+        state["type"] = "table"
+    elif any(token in lowered for token in ["sobo", "soba", "preno", "room", "zimmer"]):
+        state["type"] = "room"
 
 
 def last_bot_mentions_reservation(last_bot: str) -> bool:
@@ -2140,7 +2210,13 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "availability_declined", followup_flag=False)
 
-    if state.get("step") is None and is_affirmative(payload.message):
+    last_bot_for_affirm = get_last_assistant_message()
+    llm_affirm = (
+        last_bot_mentions_reservation(last_bot_for_affirm)
+        and is_confirmation_question(last_bot_for_affirm)
+        and llm_is_affirmative(payload.message, last_bot_for_affirm, detected_lang)
+    )
+    if state.get("step") is None and (is_affirmative(payload.message) or llm_affirm):
         availability_state = get_availability_state(state)
         if availability_state.get("active") and availability_state.get("can_reserve"):
             reply = start_reservation_from_availability(
@@ -2153,15 +2229,14 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             if reply:
                 reply = maybe_translate(reply, detected_lang)
                 return finalize(reply, "availability_to_reservation", followup_flag=False)
-        last_bot = get_last_assistant_message().lower()
-        if last_bot_mentions_reservation(last_bot):
-            if any(token in last_bot for token in ["mizo", "miza", "table"]):
-                state["type"] = "table"
-            elif any(token in last_bot for token in ["sobo", "soba", "preno", "room", "zimmer"]):
-                state["type"] = "room"
-            else:
-                state["type"] = None
-            reply = handle_reservation_flow(payload.message, state)
+        last_bot = last_bot_for_affirm.lower()
+        last_user = get_last_reservation_user_message()
+        if last_user or last_bot_mentions_reservation(last_bot):
+            if last_bot:
+                set_reservation_type_from_text(state, last_bot)
+            if last_user:
+                set_reservation_type_from_text(state, last_user)
+            reply = handle_reservation_flow(last_user or payload.message, state)
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "reservation_confirmed", followup_flag=False)
 
@@ -2772,6 +2847,7 @@ def chat_stream(payload: ChatRequestWithSession):
     state = get_reservation_state(session_id)
     inquiry_state = get_inquiry_state(session_id)
     availability_state = get_availability_state(state)
+    detected_lang = detect_language(payload.message)
     try:
         info_key = detect_info_intent(payload.message)
         product_key = detect_product_intent(payload.message)
@@ -2809,6 +2885,20 @@ def chat_stream(payload: ChatRequestWithSession):
         conversation_history.append({"role": "assistant", "content": final_reply})
         if len(conversation_history) > 12:
             conversation_history[:] = conversation_history[-12:]
+
+    # Če uporabnik potrdi po rezervacijskem odgovoru, preusmeri v chat_endpoint
+    if is_affirmative(payload.message) or (
+        last_bot_mentions_reservation(get_last_assistant_message())
+        and is_confirmation_question(get_last_assistant_message())
+        and llm_is_affirmative(payload.message, get_last_assistant_message(), detected_lang)
+    ):
+        last_bot = get_last_assistant_message()
+        if last_bot_mentions_reservation(last_bot) or get_last_reservation_user_message():
+            response = chat_endpoint(payload)
+            return StreamingResponse(
+                _stream_text_chunks(response.reply),
+                media_type="text/plain",
+            )
 
     # Če je aktivna availability ali rezervacija, uporabimo obstoječo pot (brez pravega streama)
     if availability_state.get("active") or state.get("step") is not None or detect_intent(payload.message, state) == "reservation":
