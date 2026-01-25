@@ -100,6 +100,7 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 HYBRID_BM25_WEIGHT = 0.65
 HYBRID_VECTOR_WEIGHT = 0.35
 HYBRID_BM25_CANDIDATES = 20
+RERANK_TOP_K = 6
 
 BM25_DOC_TF: list[Dict[str, int]] = []
 BM25_DOC_LEN: list[int] = []
@@ -180,6 +181,52 @@ def _get_embedding(text: str) -> Optional[list[float]]:
         return vector
     except Exception:
         return None
+
+
+def _rerank_with_llm(query: str, chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
+    if not chunks:
+        return chunks
+    try:
+        client = get_llm_client()
+    except Exception:
+        return chunks
+
+    items = []
+    for idx, chunk in enumerate(chunks):
+        snippet = chunk.paragraph.strip()
+        if len(snippet) > 350:
+            snippet = snippet[:350].rsplit(" ", 1)[0]
+        title = chunk.title.strip() if chunk.title else ""
+        items.append(f"{idx}. {title}\n{snippet}")
+
+    prompt = (
+        "Return a JSON array of objects with fields index (int) and score (0-10). "
+        "Score each item by relevance to the question. Use all items.\n\n"
+        f"Question: {query}\n\n"
+        "Items:\n" + "\n\n".join(items)
+    )
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt,
+        max_output_tokens=200,
+        temperature=0,
+    )
+    text = getattr(response, "output_text", "") or ""
+    try:
+        data = json.loads(text)
+        scores = {}
+        for item in data:
+            idx = int(item.get("index"))
+            score = float(item.get("score"))
+            scores[idx] = score
+        ranked = sorted(
+            [(scores.get(i, 0.0), chunk) for i, chunk in enumerate(chunks)],
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
+        return [chunk for _, chunk in ranked]
+    except Exception:
+        return chunks
 
 
 def _score_chunk(tokens: Set[str], chunk: KnowledgeChunk) -> float:
@@ -306,7 +353,9 @@ def search_knowledge_hybrid(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
         )
         hybrid_scored.append((hybrid_score, chunk))
     hybrid_scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [chunk for _, chunk in hybrid_scored[:top_k]]
+    ranked = [chunk for _, chunk in hybrid_scored[: max(top_k, RERANK_TOP_K)]]
+    reranked = _rerank_with_llm(query, ranked[:RERANK_TOP_K])
+    return reranked[:top_k]
 
 
 _build_bm25_index(KNOWLEDGE_CHUNKS)
