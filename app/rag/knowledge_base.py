@@ -404,6 +404,19 @@ def _trim_content(content: str, focus_terms: list[str]) -> str:
     return snippet
 
 
+def _needs_vegetarian_menu_fallback(question: str, paragraphs: list[KnowledgeChunk]) -> bool:
+    lowered = question.lower()
+    if "vegetar" not in lowered:
+        return False
+    if not any(token in lowered for token in ["meni", "jedilnik", "predstav", "ponudba"]):
+        return False
+    for chunk in paragraphs:
+        text = f"{chunk.title} {chunk.paragraph}".lower()
+        if ("meni" in text or "jedilnik" in text) and "vegetar" in text:
+            return False
+    return True
+
+
 def _build_context_snippet(question: str, paragraphs: List[KnowledgeChunk]) -> str:
     focus_terms = _collect_focus_terms(question)
     parts: list[str] = []
@@ -621,6 +634,12 @@ def generate_llm_answer(question: str, top_k: int = 6, history: list[dict[str, s
         paragraphs = _filter_chunks_by_category(question, paragraphs)
     except Exception:
         paragraphs = []
+
+    if _needs_vegetarian_menu_fallback(question, paragraphs):
+        return (
+            "Trenutno nimam konkretnega vegetarijanskega menija. "
+            "Lahko pa uredimo vegetarijanski obrok po predhodnem dogovoru."
+        )
 
     if not paragraphs:
         context_text = (
