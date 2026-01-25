@@ -1560,6 +1560,16 @@ def is_negative(message: str) -> bool:
     return lowered in {"ne", "no", "ne hvala", "no thanks"}
 
 
+def is_contact_request(message: str) -> bool:
+    lowered = message.lower()
+    return any(token in lowered for token in ["kontakt", "telefon", "email", "e-po", "klic", "pokli", "številk"])
+
+
+def has_wine_context(text: str) -> bool:
+    lowered = text.lower()
+    return any(token in lowered for token in ["vinska klet", "vinograd", "klet", "degustacij", "vino", "vinar"])
+
+
 def is_confirmation_question(text: str) -> bool:
     lowered = text.lower()
     return any(
@@ -2601,6 +2611,14 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         return finalize(reply, "reservation")
 
     intent = detect_intent(payload.message, state)
+
+    if is_contact_request(payload.message) and last_info_query and has_wine_context(last_info_query):
+        reply = (
+            "Za vinske kleti nimam konkretnih kontaktov v bazi. "
+            "Če želite, lahko priporočim nekaj kleti v okolici."
+        )
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "wine_contact_fallback", followup_flag=False)
 
     if intent == "goodbye":
         reply = get_goodbye_response()
