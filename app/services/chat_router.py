@@ -356,6 +356,7 @@ UNKNOWN_RESPONSES = [
 ]
 
 SEMANTIC_THRESHOLD = 0.75
+GLOBAL_CONFIDENCE_THRESHOLD = 0.2
 SEMANTIC_STOPWORDS = {
     "a", "ali", "al", "pa", "in", "na", "za", "se", "so", "je", "smo", "ste",
     "sem", "biti", "bo", "bi", "da", "ne", "ni", "niso", "si", "mi", "ti",
@@ -370,6 +371,10 @@ SEMANTIC_STOPWORDS = {
 def _tokenize_text(text: str) -> set[str]:
     tokens = re.findall(r"[A-Za-zČŠŽčšžĐđĆć0-9]+", text.lower())
     return {t for t in tokens if len(t) >= 3 and t not in SEMANTIC_STOPWORDS}
+
+
+def get_low_confidence_reply() -> str:
+    return "Nisem povsem prepričan, kaj točno iščete. Prosim, povejte bolj konkretno (npr. sobe, kosila, izdelki, lokacija)."
 
 
 def _semantic_overlap_ok(question: str, chunk: Any) -> bool:
@@ -2788,7 +2793,12 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
             lang_hint = "\n\n[IMPORTANT: The user is writing in German. Respond in German/Deutsch.]"
             effective_query = effective_query + lang_hint
 
-        reply = generate_llm_answer(effective_query, history=conversation_history)
+        scored = search_knowledge_scored(effective_query, top_k=1)
+        top_score = scored[0][0] if scored else 0.0
+        if top_score < GLOBAL_CONFIDENCE_THRESHOLD and not is_greeting(payload.message):
+            reply = get_low_confidence_reply()
+        else:
+            reply = generate_llm_answer(effective_query, history=conversation_history)
         last_info_query = effective_query
     except Exception:
         reply = (
