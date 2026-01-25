@@ -2191,6 +2191,22 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
         reply = maybe_translate(reply, detected_lang)
         return finalize(reply, "switch_topic", followup_flag=False)
 
+    if state.get("awaiting_continue"):
+        if is_negative(payload.message):
+            reset_reservation_state(state)
+            state["awaiting_continue"] = False
+            reply = "V redu. Kako vam lahko pomagam?"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_interrupted", followup_flag=False)
+        if is_affirmative(payload.message):
+            state["awaiting_continue"] = False
+            continuation = get_booking_continuation(state.get("step"), state)
+            reply = f"Nadaljujmo z rezervacijo:\n{continuation}"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_continue", followup_flag=False)
+        # če ni jasnega da/ne, spusti skozi in očisti flag
+        state["awaiting_continue"] = False
+
     availability_followup = handle_availability_followup(
         payload.message,
         state,
@@ -2547,7 +2563,12 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
                 llm_reply = _llm_answer(payload.message, conversation_history)
             if llm_reply:
                 continuation = get_booking_continuation(state.get("step"), state)
-                llm_reply = f"{llm_reply}\n\n---\n\n📝 **Nadaljujemo z rezervacijo:**\n{continuation}"
+                llm_reply = (
+                    f"{llm_reply}\n\n---\n\n"
+                    f"Želiš nadaljevati rezervacijo? (da/ne)\n"
+                    f"📝 Trenutno čakamo:\n{continuation}"
+                )
+                state["awaiting_continue"] = True
                 llm_reply = maybe_translate(llm_reply, detected_lang)
                 return finalize(llm_reply, "info_during_reservation", followup_flag=False)
         if is_product_query(payload.message):
@@ -2557,7 +2578,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             last_info_query = None
             last_menu_query = False
             reply = maybe_translate(reply, detected_lang)
-            reply = f"{reply}\n\nČe želiš nadaljevati rezervacijo, napiši 'nadaljuj'."
+            reply = f"{reply}\n\nŽeliš nadaljevati rezervacijo? (da/ne)"
+            state["awaiting_continue"] = True
             return finalize(reply, "product_during_reservation", followup_flag=False)
         if is_info_query(payload.message):
             reply = answer_farm_info(payload.message)
@@ -2566,7 +2588,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             last_info_query = payload.message
             last_menu_query = False
             reply = maybe_translate(reply, detected_lang)
-            reply = f"{reply}\n\nČe želiš nadaljevati rezervacijo, napiši 'nadaljuj'."
+            reply = f"{reply}\n\nŽeliš nadaljevati rezervacijo? (da/ne)"
+            state["awaiting_continue"] = True
             return finalize(reply, "info_during_reservation", followup_flag=False)
 
         reply = handle_reservation_flow(payload.message, state)
