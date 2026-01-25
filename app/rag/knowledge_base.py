@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
+from typing import Dict
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 from app.core.llm_client import get_llm_client
 
@@ -87,6 +89,99 @@ def _tokenize(text: str) -> Set[str]:
     return {token for token in cleaned.split() if len(token) >= 3}
 
 
+def _bm25_tokenize(text: str) -> list[str]:
+    tokens = re.findall(r"[A-Za-zČŠŽčšžĐđĆć0-9]+", text.lower())
+    return [t for t in tokens if len(t) >= 3]
+
+
+BM25_K1 = 1.6
+BM25_B = 0.75
+EMBEDDING_MODEL = "text-embedding-3-small"
+HYBRID_BM25_WEIGHT = 0.65
+HYBRID_VECTOR_WEIGHT = 0.35
+HYBRID_BM25_CANDIDATES = 20
+
+BM25_DOC_TF: list[Dict[str, int]] = []
+BM25_DOC_LEN: list[int] = []
+BM25_IDF: Dict[str, float] = {}
+BM25_AVGDL = 0.0
+EMBEDDING_CACHE: Dict[str, list[float]] = {}
+
+
+def _build_bm25_index(chunks: list[KnowledgeChunk]) -> None:
+    global BM25_DOC_TF, BM25_DOC_LEN, BM25_IDF, BM25_AVGDL
+    doc_tfs: list[Dict[str, int]] = []
+    doc_lens: list[int] = []
+    df: Dict[str, int] = {}
+    for chunk in chunks:
+        tokens = _bm25_tokenize(f"{chunk.title} {chunk.paragraph}")
+        tf: Dict[str, int] = {}
+        for token in tokens:
+            tf[token] = tf.get(token, 0) + 1
+        doc_tfs.append(tf)
+        doc_lens.append(len(tokens))
+        for token in tf.keys():
+            df[token] = df.get(token, 0) + 1
+    BM25_DOC_TF = doc_tfs
+    BM25_DOC_LEN = doc_lens
+    BM25_AVGDL = (sum(doc_lens) / len(doc_lens)) if doc_lens else 0.0
+    BM25_IDF = {}
+    n_docs = len(doc_lens)
+    for token, freq in df.items():
+        BM25_IDF[token] = math.log(1.0 + (n_docs - freq + 0.5) / (freq + 0.5))
+
+
+def _bm25_score(query_tokens: list[str], doc_index: int) -> float:
+    if not query_tokens or not BM25_DOC_TF:
+        return 0.0
+    tf = BM25_DOC_TF[doc_index]
+    doc_len = BM25_DOC_LEN[doc_index] if doc_index < len(BM25_DOC_LEN) else 0
+    score = 0.0
+    for token in query_tokens:
+        if token not in tf:
+            continue
+        idf = BM25_IDF.get(token, 0.0)
+        freq = tf[token]
+        denom = freq + BM25_K1 * (1.0 - BM25_B + BM25_B * (doc_len / (BM25_AVGDL or 1.0)))
+        score += idf * (freq * (BM25_K1 + 1.0)) / (denom or 1.0)
+    return score
+
+
+def _normalize_scores(scores: list[float]) -> list[float]:
+    if not scores:
+        return []
+    min_val = min(scores)
+    max_val = max(scores)
+    if max_val - min_val <= 1e-6:
+        return [0.0 for _ in scores]
+    return [(s - min_val) / (max_val - min_val) for s in scores]
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a <= 1e-9 or norm_b <= 1e-9:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def _get_embedding(text: str) -> Optional[list[float]]:
+    cached = EMBEDDING_CACHE.get(text)
+    if cached:
+        return cached
+    try:
+        client = get_llm_client()
+        response = client.embeddings.create(model=EMBEDDING_MODEL, input=text)
+        vector = response.data[0].embedding
+        EMBEDDING_CACHE[text] = vector
+        return vector
+    except Exception:
+        return None
+
+
 def _score_chunk(tokens: Set[str], chunk: KnowledgeChunk) -> float:
     paragraph_tokens = _tokenize(chunk.paragraph)
     if not paragraph_tokens:
@@ -164,16 +259,57 @@ def search_knowledge_scored(query: str, top_k: int = 3) -> list[tuple[float, Kno
 
 
 def search_knowledge(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
-    tokens = _tokenize(query)
+    return search_knowledge_hybrid(query, top_k=top_k)
+
+
+def search_knowledge_hybrid(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
+    base_tokens = _tokenize(query)
+    tokens = _expand_query_tokens(query, base_tokens)
     if not tokens:
         return []
-    scored: list[tuple[float, KnowledgeChunk]] = []
-    for chunk in KNOWLEDGE_CHUNKS:
-        score = _score_chunk(tokens, chunk)
+    bm25_tokens = _bm25_tokenize(" ".join(tokens))
+    if not bm25_tokens:
+        return []
+
+    bm25_scored: list[tuple[float, int]] = []
+    for idx in range(len(KNOWLEDGE_CHUNKS)):
+        score = _bm25_score(bm25_tokens, idx)
         if score > 0:
-            scored.append((score, chunk))
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [chunk for _, chunk in scored[:top_k]]
+            bm25_scored.append((score, idx))
+    bm25_scored.sort(key=lambda item: item[0], reverse=True)
+    if not bm25_scored:
+        return []
+
+    candidates = bm25_scored[: max(HYBRID_BM25_CANDIDATES, top_k)]
+    candidate_chunks = [KNOWLEDGE_CHUNKS[idx] for _, idx in candidates]
+
+    query_embedding = _get_embedding(query)
+    if not query_embedding:
+        return [chunk for _, chunk in candidates[:top_k]]
+
+    vector_scores: list[float] = []
+    for chunk in candidate_chunks:
+        embedding = _get_embedding(chunk.paragraph)
+        if not embedding:
+            vector_scores.append(0.0)
+            continue
+        vector_scores.append(_cosine_similarity(query_embedding, embedding))
+
+    bm25_scores = [score for score, _ in candidates]
+    bm25_norm = _normalize_scores(bm25_scores)
+    vector_norm = _normalize_scores(vector_scores)
+
+    hybrid_scored: list[tuple[float, KnowledgeChunk]] = []
+    for i, chunk in enumerate(candidate_chunks):
+        hybrid_score = (
+            HYBRID_BM25_WEIGHT * bm25_norm[i] + HYBRID_VECTOR_WEIGHT * vector_norm[i]
+        )
+        hybrid_scored.append((hybrid_score, chunk))
+    hybrid_scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [chunk for _, chunk in hybrid_scored[:top_k]]
+
+
+_build_bm25_index(KNOWLEDGE_CHUNKS)
 
 
 KEYWORD_RULES = {
