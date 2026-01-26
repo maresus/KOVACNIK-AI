@@ -42,6 +42,7 @@ ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "info@kovacnik.com")
 SMTP_SSL = os.getenv("SMTP_SSL", "").strip().lower() in {"1", "true", "yes"}
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+SUBJECT_PREFIX = os.getenv("SUBJECT_PREFIX", "").strip()
 
 # Brand barve (enake kot WordPress)
 BRAND_COLOR = "#7b5e3b"
@@ -116,10 +117,14 @@ def _kv_table(rows: Dict[str, str]) -> str:
 
 def _guest_room_confirmation_html(data: Dict[str, Any]) -> str:
     """Email gostu - potrditev rezervacije SOBE."""
+    rid = data.get("id")
+    rid_line = f"<p><strong>ID rezervacije:</strong> #{rid}</p>" if rid else ""
     content = f"""
     <p>Pozdravljeni <strong>{data.get('name', 'gost')}</strong>,</p>
     
     <p>Hvala za vaše povpraševanje. Posredujemo vam povzetek:</p>
+
+    {rid_line}
     
     {_kv_table({
         'Datum prihoda': data.get('date', ''),
@@ -159,10 +164,14 @@ def _guest_room_confirmation_html(data: Dict[str, Any]) -> str:
 
 def _guest_table_confirmation_html(data: Dict[str, Any]) -> str:
     """Email gostu - potrditev rezervacije MIZE."""
+    rid = data.get("id")
+    rid_line = f"<p><strong>ID rezervacije:</strong> #{rid}</p>" if rid else ""
     content = f"""
     <p>Pozdravljeni <strong>{data.get('name', 'gost')}</strong>,</p>
     
     <p>Hvala za vaše povpraševanje. Posredujemo vam povzetek:</p>
+
+    {rid_line}
     
     {_kv_table({
         'Datum': data.get('date', ''),
@@ -313,12 +322,20 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
     POMEMBNO: Ta funkcija trenutno NI AKTIVNA.
     Za aktivacijo nastavi SMTP credentials v .env
     """
+    if SUBJECT_PREFIX:
+        prefix = SUBJECT_PREFIX
+        if not subject:
+            subject = prefix
+        elif not subject.startswith(prefix):
+            subject = f"{prefix} {subject}"
+
     if RESEND_API_KEY:
         try:
             resend.api_key = RESEND_API_KEY
             resend.Emails.send(
                 {
-                    "from": RESEND_FROM_EMAIL,
+                    "from": f"{SMTP_FROM_NAME} <{RESEND_FROM_EMAIL}>",
+                    "reply_to": SMTP_FROM_EMAIL or ADMIN_EMAIL,
                     "to": to,
                     "subject": subject,
                     "html": html_body,
