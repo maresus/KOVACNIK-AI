@@ -28,6 +28,15 @@ from app.core.llm_client import get_llm_client
 from app.rag.chroma_service import answer_tourist_question, is_tourist_query
 from app.services.router_agent import route_message
 from app.services.executor_v2 import execute_decision
+from app.services.routing import decide_route, SwitchAction, handle_interrupt
+from app.services.session.unified_state import (
+    get_unified_state,
+    reset_unified_state,
+    set_flow,
+    ensure_flow_data,
+    set_last_intent,
+    set_pending_question,
+)
 from app.services.intent_helpers import (
     INFO_FOLLOWUP_PHRASES,
     INFO_KEYWORDS,
@@ -81,6 +90,9 @@ from app.services.parsing import (
 router = APIRouter(prefix="/chat", tags=["chat"])
 USE_ROUTER_V2 = True
 USE_FULL_KB_LLM = True
+USE_UNIFIED_ROUTER = os.getenv("USE_UNIFIED_ROUTER", "false").strip().lower() in {"1", "true", "yes", "on"}
+if USE_UNIFIED_ROUTER:
+    USE_ROUTER_V2 = False
 INQUIRY_RECIPIENT = os.getenv("INQUIRY_RECIPIENT", "satlermarko@gmail.com")
 SHORT_MODE = os.getenv("SHORT_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
 _router_logger = logging.getLogger("router_v2")
@@ -860,6 +872,22 @@ def get_inquiry_state(session_id: str) -> dict[str, Optional[str]]:
 
 def reset_inquiry_state(state: dict[str, Optional[str]]) -> None:
     state.update(_blank_inquiry_state())
+
+
+def _sync_unified_state(
+    unified_state: dict[str, Any],
+    reservation_state: dict[str, Optional[str | int]],
+    inquiry_state: dict[str, Optional[str]],
+) -> None:
+    if inquiry_state.get("step"):
+        set_flow(unified_state, "inquiry", inquiry_state.get("step"))
+        return
+    if reservation_state.get("step"):
+        res_type = reservation_state.get("type")
+        flow = "reservation_room" if res_type == "room" else "reservation_table"
+        set_flow(unified_state, flow, reservation_state.get("step"))
+        return
+    set_flow(unified_state, "idle", None)
 
 
 last_product_query: Optional[str] = None
@@ -1691,11 +1719,17 @@ def last_bot_mentions_product_order(last_bot: str) -> bool:
 
 
 def get_greeting_response() -> str:
-    return random.choice(GREETINGS)
+    base = random.choice(GREETINGS)
+    if "pozdrav" in base.lower():
+        return base
+    return f"Pozdravljeni! {base}"
 
 
 def get_goodbye_response() -> str:
-    return random.choice(THANKS_RESPONSES)
+    base = random.choice(THANKS_RESPONSES)
+    if "adijo" in base.lower():
+        return base
+    return f"Adijo! {base}"
 
 
 def is_goodbye(message: str) -> bool:
@@ -2206,8 +2240,14 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     if last_interaction and now - last_interaction > timedelta(hours=SESSION_TIMEOUT_HOURS):
         reset_conversation_context(session_id)
     last_interaction = now
-    state = get_reservation_state(session_id)
-    inquiry_state = get_inquiry_state(session_id)
+    unified_state = None
+    if USE_UNIFIED_ROUTER:
+        unified_state = get_unified_state(session_id)
+        state = ensure_flow_data(unified_state, "reservation", _blank_reservation_state())
+        inquiry_state = ensure_flow_data(unified_state, "inquiry", _blank_inquiry_state())
+    else:
+        state = get_reservation_state(session_id)
+        inquiry_state = get_inquiry_state(session_id)
     needs_followup = False
     detected_lang = detect_language(payload.message)
     # vedno osveži jezik seje, da se lahko sproti preklaplja
@@ -2217,6 +2257,8 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     def finalize(reply_text: str, intent_value: str, followup_flag: bool = False) -> ChatResponse:
         nonlocal needs_followup
         global conversation_history
+        if USE_UNIFIED_ROUTER and unified_state is not None:
+            _sync_unified_state(unified_state, state, inquiry_state)
         final_reply = reply_text
         flag = followup_flag or needs_followup or is_unknown_response(final_reply)
         if flag:
@@ -2270,6 +2312,30 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
     if availability_followup:
         availability_followup = maybe_translate(availability_followup, detected_lang)
         return finalize(availability_followup, "availability_followup", followup_flag=False)
+
+    if USE_UNIFIED_ROUTER and state.get("step") is None and not inquiry_state.get("step"):
+        if is_inquiry_trigger(payload.message):
+            inquiry_state["details"] = payload.message
+            inquiry_state["step"] = "awaiting_deadline"
+            reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "inquiry_start", followup_flag=False)
+        info_key = detect_info_intent(payload.message)
+        if info_key:
+            reply = get_info_response(info_key)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "info", followup_flag=False)
+        if detect_product_intent(payload.message) or is_product_query(payload.message):
+            key = detect_product_intent(payload.message)
+            reply = get_product_response(key) if key else answer_product_question(payload.message)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "product_info", followup_flag=False)
+        detected_type = parse_reservation_type(payload.message)
+        if detected_type or is_reservation_related(payload.message):
+            state["type"] = detected_type or state.get("type") or ("room" if "soba" in payload.message.lower() else "table")
+            reply = handle_reservation_flow(payload.message, state)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_start", followup_flag=False)
 
     availability_state = get_availability_state(state)
     if availability_state.get("active") and availability_state.get("can_reserve") and is_negative(payload.message):
@@ -2338,6 +2404,110 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
             reply = handle_reservation_flow(payload.message, state)
             reply = maybe_translate(reply, detected_lang)
             return finalize(reply, "reservation_context_start", followup_flag=False)
+
+    if state.get("step") is not None:
+        if is_negative(payload.message):
+            reset_reservation_state(state)
+            reply = "V redu, rezervacijo sem preklical. Kako vam lahko pomagam? (prekinil)"
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_cancelled", followup_flag=False)
+        info_key = detect_info_intent(payload.message)
+        if info_key:
+            reply = get_info_response(info_key)
+            reply = handle_interrupt(reply, state.get("step"))
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "info_interrupt", followup_flag=False)
+        if detect_product_intent(payload.message) or is_product_query(payload.message):
+            key = detect_product_intent(payload.message)
+            reply = get_product_response(key) if key else answer_product_question(payload.message)
+            reply = handle_interrupt(reply, state.get("step"))
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "product_interrupt", followup_flag=False)
+        if USE_UNIFIED_ROUTER:
+            decision = decide_route(payload.message)
+            if decision.action == SwitchAction.SOFT_INTERRUPT and decision.secondary_intent in {"INFO", "PRODUCT"}:
+                if decision.secondary_intent == "INFO":
+                    key = detect_info_intent(payload.message)
+                    info_reply = get_info_response(key) if key else "Kako vam lahko pomagam?"
+                    reply = handle_interrupt(info_reply, state.get("step"))
+                    reply = maybe_translate(reply, detected_lang)
+                    return finalize(reply, "info_interrupt", followup_flag=False)
+                if decision.secondary_intent == "PRODUCT":
+                    key = detect_product_intent(payload.message)
+                    product_reply = get_product_response(key) if key else answer_product_question(payload.message)
+                    reply = handle_interrupt(product_reply, state.get("step"))
+                    reply = maybe_translate(reply, detected_lang)
+                    return finalize(reply, "product_interrupt", followup_flag=False)
+        reply = handle_reservation_flow(payload.message, state)
+        reply = maybe_translate(reply, detected_lang)
+        return finalize(reply, "reservation_flow", followup_flag=False)
+
+    if USE_UNIFIED_ROUTER:
+        decision = decide_route(payload.message)
+        if unified_state is not None:
+            set_last_intent(unified_state, decision.primary_intent)
+
+        in_active_flow = (
+            state.get("step") is not None
+            or inquiry_state.get("step") is not None
+            or get_availability_state(state).get("active")
+        )
+
+        if decision.action == SwitchAction.SOFT_INTERRUPT and in_active_flow and decision.secondary_intent in {"INFO", "PRODUCT"}:
+            if decision.secondary_intent == "INFO":
+                key = detect_info_intent(payload.message)
+                info_reply = get_info_response(key) if key else "Kako vam lahko pomagam?"
+                reply = handle_interrupt(info_reply, state.get("step"))
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "info_interrupt", followup_flag=False)
+            if decision.secondary_intent == "PRODUCT":
+                key = detect_product_intent(payload.message)
+                product_reply = get_product_response(key) if key else answer_product_question(payload.message)
+                reply = handle_interrupt(product_reply, state.get("step"))
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "product_interrupt", followup_flag=False)
+
+        if decision.action == SwitchAction.HARD_SWITCH:
+            reset_reservation_state(state)
+            reset_inquiry_state(inquiry_state)
+            reset_availability_state(state)
+            if unified_state is not None:
+                reset_unified_state(unified_state)
+
+            if decision.primary_intent == "BOOKING_TABLE":
+                state["type"] = "table"
+                reply = handle_reservation_flow(payload.message, state)
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "reservation_table_start", followup_flag=False)
+            if decision.primary_intent == "BOOKING_ROOM":
+                state["type"] = "room"
+                reply = handle_reservation_flow(payload.message, state)
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "reservation_room_start", followup_flag=False)
+            if decision.primary_intent == "INQUIRY":
+                inquiry_state["details"] = payload.message
+                inquiry_state["step"] = "awaiting_deadline"
+                reply = "Super, zabeležim povpraševanje. Do kdaj bi to potrebovali? (datum/rok ali 'ni pomembno')"
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "inquiry_start", followup_flag=False)
+            if decision.primary_intent == "PRODUCT":
+                key = detect_product_intent(payload.message)
+                reply = get_product_response(key) if key else answer_product_question(payload.message)
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "product_info", followup_flag=False)
+            if decision.primary_intent == "INFO":
+                key = detect_info_intent(payload.message)
+                reply = get_info_response(key) if key else "Kako vam lahko pomagam?"
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "info", followup_flag=False)
+            if decision.primary_intent == "GREETING":
+                reply = get_greeting_response()
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "greeting", followup_flag=False)
+            if decision.primary_intent == "GOODBYE":
+                reply = get_goodbye_response()
+                reply = maybe_translate(reply, detected_lang)
+                return finalize(reply, "goodbye", followup_flag=False)
 
     # zabeležimo user vprašanje v zgodovino (omejimo na zadnjih 6 parov)
     conversation_history.append({"role": "user", "content": payload.message})
@@ -2591,6 +2761,27 @@ def chat_endpoint(payload: ChatRequestWithSession) -> ChatResponse:
 
     # Fuzzy router za rezervacije (robustno na tipkarske napake)
     router_intent = detect_router_intent(payload.message, state)
+
+    # Zamenjava tipa rezervacije med aktivnim flowom (npr. "mizo bi" med room bookingom)
+    if state["step"] is not None:
+        current_type = state.get("type")
+        lowered_msg = payload.message.lower()
+        wants_table = any(tok in lowered_msg for tok in ["mizo", "miza", "mize", "table", "kosilo"])
+        wants_room = any(tok in lowered_msg for tok in ["sobo", "soba", "sobe", "room", "nočitev"])
+        # Če uporabnik želi drug tip kot trenutni, zamenjaj flow
+        if wants_table and not wants_room and current_type != "table":
+            reset_reservation_state(state)
+            state["type"] = "table"
+            reply = handle_reservation_flow(payload.message, state)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_switch_to_table", followup_flag=False)
+        if wants_room and not wants_table and current_type != "room":
+            reset_reservation_state(state)
+            state["type"] = "room"
+            reply = handle_reservation_flow(payload.message, state)
+            reply = maybe_translate(reply, detected_lang)
+            return finalize(reply, "reservation_switch_to_room", followup_flag=False)
+
     if router_intent == "booking_room" and state["step"] is None:
         reset_reservation_state(state)
         state["type"] = "room"
