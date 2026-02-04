@@ -8,9 +8,9 @@ from app.services.routing.confidence import score_intent_confidence
 
 
 class SwitchAction(str, Enum):
-    HARD_SWITCH = "hard_switch"
-    SOFT_INTERRUPT = "soft_interrupt"
-    IGNORE = "ignore"
+    HARD_SWITCH = "HARD_SWITCH"
+    SOFT_INTERRUPT = "SOFT_INTERRUPT"
+    IGNORE = "IGNORE"
 
 
 @dataclass
