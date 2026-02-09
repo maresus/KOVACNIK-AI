@@ -88,14 +88,19 @@ from app.services.parsing import (
 )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-USE_ROUTER_V2 = True
-USE_FULL_KB_LLM = True
-USE_UNIFIED_ROUTER = os.getenv("USE_UNIFIED_ROUTER", "false").strip().lower() in {"1", "true", "yes", "on"}
-if USE_UNIFIED_ROUTER:
-    USE_ROUTER_V2 = False
+USE_ROUTER_V2 = False  # legacy routing disabled
+USE_FULL_KB_LLM = True  # main LLM fallback enabled
+USE_UNIFIED_ROUTER = False  # unified router disabled
 INQUIRY_RECIPIENT = os.getenv("INQUIRY_RECIPIENT", "satlermarko@gmail.com")
 SHORT_MODE = os.getenv("SHORT_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
 _router_logger = logging.getLogger("router_v2")
+_routing_logger = logging.getLogger("chat_router")
+_routing_logger.info(
+    "Routing config: ROUTER_V2=%s, FULL_KB_LLM=%s, UNIFIED=%s",
+    USE_ROUTER_V2,
+    USE_FULL_KB_LLM,
+    USE_UNIFIED_ROUTER,
+)
 
 # ========== CENTRALIZIRANI INFO ODGOVORI (brez LLM!) ==========
 BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
