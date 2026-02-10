@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from app.services.email_service import send_admin_notification, send_guest_confirmation
-from app.services.flows.booking_flow import handle_reservation_flow as legacy_handle_reservation_flow
+from app2026.chat.flows.booking_flow import handle_reservation_flow as legacy_handle_reservation_flow
 from app.services.reservation_service import ReservationService
 
 
@@ -361,13 +361,13 @@ def table_intro_text(brand: Any) -> str:
 
 
 def validate_reservation_rules_bound(arrival_date_str: str, nights: int):
-    from app.services.flows.booking_flow import validate_reservation_rules
+    from app2026.chat.flows.booking_flow import validate_reservation_rules
 
     return validate_reservation_rules(arrival_date_str, nights, _reservation_service)
 
 
 def advance_after_room_people_bound(reservation_state: dict[str, Optional[str | int]], _service: Any = None) -> str:
-    from app.services.flows.booking_flow import advance_after_room_people
+    from app2026.chat.flows.booking_flow import advance_after_room_people
 
     return advance_after_room_people(reservation_state, _reservation_service)
 
@@ -384,7 +384,7 @@ def handle_room_reservation_bound(
     send_reservation_emails_async: Any,
     reservation_pending_message: str,
 ) -> str:
-    from app.services.flows.booking_flow import handle_room_reservation
+    from app2026.chat.flows.booking_flow import handle_room_reservation
 
     return handle_room_reservation(
         message,
@@ -410,7 +410,7 @@ def handle_table_reservation_bound(
     send_reservation_emails_async: Any,
     reservation_pending_message: str,
 ) -> str:
-    from app.services.flows.booking_flow import handle_table_reservation
+    from app2026.chat.flows.booking_flow import handle_table_reservation
 
     return handle_table_reservation(
         message,
