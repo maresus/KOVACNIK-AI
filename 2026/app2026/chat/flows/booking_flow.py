@@ -948,7 +948,16 @@ def handle_reservation_flow(
     def _tr(text: str) -> str:
         return translate_response(text, reservation_state.get("language", "si"))
 
-    if any(word in message.lower() for word in exit_keywords):
+    lowered = message.strip().lower()
+    if reservation_state.get("step") in {
+        "awaiting_kids_info",
+        "awaiting_kids_ages",
+        "awaiting_dinner",
+        "awaiting_note",
+    } and lowered in {"ne", "no"}:
+        # "ne" here is a valid in-flow response, not a cancellation.
+        pass
+    elif any(word in message.lower() for word in exit_keywords):
         reset_reservation_state(state)
         return _tr("V redu, rezervacijo sem preklical. Kako vam lahko pomagam? (prekinil)")
 
