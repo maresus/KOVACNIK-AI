@@ -79,7 +79,11 @@ def _availability_prompt_missing_type() -> str:
     return "Zelite preveriti prosto sobo ali mizo?"
 
 
-def _availability_prompt_missing_date() -> str:
+def _availability_prompt_missing_date(res_type: Optional[str]) -> str:
+    if res_type == "room":
+        return "Za kateri datum zelite preveriti prosto sobo? (DD.MM.YYYY) Katere sobe vas zanimajo?"
+    if res_type == "table":
+        return "Za kateri datum zelite preveriti prosto mizo? (DD.MM.YYYY)"
     return "Za kateri datum zelite preveriti razpolozljivost? (DD.MM.YYYY)"
 
 
@@ -195,7 +199,7 @@ def handle_availability_query(
     else:
         availability_state["awaiting"] = "date"
         availability_state["can_reserve"] = False
-        return _availability_prompt_missing_date()
+        return _availability_prompt_missing_date(res_type)
 
     awaiting = availability_state.get("awaiting")
     if awaiting in {"date", "time"} and availability_state.get("people"):

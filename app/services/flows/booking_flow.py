@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Optional, Tuple
 
-from app2026.chat.parsing import (
+from app.services.parsing import (
     extract_date,
     extract_date_from_text,
     extract_date_range,
@@ -274,34 +274,14 @@ def _handle_room_reservation_impl(
         )
 
     if step == "awaiting_nights":
-        date_candidate = extract_date(message)
-        nights_candidate = extract_nights(message)
-        if date_candidate and nights_candidate:
-            ok, error_message, error_type = validate_reservation_rules_fn(date_candidate, nights_candidate)
-            if not ok:
-                if error_type == "date":
-                    reservation_state["date"] = None
-                    reservation_state["nights"] = None
-                    return error_message + " Prosim pošljite nov datum prihoda (DD.MM ali DD.MM.YYYY)."
-                reservation_state["nights"] = None
-                return error_message + " Prosim pošljite število nočitev."
-            reservation_state["date"] = date_candidate
-            reservation_state["nights"] = nights_candidate
-            if reservation_state.get("people"):
-                return advance_after_room_people_fn(reservation_state, reservation_service)
-            reservation_state["step"] = "awaiting_people"
-            return "Za koliko oseb bi bilo bivanje (odrasli + otroci)?"
-        if date_candidate and not nights_candidate:
-            reservation_state["date"] = date_candidate
-            reservation_state["nights"] = None
-            return "Hvala! Koliko nočitev načrtujete?"
-        if not nights_candidate:
+        new_nights = extract_nights(message)
+        if not new_nights:
             return "Prosimo navedite število nočitev (npr. '2 nočitvi')."
-        ok, error_message, _ = validate_reservation_rules_fn(reservation_state.get("date") or "", nights_candidate)
+        ok, error_message, _ = validate_reservation_rules_fn(reservation_state.get("date") or "", new_nights)
         if not ok:
             reservation_state["nights"] = None
             return error_message + " Poskusite z drugim številom nočitev."
-        reservation_state["nights"] = nights_candidate
+        reservation_state["nights"] = new_nights
         if reservation_state.get("people"):
             return advance_after_room_people_fn(reservation_state, reservation_service)
         reservation_state["step"] = "awaiting_people"
@@ -496,7 +476,7 @@ def _handle_room_reservation_impl(
             if reservation_state.get("dinner_people"):
                 dinner_note = f"Večerje: {reservation_state.get('dinner_people')} oseb (25€/oseba)"
             chosen_location = reservation_state.get("location") or "Sobe (dodelimo ob potrditvi)"
-            res_id = reservation_service.create_reservation(
+            created = reservation_service.create_reservation(
                 date=reservation_state["date"] or "",
                 people=int(reservation_state["people"] or 0),
                 reservation_type="room",
@@ -511,6 +491,7 @@ def _handle_room_reservation_impl(
                 kids=str(reservation_state.get("kids") or ""),
                 kids_small=str(reservation_state.get("kids_ages") or ""),
             )
+            res_id = created.get("id") if isinstance(created, dict) else getattr(created, "id", created)
             email_data = {
                 "id": res_id,
                 "name": reservation_state.get("name", ""),
@@ -681,7 +662,7 @@ def _handle_table_reservation_impl(
             return "V redu, rezervacijo sem preklical. Kako vam lahko pomagam? (prekinil)"
         if is_affirmative(message):
             summary_state = reservation_state.copy()
-            res_id = reservation_service.create_reservation(
+            created = reservation_service.create_reservation(
                 date=reservation_state["date"] or "",
                 people=int(reservation_state["people"] or 0),
                 reservation_type="table",
@@ -696,6 +677,7 @@ def _handle_table_reservation_impl(
                 kids_small=str(reservation_state.get("kids_ages") or ""),
                 event_type=reservation_state.get("event_type"),
             )
+            res_id = created.get("id") if isinstance(created, dict) else getattr(created, "id", created)
             email_data = {
                 "id": res_id,
                 "name": reservation_state.get("name", ""),

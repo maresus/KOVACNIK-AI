@@ -163,6 +163,16 @@ def admin_page() -> HTMLResponse:
     return HTMLResponse(content=html)
 
 
+@router.get("/admin/new", response_class=HTMLResponse)
+def admin_page_new() -> HTMLResponse:
+    """Postreže testno različico admin UI (static/admin_new.html)."""
+    html_path = Path("static/admin_new.html")
+    if not html_path.exists():
+        return HTMLResponse("<h1>Admin UI manjka (static/admin_new.html)</h1>", status_code=500)
+    html = html_path.read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
+
+
 @router.get("/admin/conversations", response_class=HTMLResponse)
 def admin_conversations_page() -> HTMLResponse:
     """Postreže statično datoteko za pogovore (static/conversations.html)."""
@@ -358,14 +368,17 @@ def confirm_reservation(reservation_id: int, data: Optional[ConfirmReservationRe
     res = service.get_reservation(reservation_id)
     if not res:
         raise HTTPException(status_code=404, detail="Rezervacija ni najdena")
+    warning: Optional[str] = None
     requested_room = _normalize_room_id((data.room if data else None) or res.get("location"))
     requested_location = (data.location if data else None) or res.get("location")
     if res.get("reservation_type") == "room":
         if not requested_room:
-            raise HTTPException(status_code=400, detail="Soba mora biti izbrana.")
+            requested_room = ROOMS[0]["id"] if ROOMS else None
         conflicts = _room_conflicts(reservation_id, requested_room, res.get("date", ""), res.get("nights"))
         if conflicts:
-            return {"success": False, "warning": f"Soba {requested_room} je zasedena: {', '.join(conflicts)}"}
+            warning = f"Soba {requested_room} je zasedena: {', '.join(conflicts)}"
+        else:
+            warning = None
     else:
         requested_room = None
 
@@ -388,7 +401,10 @@ def confirm_reservation(reservation_id: int, data: Optional[ConfirmReservationRe
         to_email=res.get("email") or "",
         message_id=None,
     )
-    return {"success": True, "email_sent": True, "room": requested_room or requested_location}
+    response = {"ok": True, "email_sent": True, "room": requested_room or requested_location}
+    if warning:
+        response["warning"] = warning
+    return response
 
 
 @router.post("/api/admin/reservations/{reservation_id}/reject")
@@ -410,7 +426,7 @@ def reject_reservation(reservation_id: int):
         to_email=res.get("email") or "",
         message_id=None,
     )
-    return {"success": True, "email_sent": True}
+    return {"ok": True, "email_sent": True}
 
 
 @router.post("/api/admin/send-message")
@@ -567,7 +583,7 @@ def calendar_rooms(month: int, year: int):
             continue
         room_id = _normalize_room_id(r.get("location"))
         if not room_id:
-            continue
+            room_id = "ND"
         for day in _reservation_days(r.get("date", ""), r.get("nights")):
             if day.month != month or day.year != year:
                 continue
@@ -579,10 +595,11 @@ def calendar_rooms(month: int, year: int):
             entry["reservations"].append(
                 {
                     "id": r.get("id"),
+                    "reservation_type": "room",
                     "name": r.get("name"),
                     "people": r.get("people"),
                     "kids": r.get("kids"),
-                    "location": room_id,
+                    "location": room_id if room_id != "ND" else "Soba ni dodeljena",
                     "email": r.get("email"),
                     "phone": r.get("phone"),
                     "status": status,
@@ -619,6 +636,8 @@ def calendar_tables(month: int, year: int):
         entry["total_people"] += people
         entry["reservations"].append(
             {
+                "id": r.get("id"),
+                "reservation_type": "table",
                 "time": r.get("time"),
                 "people": people,
                 "name": r.get("name"),
@@ -660,7 +679,7 @@ def create_admin_reservation(data: AdminCreateReservation):
         if suggested_location and not data.location:
             location = suggested_location
 
-    new_id = service.create_reservation(
+    created = service.create_reservation(
         date=data.date,
         nights=data.nights,
         rooms=data.rooms,
@@ -680,4 +699,5 @@ def create_admin_reservation(data: AdminCreateReservation):
         event_type=data.event_type,
         special_needs=data.special_needs,
     )
+    new_id = created.get("id") if isinstance(created, dict) else getattr(created, "id", created)
     return {"success": True, "id": new_id, "warning": warning}
