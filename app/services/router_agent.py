@@ -229,17 +229,10 @@ def _detect_booking_intent(text: str, has_active_booking: bool) -> str:
     # Med aktivno rezervacijo: če jasno pove nov tip (soba/miza), začni novo,
     # sicer nadaljuj obstoječi flow.
     if has_active_booking:
-        # Eksplicitna zamenjava tipa (z "rezerv" + tip)
-        if has_booking and has_room and not has_table:
+        if has_booking and has_room:
             return "BOOKING_ROOM"
-        if has_booking and has_table and not has_room:
+        if has_booking and has_table:
             return "BOOKING_TABLE"
-        # Tudi brez "rezerv" - če uporabnik jasno omeni drug tip, zamenjaj flow
-        # Npr. "mizo bi" ali "raje sobo" med aktivnim table/room bookingom
-        if has_table and not has_room:
-            return "BOOKING_TABLE"
-        if has_room and not has_table:
-            return "BOOKING_ROOM"
         return "BOOKING_CONTINUE"
 
     # Za sprožitev bookinga zahtevamo namig na rezervacijo (booking_tokens)

@@ -83,7 +83,6 @@ from app.services.reservation_flow import (
 from app.services.parsing import (
     extract_date,
     extract_date_range,
-    extract_nights as _extract_nights,
     extract_time,
     parse_people_count,
 )
@@ -137,68 +136,6 @@ AVAILABILITY_TOOL_SCHEMA = {
         "required": ["type", "date"],
     },
 }
-
-def extract_date_from_text(message: str) -> Optional[str]:
-    """Extract date from text. Returns exact match for explicit dates, else normalized DD.MM.YYYY."""
-    if not message or not message.strip():
-        return None
-
-    match = re.search(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b", message)
-    if match:
-        return match.group(0)
-
-    match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", message)
-    if match:
-        return match.group(0)
-
-    lowered = message.lower()
-    today = datetime.now()
-
-    m = re.search(r"čez\s+(\d+)\s+dni", lowered)
-    if not m:
-        m = re.search(r"cez\s+(\d+)\s+dni", lowered)
-    if m:
-        return (today + timedelta(days=int(m.group(1)))).strftime("%d.%m.%Y")
-
-    m = re.search(r"čez\s+(\d+)\s+tedn", lowered)
-    if not m:
-        m = re.search(r"cez\s+(\d+)\s+tedn", lowered)
-    if m:
-        return (today + timedelta(weeks=int(m.group(1)))).strftime("%d.%m.%Y")
-
-    if "naslednji vikend" in lowered:
-        # next Saturday (weekday 5)
-        days_ahead = (5 - today.weekday()) % 7
-        if days_ahead == 0:
-            days_ahead = 7
-        candidate = today + timedelta(days=days_ahead)
-        return candidate.strftime("%d.%m.%Y")
-
-    return extract_date(message)
-
-
-def extract_nights(message: str) -> Optional[int]:
-    """Wrapper to extract nights from message."""
-    if not message or not message.strip():
-        return None
-    return _extract_nights(message)
-
-
-def extract_people_count(message: str) -> Optional[int]:
-    """Extract people count with simple heuristics for tests."""
-    if not message or not message.strip():
-        return None
-
-    plus_match = re.search(r"(\d+)\s*\+\s*(\d+)", message)
-    if plus_match:
-        return int(plus_match.group(1)) + int(plus_match.group(2))
-
-    cleaned = re.sub(r"\d{1,2}\.\d{1,2}\.\d{2,4}", " ", message)
-    cleaned = re.sub(r"\d{1,2}:\d{2}", " ", cleaned)
-    nums = re.findall(r"\d+", cleaned)
-    if not nums:
-        return None
-    return int(nums[0])
 
 def _send_reservation_emails_async(payload: dict) -> None:
     def _worker() -> None:
@@ -697,7 +634,6 @@ PRICE_KEYWORDS = {
     "cenika",
     "cenik",
     "koliko stane",
-    "koliko stanejo",
     "koliko stal",
     "koliko košta",
     "koliko kosta",
@@ -1127,14 +1063,12 @@ def answer_weekly_menu(message: str) -> str:
     return "\n".join(lines)
 
 
-def detect_intent(message: str, state: Optional[dict[str, Optional[str | int]]] = None) -> str:
+def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
     global last_product_query, last_wine_query
     lower_message = message.lower()
-    if state is None:
-        state = {"step": None}
 
     # 1) nadaljevanje rezervacije ima vedno prednost
-    if state.get("step") is not None:
+    if state["step"] is not None:
         if is_menu_query(message):
             return "menu"
         if is_hours_question(message):
@@ -1156,12 +1090,11 @@ def detect_intent(message: str, state: Optional[dict[str, Optional[str | int]]] 
     has_rezerv = any(p in lower_message for p in rezerv_patterns)
     has_soba = any(p in lower_message for p in soba_patterns)
     has_miza = any(p in lower_message for p in miza_patterns)
-    is_price_question = any(word in lower_message for word in PRICE_KEYWORDS)
     if has_rezerv and (has_soba or has_miza or "nočitev" in lower_message or "nocitev" in lower_message):
         return "reservation"
-    if not is_price_question and is_reservation_typo(message) and (has_soba or has_miza):
+    if is_reservation_typo(message) and (has_soba or has_miza):
         return "reservation"
-    if not is_price_question and any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
+    if any(phrase in lower_message for phrase in RESERVATION_START_PHRASES):
         return "reservation"
 
     # goodbye/hvala
@@ -1171,11 +1104,6 @@ def detect_intent(message: str, state: Optional[dict[str, Optional[str | int]]] 
     # jedilnik / meni naj ne sproži rezervacije
     if is_menu_query(message):
         return "menu"
-
-    # cene sob (pred splošnim info o sobah)
-    if any(word in lower_message for word in PRICE_KEYWORDS):
-        if any(word in lower_message for word in ["sob", "nočitev", "nocitev", "noč", "spanje", "bivanje"]):
-            return "room_pricing"
 
     # SOBE - posebej pred rezervacijo
     sobe_keywords = ["sobe", "soba", "sobo", "nastanitev", "prenočitev", "nočitev nočitve", "rooms", "room", "accommodation"]
@@ -1191,6 +1119,11 @@ def detect_intent(message: str, state: Optional[dict[str, Optional[str | int]]] 
         phrase in lower_message for phrase in ["še", "še kakšn", "še kater", "kaj pa", "drug"]
     ):
         return "wine_followup"
+
+    # cene sob
+    if any(word in lower_message for word in PRICE_KEYWORDS):
+        if any(word in lower_message for word in ["sob", "nočitev", "nocitev", "noč", "spanje", "bivanje"]):
+            return "room_pricing"
 
     # tedenska ponudba (degustacijski meniji) – pred jedilnikom
     if any(word in lower_message for word in WEEKLY_KEYWORDS):

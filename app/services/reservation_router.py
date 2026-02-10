@@ -14,7 +14,7 @@ def list_reservations() -> list[dict]:
 
 @router.post("")
 def create_reservation(payload: ReservationCreate) -> dict:
-    created = reservation_service.create_reservation(
+    new_id = reservation_service.create_reservation(
         date=payload.date,
         people=payload.people,
         reservation_type=payload.reservation_type,
@@ -28,6 +28,5 @@ def create_reservation(payload: ReservationCreate) -> dict:
         note=payload.note,
         source="api",
     )
-    res_id = created.get("id") if isinstance(created, dict) else getattr(created, "id", created)
-    payload = created if isinstance(created, dict) else getattr(created, "to_dict", lambda: {})()
-    return {"id": res_id, **payload, "message": "Reservation created"}
+    created = reservation_service.get_reservation(new_id) or {}
+    return {"id": new_id, **created, "message": "Reservation created"}

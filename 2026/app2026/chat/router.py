@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app2026.brand.registry import get_brand
@@ -41,32 +40,6 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         session.history = session.history[-20:]
 
     return ChatResponse(reply=reply, session_id=session.session_id)
-
-
-@router.post("/stream")
-def chat_stream(payload: ChatRequest) -> StreamingResponse:
-    session = get_session(payload.session_id)
-    session.last_activity = datetime.now(timezone.utc)
-    session.history.append({"role": "user", "content": payload.message})
-    if len(session.history) > 20:
-        session.history = session.history[-20:]
-
-    brand = get_brand()
-    reply = _decision_pipeline(payload.message, session, brand)
-
-    session.history.append({"role": "assistant", "content": reply})
-    if len(session.history) > 20:
-        session.history = session.history[-20:]
-
-    def _iter_chunks(text: str):
-        # Stream by words to simulate typing without heavy latency.
-        parts = text.split(" ")
-        for idx, part in enumerate(parts):
-            if idx:
-                yield " "
-            yield part
-
-    return StreamingResponse(_iter_chunks(reply), media_type="text/plain")
 
 
 def _decision_pipeline(message: str, session, brand) -> str:

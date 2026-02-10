@@ -12,7 +12,7 @@ from app.services.reservation_service import ReservationService
 
 router = APIRouter(prefix="/api/webhook", tags=["webhook"])
 
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "kovacnik_webhook_secret_2024")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX = 30  # requests per window per IP
 rate_limit_log: dict[str, list[float]] = {}
@@ -66,23 +66,18 @@ async def receive_wordpress_reservation(
     history.append(now)
     rate_limit_log[ip] = history
 
-    # signature verification (accept raw secret header or HMAC signature)
+    # signature verification (skip if secret not set)
     secret = WEBHOOK_SECRET or ""
     if secret:
+        raw_body = await request.body()
+        computed = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        expected_sig = f"sha256={computed}"
         provided = x_webhook_signature or x_webhook_secret  # backward compat
-        if not provided:
+        if not provided or not hmac.compare_digest(provided, expected_sig):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
-        if hmac.compare_digest(provided, secret):
-            pass
-        else:
-            raw_body = await request.body()
-            computed = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
-            expected_sig = f"sha256={computed}"
-            if not hmac.compare_digest(provided, expected_sig):
-                raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     service = ReservationService()
-    created = service.create_reservation(
+    res_id = service.create_reservation(
         date=data.arrive or data.date,
         people=data.people or data.adults or 0,
         reservation_type="room" if data.source == "wordpress_room" else "table",
@@ -102,7 +97,6 @@ async def receive_wordpress_reservation(
         event_type=data.event_type,
         special_needs=data.special_needs or data.kids_ages,
     )
-    res_id = created.get("id") if isinstance(created, dict) else getattr(created, "id", created)
 
     send_admin_notification(
         {

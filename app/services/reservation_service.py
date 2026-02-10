@@ -11,23 +11,6 @@ from psycopg2.extras import RealDictCursor
 
 from app.models.reservation import ReservationRecord
 
-
-class ReservationId(int):
-    """Integer id that also exposes reservation fields as attributes."""
-
-    def __new__(cls, value: int, record: Dict[str, Any]):
-        obj = int.__new__(cls, value)
-        obj._record = record
-        return obj
-
-    def __getattr__(self, name: str) -> Any:
-        if name in self._record:
-            return self._record[name]
-        raise AttributeError(name)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return dict(self._record)
-
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 ROOMS = [
@@ -676,7 +659,7 @@ class ReservationService:
         confirm_via: Optional[str] = None,
         event_type: Optional[str] = None,
         special_needs: Optional[str] = None,
-    ) -> ReservationId:
+    ) -> int:
         created_at = datetime.now().isoformat()
         # Admin / telefon / API vnosi se avtomatsko potrdijo
         if source in ("admin", "phone", "api"):
@@ -733,25 +716,7 @@ class ReservationService:
             cur.close()
             conn.close()
 
-        new_id_int = int(new_id)
-        record = self.get_reservation(new_id_int) or {
-            "id": new_id_int,
-            "date": date,
-            "people": people,
-            "reservation_type": reservation_type,
-            "nights": nights,
-            "rooms": rooms,
-            "time": time,
-            "location": location,
-            "name": name,
-            "phone": phone,
-            "email": email,
-            "note": note,
-            "status": status,
-            "source": source,
-            "created_at": created_at,
-        }
-        return ReservationId(new_id_int, record)
+        return int(new_id)
 
     def update_status(self, reservation_id: int, new_status: str) -> bool:
         """Posodobi status rezervacije. Vrne True če uspešno."""

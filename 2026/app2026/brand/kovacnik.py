@@ -1,5 +1,8 @@
-# Brand-specific configuration constants
+# Brand-specific configuration constants (Kovačnik)
 # NOTE: Keep this file free of business logic.
+
+BRAND_ID = "kovacnik"
+DISPLAY_NAME = "Domačija Kovačnik"
 
 FARM_INFO = {
     "name": "Turistična kmetija Kovačnik",
@@ -39,23 +42,133 @@ FARM_INFO = {
     ],
 }
 
+INFO_RESPONSES = {
+    "pozdrav": """Pozdravljeni pri Domačiji Kovačnik! 😊
+
+Lahko pomagam z vprašanji o sobah, kosilih, izletih ali domačih izdelkih.""",
+    "smalltalk": "Hvala, dobro.",
+    "kdo_si": """Sem vaš digitalni pomočnik Domačije Kovačnik.
+
+Z veseljem odgovorim na vprašanja o nastanitvi, kosilih, izletih ali izdelkih.""",
+    "odpiralni_cas": """Odprti smo ob **sobotah in nedeljah med 12:00 in 20:00**.
+
+Zadnji prihod na kosilo je ob **15:00**.
+Ob ponedeljkih in torkih smo zaprti.
+
+Za skupine (15+ oseb) pripravljamo tudi med tednom od srede do petka – pokličite nas! 📞""",
+    "zajtrk": """Zajtrk servíramo med **8:00 in 9:00** in je **vključen v ceno nočitve**.
+
+Kaj vas čaka? 🥐
+- Sveže pomolzeno mleko
+- Zeliščni čaj babice Angelce
+- Kruh iz krušne peči
+- Pohorska bunka, salama, pašteta
+- Domača marmelada in med od čebelarja Pislak
+- Skuta, maslo, sir iz kravjega mleka
+- Jajca z domače reje
+- Kislo mleko, jogurt z malinami po receptu gospodinje Barbare
+
+Vse domače, vse sveže! ☕""",
+    "vecerja": """Večerja se streže ob **18:00** in stane **25 €/osebo**.
+
+Kaj dobite?
+- **Juha** – česnova, bučna, gobova, goveja, čemaževa ali topinambur
+- **Glavna jed** – meso s prilogami (skutni štruklji, narastki, krompir)
+- **Sladica** – specialiteta hiše: pohorska gibanica babice Angelce
+
+Prilagodimo za vegetarijance, vegane in celiakijo! 🌿
+
+⚠️ **Ob ponedeljkih in torkih večerje ne strežemo** – takrat priporočamo bližnji gostilni Framski hram ali Karla.""",
+    "sobe": """Imamo **3 sobe**, vse poimenovane po naših otrocih:
+
+🛏️ **ALJAŽ** – soba z balkonom (2+2)
+🛏️ **JULIJA** – družinska soba z balkonom (2 odrasla + 2 otroka)  
+🛏️ **ANA** – družinska soba z dvema spalnicama (2+2)
+
+Vsaka soba ima:
+✅ Predprostor, spalnico, kopalnico s tušem
+✅ Pohištvo iz lastnega lesa
+✅ Klimatizacijo
+✅ Brezplačen Wi-Fi
+✅ Satelitsko TV
+✅ Igrače za otroke
+
+Zajtrk je vključen v ceno! 🥐""",
+    "cena_sobe": """**Cenik nastanitve:**
+
+🛏️ **Nočitev z zajtrkom:** 50 €/osebo/noč (min. 2 noči)
+🍽️ **Večerja:** 25 €/osebo
+🏷️ **Turistična taksa:** 1,50 €
+
+**Popusti:**
+- Otroci do 5 let: **brezplačno** (z zajtrkom in večerjo)
+- Otroci 5-12 let: **50% popust**
+- Otroška posteljica: **brezplačno**
+- Doplačilo za enoposteljno: **+30%**""",
+    "klima": "Da, vse naše sobe so **klimatizirane** in udobne tudi v poletni vročini.",
+    "wifi": "Da, na voljo imamo **brezplačen Wi-Fi** v vseh sobah in skupnih prostorih.",
+    "prijava_odjava": """**Prijava (check-in):** od 14:00
+**Odjava (check-out):** do 10:00""",
+    "parking": "Parkirišče je brezplačno in na voljo neposredno pri domačiji.",
+    "zivali": "Hišni ljubljenčki na naši domačiji **niso dovoljeni**. Na kmetiji pa lahko ob obisku vidite domače živali.",
+    "placilo": "Sprejemamo gotovino in večino plačilnih kartic.",
+    "kontakt": "Kontakt: **02 601 54 00** / **031 330 113**\nEmail: **info@kovacnik.com**",
+    "lokacija": "Nahajamo se na: **Planica 9, 2313 Fram** (Pohorska stran nad Framom). \nParking je brezplačen pri domačiji.",
+    "min_nocitve": """Minimalno bivanje je:
+- **3 nočitve** v juniju, juliju in avgustu
+- **2 nočitvi** v ostalih mesecih""",
+    "kapaciteta_mize": "Jedilnica 'Pri peči' sprejme do 15 oseb, 'Pri vrtu' pa do 35 oseb.",
+    "alergije": "Seveda, prilagodimo jedi za alergije (gluten, laktoza) in posebne prehrane (vegan/vegetarijan).",
+    "vina": "Na voljo so lokalna vina s Pohorja.",
+    "turizem": "V okolici so odlične možnosti za izlete (Pohorje, slapovi, razgledišča).",
+    "smucisce": "Najbližja smučišča so Mariborsko Pohorje in Areh (približno 25–35 minut vožnje).",
+    "terme": "Najbližje terme so Terme Zreče in Terme Ptuj (približno 30–40 minut vožnje).",
+    "kolesa": "Izposoja koles je možna po dogovoru. Za več informacij nas kontaktirajte.",
+    "skalca": "Slap Skalca je prijeten izlet v bližini – priporočamo sprehod ob potočku.",
+    "darilni_boni": "Na voljo imamo darilne bone. Sporočite znesek in pripravimo bon za vas.",
+    "jedilnik": "Jedilnik se spreminja glede na sezono. Če želite, vam pošljemo aktualno vikend ponudbo.",
+    "druzina": "Pri nas smo družinska domačija in radi sprejmemo družine. Imamo tudi igrala za otroke.",
+    "kmetija": "Domačija Kovačnik je turistična kmetija na Pohorju z nastanitvijo, kosili in domačimi izdelki.",
+    "gibanica": "Pohorska gibanica je naša specialiteta. Priporočam, da jo poskusite ob obisku!",
+    "izdelki": "Imamo domače izdelke: marmelade, likerje/žganja, mesnine, čaje, sirupe in darilne pakete.",
+    "priporocilo": "Trenutno nimam priporočil brez dodatnih informacij.",
+}
+
+BOOKING_RELEVANT_KEYS = {"sobe", "vecerja", "cena_sobe", "min_nocitve", "kapaciteta_mize"}
+CRITICAL_INFO_KEYS = {
+    "odpiralni_cas",
+    "prazniki",
+    "rezervacija_vnaprej",
+    "zajtrk",
+    "vecerja",
+    "jedilnik",
+    "cena_sobe",
+    "min_nocitve",
+    "prijava_odjava",
+    "placilo",
+    "parking",
+    "kontakt",
+    "sobe",
+    "kapaciteta_mize",
+}
+
 ROOM_PRICING = {
-    "base_price": 50,  # EUR na nočitev na odraslo osebo
-    "min_adults": 2,  # minimalno 2 odrasli osebi
-    "min_nights_summer": 3,  # jun/jul/avg
-    "min_nights_other": 2,  # ostali meseci
-    "dinner_price": 25,  # penzionska večerja EUR/oseba
+    "base_price": 50,
+    "min_adults": 2,
+    "min_nights_summer": 3,
+    "min_nights_other": 2,
+    "dinner_price": 25,
     "dinner_includes": "juha, glavna jed, sladica",
     "child_discounts": {
-        "0-4": 100,  # brezplačno
-        "4-12": 50,  # 50% popust
+        "0-4": 100,
+        "4-12": 50,
     },
     "breakfast_included": True,
     "check_in": "14:00",
     "check_out": "10:00",
     "breakfast_time": "8:00-9:00",
     "dinner_time": "18:00",
-    "closed_days": ["ponedeljek", "torek"],  # ni večerij
+    "closed_days": ["ponedeljek", "torek"],
 }
 
 WINE_LIST = {
@@ -148,54 +261,6 @@ SEASONAL_MENUS = [
             "Priloge: štukelj s skuto, ričota s pirino kašo, pražen krompir iz pečice, mini pita z bučkami, ocvrte hruške, zimska solata",
             "Sladica: Pohorska gibanica babice Angelce",
             "Cena: 36 EUR odrasli, otroci 4–12 let -50%",
-        ],
-    },
-]
-
-WEEKLY_EXPERIENCES = [
-    {
-        "label": "Kulinarično doživetje (36 EUR, vinska spremljava 15 EUR / 4 kozarci)",
-        "menu": [
-            "Penina Doppler Diona 2017, pozdrav iz kuhinje",
-            "Sauvignon Frešer 2024, kiblflajš, zelenjava z vrta, zorjen sir, kruh z drožmi",
-            "Juha s kislim zeljem in krvavico",
-            "Alter Šumenjak 2021, krompir z njive, zelenjavni pire, pohan pišek s kmetije Pesek, solatka",
-            "Rumeni muškat Greif 2024, Pohorska gibanica ali štrudl ali pita sezone, hišni sladoled",
-        ],
-    },
-    {
-        "label": "Kulinarično doživetje (43 EUR)",
-        "menu": [
-            "Penina Doppler Diona 2017, pozdrav iz kuhinje",
-            "Sauvignon Frešer 2024, kiblflajš, zelenjava, zorjen sir, kruh z drožmi",
-            "Juha s kislim zeljem in krvavico",
-            "Renski rizling Frešer 2019, ričotka pirine kaše z jurčki",
-            "Alter Šumenjak 2021, krompir, zelenjavni pire, pohan pišek, solatka",
-            "Rumeni muškat Greif 2024, Pohorska gibanica ali štrudl ali pita sezone, hišni sladoled",
-        ],
-    },
-    {
-        "label": "Kulinarično doživetje (53 EUR, vinska spremljava 25 EUR / 6 kozarcev)",
-        "menu": [
-            "Penina Doppler Diona 2017, pozdrav iz kuhinje",
-            "Sauvignon Frešer 2024, kiblflajš, zelenjava, zorjen sir, kruh z drožmi",
-            "Juha s kislim zeljem in krvavico",
-            "Renski rizling Frešer 2019, ričota z jurčki in zelenjavo",
-            "Alter Šumenjak 2021, krompir, zelenjavni pire, pohan pišek, solatka",
-            "Modra frankinja Greif 2020, štrukelj s skuto, goveje meso, rdeča pesa, rabarbara, naravna omaka",
-            "Rumeni muškat Greif 2024, Pohorska gibanica ali štrudl ali pita sezone, hišni sladoled",
-        ],
-    },
-    {
-        "label": "Kulinarično doživetje (62 EUR, vinska spremljava 29 EUR / 7 kozarcev)",
-        "menu": [
-            "Penina Doppler Diona 2017, pozdrav iz kuhinje",
-            "Sauvignon Frešer 2024, kiblflajš, zelenjava, zorjen sir, kruh z drožmi",
-            "Juha s kislim zeljem in krvavico",
-            "Renski rizling Frešer 2019, ričota pirine kaše z jurčki",
-            "Alter Šumenjak 2021, krompir, zelenjavni pire, pohan pišek, solatka",
-            "Modra frankinja Greif 2020, štrukelj s skuto, goveje meso, rdeča pesa, rabarbara, naravna omaka",
-            "Rumeni muškat Greif 2024, Pohorska gibanica ali štrudl ali pita sezone, hišni sladoled",
         ],
     },
 ]
