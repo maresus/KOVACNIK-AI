@@ -11,6 +11,14 @@ from app2026.chat import answer as answer_mod
 from app2026.chat import intent as intent_mod
 from app2026.chat.state import get_session
 
+
+TERMINAL_STEPS = {
+    "awaiting_name",
+    "awaiting_phone",
+    "awaiting_email",
+    "awaiting_confirmation",
+}
+
 router = APIRouter(prefix="/v2/chat", tags=["chat-v2"])
 
 
@@ -43,6 +51,17 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
 
 
 def _decision_pipeline(message: str, session, brand) -> str:
+    reservation_state = session.data.get("reservation")
+    if isinstance(reservation_state, dict):
+        current_step = reservation_state.get("step")
+    else:
+        current_step = None
+
+    # Terminal guard: never switch flows during critical booking steps.
+    if current_step in TERMINAL_STEPS:
+        session.active_flow = "reservation"
+        return reservation_flow.handle(session, message, brand)
+
     # 1) Active flow takes priority
     if session.active_flow:
         if session.active_flow == "reservation":
