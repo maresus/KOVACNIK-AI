@@ -846,10 +846,15 @@ def handle_reservation_flow(
         "awaiting_dinner_count",
     }
     if reservation_state.get("type") is None:
-        if reservation_state.get("step") in table_steps:
+        # Infer type from existing data when possible.
+        if reservation_state.get("nights") is not None or reservation_state.get("rooms") is not None:
+            reservation_state["type"] = "room"
+        elif reservation_state.get("time") is not None:
             reservation_state["type"] = "table"
         elif reservation_state.get("step") in room_steps:
             reservation_state["type"] = "room"
+        elif reservation_state.get("step") in table_steps:
+            reservation_state["type"] = "table"
     if reservation_state.get("language") is None:
         reservation_state["language"] = detect_language(message)
 
