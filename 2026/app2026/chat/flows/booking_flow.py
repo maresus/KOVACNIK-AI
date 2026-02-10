@@ -1013,7 +1013,12 @@ def handle_reservation_flow(
             f"Super, uredim mizo. Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)\n{table_intro_text()}"
         )
 
-    if reservation_state.get("type") == "room":
+    is_room_flow = (
+        reservation_state.get("type") == "room"
+        or reservation_state.get("nights") is not None
+        or reservation_state.get("rooms") is not None
+    )
+    if is_room_flow:
         return handle_room_reservation_fn(
             message,
             state,
