@@ -1,18 +1,24 @@
 from pathlib import Path
+import sys
 
 from dotenv import load_dotenv
+
+# Nalozi .env pred uvozom modulov, ki berejo environment na import time.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+
+# Allow importing the 2026/app2026 package without a new repo.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "2026"))
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from app.core.config import Settings
 from app.services.chat_router import router as chat_router
+from app2026.chat.router import router as chat_v2_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
 from app.services.webhook_router import router as webhook_router
 from app.services.imap_poll_service import start_imap_poller
-
-# Naloži .env v okolje ob zagonu (za SMTP ipd.)
-load_dotenv()
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
@@ -56,6 +62,7 @@ def widget_ui() -> HTMLResponse:
 
 def configure_routes() -> None:
     app.include_router(chat_router)
+    app.include_router(chat_v2_router)
     app.include_router(reservation_router)
     app.include_router(admin_router)
     app.include_router(webhook_router)
