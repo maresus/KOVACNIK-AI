@@ -285,7 +285,7 @@ def _handle_room_reservation_impl(
             if error_type == "date":
                 reservation_state["date"] = None
                 reservation_state["step"] = "awaiting_room_date"
-                return error_message + " Prosim pošljite nov datum prihoda (DD.MM ali DD.MM.YYYY)."
+                return error_message + " Prosimo izberite drug datum prihoda (DD.MM ali DD.MM.YYYY)."
             return error_message + " Poskusite z drugim številom nočitev."
         reservation_state["nights"] = new_nights
         if reservation_state.get("people"):
@@ -524,7 +524,7 @@ def _handle_room_reservation_impl(
             send_reservation_emails_async(email_data)
             reset_reservation_state(state)
             lines = [
-                "Odlično! 😊 Vaša rezervacija je zabeležena:",
+                "Odlično! 😊 Vaša rezervacija sobe je zabeležena:",
                 f"📅 Datum: {summary_state.get('date')}, {summary_state.get('nights')} noči",
                 f"👥 Osebe: {summary_state.get('people')}",
                 f"🛏️ Soba: {chosen_location}",
@@ -845,10 +845,11 @@ def handle_reservation_flow(
         "awaiting_dinner",
         "awaiting_dinner_count",
     }
-    if reservation_state.get("step") in table_steps:
-        reservation_state["type"] = "table"
-    elif reservation_state.get("step") in room_steps:
-        reservation_state["type"] = "room"
+    if reservation_state.get("type") is None:
+        if reservation_state.get("step") in table_steps:
+            reservation_state["type"] = "table"
+        elif reservation_state.get("step") in room_steps:
+            reservation_state["type"] = "room"
     if reservation_state.get("language") is None:
         reservation_state["language"] = detect_language(message)
 
