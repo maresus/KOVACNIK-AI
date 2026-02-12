@@ -20,22 +20,24 @@ SEMANTIC_STOPWORDS = {
 
 
 def handle(message: str, brand: Any) -> str:
-    # 1) Hard truth from brand config
+    # 1) Hard truth from structured brand config (priority over generic canned replies)
+    hard = _hard_info(message, brand)
+    if hard:
+        return _cleanup_info_text(hard)
+
+    # 2) Generic brand responses
     key = detect_info_key(message, brand)
     if key:
         responses = getattr(brand, "INFO_RESPONSES", {})
         if isinstance(responses, dict) and key in responses:
             return _cleanup_info_text(str(responses[key]))
-    hard = _hard_info(message, brand)
-    if hard:
-        return _cleanup_info_text(hard)
 
-    # 2) RAG fallback (light)
+    # 3) RAG fallback (light)
     rag = _semantic_info_answer(message)
     if rag:
         return _cleanup_info_text(rag)
 
-    # 3) Unknown
+    # 4) Unknown
     return "Za to nimam podatka."
 
 
@@ -194,6 +196,112 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
     farm_info = getattr(brand, "FARM_INFO", {})
     if not farm_info:
         return None
+
+    seasonal_menus = getattr(brand, "SEASONAL_MENUS", []) or []
+    weekly_menus = getattr(brand, "WEEKLY_MENUS", {}) or {}
+    weekly_info = getattr(brand, "WEEKLY_INFO", {}) or {}
+    wine_list = getattr(brand, "WINE_LIST", {}) or {}
+    wine_keywords = set(getattr(brand, "WINE_KEYWORDS", set()) or set())
+
+    month_map = {
+        "januar": 1,
+        "februar": 2,
+        "marec": 3,
+        "april": 4,
+        "maj": 5,
+        "junij": 6,
+        "julij": 7,
+        "avgust": 8,
+        "september": 9,
+        "oktober": 10,
+        "november": 11,
+        "december": 12,
+    }
+
+    def _find_menu_by_month(month_num: int) -> Optional[dict]:
+        for entry in seasonal_menus:
+            months = set(entry.get("months") or set())
+            if month_num in months:
+                return entry
+        return None
+
+    # Tedenski degustacijski (4-7 hodni) meni
+    h_match = re.search(r"([4-7])\s*[- ]?\s*hod", lowered)
+    if h_match:
+        h_count = int(h_match.group(1))
+        menu = weekly_menus.get(h_count)
+        if not menu:
+            return None
+        lines = [
+            f"{menu.get('name', f'{h_count}-hodni meni')}:",
+        ]
+        for i, course in enumerate(menu.get("courses", []), start=1):
+            dish = (course or {}).get("dish", "").strip()
+            wine = (course or {}).get("wine")
+            if dish:
+                line = f"{i}. {dish}"
+                if wine:
+                    line += f" ({wine})"
+                lines.append(line)
+        lines.append(f"Cena: {menu.get('price')} EUR / odrasla oseba.")
+        if menu.get("wine_pairing"):
+            lines.append(
+                f"Vinska spremljava: {menu.get('wine_pairing')} EUR ({menu.get('wine_glasses')} kozarcev)."
+            )
+        return "\n".join(lines)
+
+    # Vikend / sezonski jedilnik po mesecih
+    is_menu_question = any(
+        token in lowered
+        for token in [
+            "vikend",
+            "kosilo",
+            "jedilnik",
+            "meni",
+            "ponudb",
+            "čez teden",
+            "cez teden",
+        ]
+    )
+    if is_menu_question and seasonal_menus:
+        asked_month = None
+        for month_name, month_num in month_map.items():
+            if month_name in lowered:
+                asked_month = month_num
+                break
+        if asked_month is None:
+            asked_month = datetime.now().month
+
+        seasonal = _find_menu_by_month(asked_month)
+        if seasonal:
+            lines = [f"{seasonal.get('label', 'Sezonski jedilnik')}:"] + list(
+                seasonal.get("items", [])
+            )
+            if weekly_info:
+                lines.append(
+                    f"Med tednom ({weekly_info.get('days')}) sprejemamo skupine {weekly_info.get('min_people')}+ oseb od {weekly_info.get('time')}."
+                )
+            return "\n".join(lines)
+
+    # Vina (konkreten izbor iz konfiguracije)
+    if any(word in lowered for word in wine_keywords):
+        picks = []
+        for section in ["penece", "bela", "rdeca"]:
+            for wine in wine_list.get(section, [])[:2]:
+                name = wine.get("name", "").strip()
+                wtype = wine.get("type", "").strip()
+                price = wine.get("price")
+                if not name:
+                    continue
+                suffix = f" – {wtype}" if wtype else ""
+                price_part = f" ({price:.2f} EUR)" if isinstance(price, (int, float)) else ""
+                picks.append(f"- {name}{suffix}{price_part}")
+        if picks:
+            return (
+                "Ponujamo izbor lokalnih vin iz okolice Pohorja:\n"
+                + "\n".join(picks[:6])
+                + "\nČe želite, priporočim vino glede na jed."
+            )
 
     if any(word in lowered for word in ["telefon", "številka", "stevilka", "kontakt", "email", "mail"]):
         phone = farm_info.get("phone", "")

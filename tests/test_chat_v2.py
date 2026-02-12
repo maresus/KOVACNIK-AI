@@ -228,3 +228,19 @@ def test_v2_awaiting_dinner_da_does_not_detour_to_help(client, monkeypatch):
 
     updated = chat_state.get_session(sid).data["reservation"]
     assert updated.get("step") == "awaiting_dinner_count"
+
+
+def test_v2_info_returns_structured_6_course_menu(client):
+    res = client.post("/v2/chat", json={"message": "Kaj ponujate v 6 hodnem meniju?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "6-hodni" in reply
+    assert "cena: 53 eur" in reply
+
+
+def test_v2_info_returns_seasonal_weekend_menu_for_april(client):
+    res = client.post("/v2/chat", json={"message": "Kakšna je vikend ponudba za april?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "marec–maj" in reply or "marec-maj" in reply
+    assert "cena: 36 eur" in reply
