@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
 
@@ -15,6 +15,7 @@ if "resend" not in sys.modules:
     sys.modules["resend"] = ModuleType("resend")
 
 from app2026.chat import router as v2_router  # noqa: E402
+from app2026.chat import state as chat_state  # noqa: E402
 from app2026.chat.flows import inquiry as inquiry_flow  # noqa: E402
 from app2026.chat.flows import reservation as reservation_flow  # noqa: E402
 
@@ -109,3 +110,18 @@ def test_v2_concurrent_sessions_isolate_state(client):
     continue_a = client.post("/v2/chat", json={"message": "12.12.2099", "session_id": session_a})
     assert continue_a.status_code == 200
     assert "nočit" in continue_a.json()["reply"].lower()
+
+
+def test_v2_session_timeout_resets_state():
+    sid = "timeout-session"
+    session = chat_state.get_session(sid)
+    session.active_flow = "reservation"
+    session.step = "awaiting_email"
+    session.data["reservation"] = {"step": "awaiting_email", "type": "room"}
+    session.last_activity = datetime.now(timezone.utc) - timedelta(minutes=31)
+
+    refreshed = chat_state.get_session(sid)
+    assert refreshed.session_id == sid
+    assert refreshed.active_flow is None
+    assert refreshed.step is None
+    assert refreshed.data == {}

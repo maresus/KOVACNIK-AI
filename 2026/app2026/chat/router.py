@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -37,7 +35,7 @@ class ChatResponse(BaseModel):
 @router.post("", response_model=ChatResponse)
 def chat_endpoint(payload: ChatRequest) -> ChatResponse:
     session = get_session(payload.session_id)
-    session.last_activity = datetime.now(timezone.utc)
+    session.touch()
     session.history.append({"role": "user", "content": payload.message})
     if len(session.history) > 20:
         session.history = session.history[-20:]
