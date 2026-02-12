@@ -16,6 +16,8 @@ TERMINAL_STEPS = {
     "awaiting_name",
     "awaiting_phone",
     "awaiting_email",
+    "awaiting_dinner",
+    "awaiting_note",
     "awaiting_confirmation",
 }
 
