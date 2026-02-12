@@ -150,6 +150,19 @@ def detect_info_key(message: str, brand: Any) -> Optional[str]:
 
     if any(w in text for w in ["kako ste", "kako si", "kako gre", "kako vam gre", "kako vam grejo stvari"]):
         return "smalltalk" if "smalltalk" in responses else None
+    if any(
+        w in text
+        for w in [
+            "kdo je gospodar",
+            "kdo vodi kmetijo",
+            "lastnik kmetije",
+            "gospodar kmetije",
+            "kdo vodi domačijo",
+        ]
+    ):
+        return "kmetija" if "kmetija" in responses else None
+    if any(w in text for w in ["traktor", "kombajn", "kmetijska mehanizacija"]):
+        return "kmetija" if "kmetija" in responses else None
     if any(w in text for w in ["kdaj ste odprti", "odpiralni", "delovni čas", "kdaj odprete"]):
         return "odpiralni_cas" if "odpiralni_cas" in responses else None
     if "zajtrk" in text and "večerj" not in text:
@@ -300,6 +313,7 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
     weekly_info = getattr(brand, "WEEKLY_INFO", {}) or {}
     wine_list = getattr(brand, "WINE_LIST", {}) or {}
     wine_keywords = set(getattr(brand, "WINE_KEYWORDS", set()) or set())
+    host_info = getattr(brand, "HOST_INFO", {}) or {}
 
     month_map = {
         "januar": 1,
@@ -442,6 +456,27 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
                 + "\n".join(picks[:6])
                 + "\nČe želite, priporočim vino glede na jed."
             )
+
+    if any(word in lowered for word in ["kdo je gospodar", "gospodar", "kdo vodi kmetijo", "kdo vodi domačijo", "lastnik"]):
+        host = host_info.get("host")
+        if host:
+            return f"Domačijo vodi {host}."
+        return "Domačijo vodi družina Kovačnik."
+
+    if any(word in lowered for word in ["katere živali", "kake živali", "kakšne živali", "živali na kmetiji"]):
+        listed = host_info.get("animals")
+        if isinstance(listed, list) and listed:
+            return "Na kmetiji lahko vidite: " + ", ".join(listed) + "."
+        return (
+            "Hišni ljubljenčki pri nas niso dovoljeni. "
+            "Na kmetiji pa lahko ob obisku vidite domače živali (točen nabor je odvisen od sezone)."
+        )
+
+    if any(word in lowered for word in ["traktor", "kombajn", "kmetijska mehanizacija"]):
+        machinery = host_info.get("machinery")
+        if machinery:
+            return str(machinery)
+        return "Tega podatka nimam potrjenega v bazi. Lahko preverimo pri ekipi in vam sporočimo."
 
     if any(word in lowered for word in ["telefon", "številka", "stevilka", "kontakt", "email", "mail"]):
         phone = farm_info.get("phone", "")

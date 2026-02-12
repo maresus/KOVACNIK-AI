@@ -23,6 +23,12 @@ def detect_intent(message: str, brand: Any) -> str:
         return "info"
     if any(tok in lowered for tok in ["rezerv", "soba", "sobe", "sobo", "miza", "mizo", "table", "room", "booking", "reserve"]):
         return "reservation"
+    question_like_info = (
+        "?" in lowered
+        or lowered.startswith(("kaj", "kdo", "kje", "kak", "ali", "imate", "a imate"))
+    )
+    if question_like_info:
+        return "info"
     if any(tok in lowered for tok in ["povpraš", "ponudb", "naročilo", "narocilo", "količin", "rok"]):
         return "inquiry"
 

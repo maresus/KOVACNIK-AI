@@ -42,6 +42,12 @@ FARM_INFO = {
     ],
 }
 
+HOST_INFO = {
+    "host": "družina Kovačnik",
+    "animals": [],
+    "machinery": "",
+}
+
 INFO_RESPONSES = {
     "pozdrav": """Pozdravljeni pri Domačiji Kovačnik! 😊
 

@@ -274,3 +274,18 @@ def test_v2_info_vikend_query_returns_seasonal_menu_without_weekly_line(client):
     reply = res.json()["reply"].lower()
     assert ("marec" in reply) or ("junij" in reply) or ("september" in reply) or ("december" in reply)
     assert "med tednom (" not in reply
+
+
+def test_v2_info_traktor_question_does_not_start_inquiry(client):
+    res = client.post("/v2/chat", json={"message": "Imate traktor?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "povpraševanje" not in reply
+    assert ("nimam potrjenega" in reply) or ("kmetij" in reply) or ("preverimo" in reply)
+
+
+def test_v2_info_gospodar_question_returns_direct_answer(client):
+    res = client.post("/v2/chat", json={"message": "Kdo je gospodar kmetije?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "družina kovačnik" in reply
