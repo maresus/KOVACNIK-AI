@@ -109,8 +109,12 @@ Zajtrk je vključen v ceno! 🥐""",
     "wifi": "Da, na voljo imamo **brezplačen Wi-Fi** v vseh sobah in skupnih prostorih.",
     "prijava_odjava": """**Prijava (check-in):** od 14:00
 **Odjava (check-out):** do 10:00""",
-    "parking": "Parkirišče je brezplačno in na voljo neposredno pri domačiji.",
-    "zivali": "Hišni ljubljenčki na naši domačiji **niso dovoljeni**. Na kmetiji pa lahko ob obisku vidite domače živali.",
+    "parking": """Da, parkiranje je pri nas brezplačno in tik ob domačiji.
+
+Če pridete z več vozili, ni težav - prostora je praviloma dovolj tudi za manjše skupine.""",
+    "zivali": """Hišni ljubljenčki pri nas žal niso dovoljeni.
+
+Če pa vas zanimajo živali na kmetiji, jih lahko ob obisku z veseljem tudi vidite.""",
     "placilo": "Sprejemamo gotovino in večino plačilnih kartic.",
     "kontakt": "Kontakt: **02 601 54 00** / **031 330 113**\nEmail: **info@kovacnik.com**",
     "lokacija": "Nahajamo se na: **Planica 9, 2313 Fram** (Pohorska stran nad Framom). \nParking je brezplačen pri domačiji.",
@@ -120,9 +124,15 @@ Zajtrk je vključen v ceno! 🥐""",
     "kapaciteta_mize": "Jedilnica 'Pri peči' sprejme do 15 oseb, 'Pri vrtu' pa do 35 oseb.",
     "alergije": "Seveda, prilagodimo jedi za alergije (gluten, laktoza) in posebne prehrane (vegan/vegetarijan).",
     "vina": "Na voljo so lokalna vina s Pohorja.",
-    "turizem": "V okolici so odlične možnosti za izlete (Pohorje, slapovi, razgledišča).",
-    "smucisce": "Najbližja smučišča so Mariborsko Pohorje in Areh (približno 25–35 minut vožnje).",
-    "terme": "Najbližje terme so Terme Zreče in Terme Ptuj (približno 30–40 minut vožnje).",
+    "turizem": """V okolici je veliko lepih izletov: Pohorje, razgledne točke, gozdne poti in slapovi.
+
+Če želite, vam predlagam 2-3 konkretne izlete glede na to, koliko časa imate.""",
+    "smucisce": """Najbližji smučišči sta Mariborsko Pohorje in Areh, približno 25-35 minut vožnje.
+
+Če želite, vam lahko predlagam tudi najlažji dostop in kje je običajno manj gneče.""",
+    "terme": """Najbližje terme so Terme Zreče in Terme Ptuj, približno 30-40 minut vožnje.
+
+Obe sta dobra izbira za poldnevni ali celodnevni izlet med bivanjem pri nas.""",
     "kolesa": "Izposoja koles je možna po dogovoru. Za več informacij nas kontaktirajte.",
     "skalca": "Slap Skalca je prijeten izlet v bližini – priporočamo sprehod ob potočku.",
     "darilni_boni": "Na voljo imamo darilne bone. Sporočite znesek in pripravimo bon za vas.",
