@@ -137,8 +137,33 @@ def test_v2_kids_ages_requires_numbers(client):
 
     res = client.post("/v2/chat", json={"message": "imate parking?", "session_id": sid})
     assert res.status_code == 200
-    assert "starosti otrok" in res.json()["reply"].lower()
+    reply = res.json()["reply"].lower()
+    assert "nadaljujmo z rezervacijo" in reply
+    assert "koliko so stari" in reply
 
     session = chat_state.get_session(sid)
     reservation = session.data.get("reservation", {})
     assert reservation.get("step") == "awaiting_kids_ages"
+
+
+def test_v2_terminal_allows_short_info_then_resumes(client, monkeypatch):
+    original_detect = v2_router.intent_mod.detect_intent
+    monkeypatch.setattr(
+        v2_router.intent_mod,
+        "detect_intent",
+        lambda m, b: "info" if "parking" in m.lower() else original_detect(m, b),
+    )
+    monkeypatch.setattr(v2_router.info_flow, "handle", lambda _m, _b: "Imamo parkirišče.")
+
+    sid = "terminal-info-resume"
+    client.post("/v2/chat", json={"message": "Rad bi rezerviral sobo", "session_id": sid})
+    client.post("/v2/chat", json={"message": "12.12.2099", "session_id": sid})
+    client.post("/v2/chat", json={"message": "3", "session_id": sid})
+    client.post("/v2/chat", json={"message": "4", "session_id": sid})
+    client.post("/v2/chat", json={"message": "2", "session_id": sid})  # awaiting_kids_ages
+
+    res = client.post("/v2/chat", json={"message": "Imate parking?", "session_id": sid})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "nadaljujmo z rezervacijo" in reply
+    assert "koliko so stari" in reply

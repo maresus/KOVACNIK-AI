@@ -5,12 +5,18 @@ from app2026.brand.registry import get_brand
 from app2026.chat.flows import info as info_flow
 from app2026.chat.flows import inquiry as inquiry_flow
 from app2026.chat.flows import reservation as reservation_flow
+from app2026.chat.flows.booking_flow import get_booking_continuation
 from app2026.chat import answer as answer_mod
 from app2026.chat import intent as intent_mod
 from app2026.chat.state import get_session
 
 
 TERMINAL_STEPS = {
+    "awaiting_people",
+    "awaiting_kids_info",
+    "awaiting_kids_ages",
+    "awaiting_room_location",
+    "awaiting_table_location",
     "awaiting_name",
     "awaiting_phone",
     "awaiting_email",
@@ -18,6 +24,7 @@ TERMINAL_STEPS = {
     "awaiting_note",
     "awaiting_confirmation",
 }
+MAX_TERMINAL_INTERRUPTS = 3
 
 router = APIRouter(prefix="/v2/chat", tags=["chat-v2"])
 
@@ -59,6 +66,49 @@ def _decision_pipeline(message: str, session, brand) -> str:
 
     # Terminal guard: never switch flows during critical booking steps.
     if current_step in TERMINAL_STEPS:
+        if isinstance(reservation_state, dict) and reservation_state.get("awaiting_cancel_confirmation"):
+            lowered = message.strip().lower()
+            if reservation_flow.is_affirmative(lowered):
+                reservation_flow.reset_reservation_state(reservation_state)
+                session.active_flow = None
+                session.step = None
+                return "V redu, rezervacijo smo prekinili. Kako vam lahko še pomagam?"
+            if lowered in {"ne", "ne hvala", "nadaljuj", "nadaljujmo", "ostani"}:
+                reservation_state["awaiting_cancel_confirmation"] = False
+                reservation_state["terminal_interrupt_count"] = 0
+                return (
+                    "Super, nadaljujmo z rezervacijo.\n\n"
+                    f"{get_booking_continuation(current_step, reservation_state)}"
+                )
+            return "Prosim odgovorite z 'da' (prekini) ali 'ne' (nadaljuj rezervacijo)."
+
+        intent = intent_mod.detect_intent(message, brand)
+        if intent in {"info", "help", "greeting"} and isinstance(reservation_state, dict):
+            interrupt_count = int(reservation_state.get("terminal_interrupt_count") or 0) + 1
+            reservation_state["terminal_interrupt_count"] = interrupt_count
+            if intent == "info":
+                side_reply = info_flow.handle(message, brand)
+            elif intent == "help":
+                side_reply = "Lahko odgovorim na info vprašanje in nato nadaljujeva rezervacijo."
+            else:
+                side_reply = "Pozdravljeni."
+
+            if interrupt_count >= MAX_TERMINAL_INTERRUPTS:
+                reservation_state["awaiting_cancel_confirmation"] = True
+                return (
+                    f"{side_reply}\n\n"
+                    "Vidim, da imate več dodatnih vprašanj. Želite prekiniti trenutno rezervacijo? (da/ne)"
+                )
+
+            return (
+                f"{side_reply}\n\n"
+                "Nadaljujmo z rezervacijo:\n"
+                f"{get_booking_continuation(current_step, reservation_state)}"
+            )
+
+        if isinstance(reservation_state, dict):
+            reservation_state["terminal_interrupt_count"] = 0
+            reservation_state["awaiting_cancel_confirmation"] = False
         session.active_flow = "reservation"
         return reservation_flow.handle(session, message, brand)
 
