@@ -125,3 +125,20 @@ def test_v2_session_timeout_resets_state():
     assert refreshed.active_flow is None
     assert refreshed.step is None
     assert refreshed.data == {}
+
+
+def test_v2_kids_ages_requires_numbers(client):
+    sid = "kids-ages-validation"
+    client.post("/v2/chat", json={"message": "Rad bi rezerviral sobo", "session_id": sid})
+    client.post("/v2/chat", json={"message": "12.12.2099", "session_id": sid})
+    client.post("/v2/chat", json={"message": "3", "session_id": sid})
+    client.post("/v2/chat", json={"message": "4", "session_id": sid})
+    client.post("/v2/chat", json={"message": "2", "session_id": sid})  # kids count -> awaiting_kids_ages
+
+    res = client.post("/v2/chat", json={"message": "imate parking?", "session_id": sid})
+    assert res.status_code == 200
+    assert "starosti otrok" in res.json()["reply"].lower()
+
+    session = chat_state.get_session(sid)
+    reservation = session.data.get("reservation", {})
+    assert reservation.get("step") == "awaiting_kids_ages"

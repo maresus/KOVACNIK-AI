@@ -125,6 +125,17 @@ def validate_reservation_rules(
     return True, "", ""
 
 
+def _parse_kids_ages_text(message: str) -> str | None:
+    """
+    Parse ages-only input and normalize it.
+    Prevents unrelated text from being accepted as ages.
+    """
+    numbers = re.findall(r"\d+", message)
+    if not numbers:
+        return None
+    return " in ".join(numbers) + " let"
+
+
 def advance_after_room_people(reservation_state: dict[str, Optional[str | int]], reservation_service: Any) -> str:
     """Premakne flow po tem, ko poznamo število oseb."""
     people_val = int(reservation_state.get("people") or 0)
@@ -331,7 +342,10 @@ def _handle_room_reservation_impl(
         return advance_after_room_people_fn(reservation_state, reservation_service)
 
     if step == "awaiting_kids_ages":
-        reservation_state["kids_ages"] = message.strip()
+        parsed_ages = _parse_kids_ages_text(message)
+        if not parsed_ages:
+            return "Prosim vpišite starosti otrok (npr. 8 in 6 let)."
+        reservation_state["kids_ages"] = parsed_ages
         return advance_after_room_people_fn(reservation_state, reservation_service)
 
     if step == "awaiting_room_location":
@@ -644,7 +658,10 @@ def _handle_table_reservation_impl(
         return proceed_after_table_people(reservation_state, reservation_service)
 
     if step == "awaiting_kids_ages":
-        reservation_state["kids_ages"] = message.strip()
+        parsed_ages = _parse_kids_ages_text(message)
+        if not parsed_ages:
+            return "Prosim vpišite starosti otrok (npr. 8 in 6 let)."
+        reservation_state["kids_ages"] = parsed_ages
         return proceed_after_table_people(reservation_state, reservation_service)
 
     if step == "awaiting_note":
