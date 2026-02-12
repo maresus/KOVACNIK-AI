@@ -151,7 +151,7 @@ def _decision_pipeline(message: str, session, brand) -> str:
             interrupt_count = int(reservation_state.get("terminal_interrupt_count") or 0) + 1
             reservation_state["terminal_interrupt_count"] = interrupt_count
             if intent == "info":
-                side_reply = info_flow.handle(message, brand)
+                side_reply = _handle_info(message, brand, session)
             elif intent == "help":
                 side_reply = "Lahko odgovorim na info vprašanje in nato nadaljujeva rezervacijo."
             else:
@@ -205,7 +205,7 @@ def _decision_pipeline(message: str, session, brand) -> str:
             "Pomagam lahko z rezervacijami, jedilnikom, informacijami o lokaciji in urniku ter izdelki."
         )
     if intent == "info":
-        info_reply = info_flow.handle(message, brand)
+        info_reply = _handle_info(message, brand, session)
         if info_reply.strip().lower() == "za to nimam podatka.":
             return answer_mod.answer(message, session, brand)
         return info_reply
@@ -219,5 +219,9 @@ def _handle_active_flow(message: str, session, brand) -> str | None:
     return None
 
 
-def _handle_info(message: str, brand) -> str:
-    return info_flow.handle(message, brand)
+def _handle_info(message: str, brand, session=None) -> str:
+    # Keep backward compatibility for tests/monkeypatches that still provide a 2-arg handle().
+    try:
+        return info_flow.handle(message, brand, session=session)
+    except TypeError:
+        return info_flow.handle(message, brand)

@@ -19,26 +19,121 @@ SEMANTIC_STOPWORDS = {
 }
 
 
-def handle(message: str, brand: Any) -> str:
+def handle(message: str, brand: Any, session: Any | None = None) -> str:
     # 1) Hard truth from structured brand config (priority over generic canned replies)
     hard = _hard_info(message, brand)
     if hard:
-        return _cleanup_info_text(hard)
+        return _apply_style(message, _cleanup_info_text(hard), session)
 
     # 2) Generic brand responses
     key = detect_info_key(message, brand)
     if key:
         responses = getattr(brand, "INFO_RESPONSES", {})
         if isinstance(responses, dict) and key in responses:
-            return _cleanup_info_text(str(responses[key]))
+            return _apply_style(message, _cleanup_info_text(str(responses[key])), session)
 
     # 3) RAG fallback (light)
     rag = _semantic_info_answer(message)
     if rag:
-        return _cleanup_info_text(rag)
+        return _apply_style(message, _cleanup_info_text(rag), session)
 
     # 4) Unknown
     return "Za to nimam podatka."
+
+
+def _apply_style(message: str, text: str, session: Any | None) -> str:
+    if not session or not text or text.startswith("Za to nimam podatka."):
+        return text
+
+    lowered = (message or "").lower()
+    if any(token in lowered for token in ["točen", "tocen", "natančen", "natancen", "celoten", "celotni"]):
+        return text
+
+    if any(k in lowered for k in ["jedil", "meni", "kosil", "ponudb"]):
+        topic = "menu"
+    elif any(k in lowered for k in ["vino", "vina", "vinska", "penin"]):
+        topic = "wine"
+    elif any(k in lowered for k in ["žival", "zival", "pes", "mačk", "poni"]):
+        topic = "animals"
+    else:
+        topic = "generic"
+
+    intros = {
+        "menu": [
+            "Seveda.",
+            "Z veseljem.",
+            "Jasno.",
+            "Odlično vprašanje.",
+        ],
+        "wine": [
+            "Seveda, z veseljem.",
+            "Super vprašanje.",
+            "Jasno.",
+            "Z veseljem.",
+        ],
+        "animals": [
+            "Seveda.",
+            "Z veseljem pojasnim.",
+            "Jasno.",
+            "Seveda, z veseljem.",
+        ],
+        "generic": [
+            "Seveda.",
+            "Z veseljem.",
+            "Odlično vprašanje.",
+            "Jasno.",
+        ],
+    }
+
+    outros = {
+        "menu": [
+            "Če želite, dodam še predlog pijače k meniju.",
+            "Če želite, vam takoj pripravim še rezervacijo mize.",
+            "Lahko dodam še predlog za otroke ali brezmesno različico.",
+        ],
+        "wine": [
+            "Če želite, priporočim vino glede na izbrano jed.",
+            "Lahko pripravim tudi izbor po cenovnem razredu.",
+            "Če želite, dodam še predlog za aperitiv.",
+        ],
+        "animals": [
+            "Če želite, povem še katere živali so najpogosteje na ogled.",
+            "Lahko dodam še priporočilo, kdaj je obisk z otroki najbolj zanimiv.",
+        ],
+        "generic": [
+            "Če želite, nadaljujeva še z rezervacijo.",
+            "Lahko dodam še bolj konkretne podatke za vaš termin.",
+        ],
+    }
+
+    templates = (
+        "{intro}\n{text}",
+        "{text}\n{outro}",
+        "{intro}\n{text}\n{outro}",
+        "{text}",
+    )
+
+    style_state = session.data.setdefault("style_state", {})
+    counters = style_state.setdefault("info_counter_by_topic", {})
+    counter = int(counters.get(topic, 0))
+    intro_list = intros.get(topic, intros["generic"])
+    outro_list = outros.get(topic, outros["generic"])
+    template = templates[counter % len(templates)]
+    intro = intro_list[counter % len(intro_list)]
+    outro = outro_list[counter % len(outro_list)]
+    rendered = template.format(intro=intro, text=text, outro=outro).strip()
+
+    last_by_topic = style_state.setdefault("last_info_reply_by_topic", {})
+    if rendered == last_by_topic.get(topic):
+        counter += 1
+        template = templates[counter % len(templates)]
+        intro = intro_list[counter % len(intro_list)]
+        outro = outro_list[counter % len(outro_list)]
+        rendered = template.format(intro=intro, text=text, outro=outro).strip()
+
+    counters[topic] = counter + 1
+    last_by_topic[topic] = rendered
+    return rendered
 
 
 def _cleanup_info_text(text: str) -> str:

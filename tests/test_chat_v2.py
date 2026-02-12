@@ -244,3 +244,16 @@ def test_v2_info_returns_seasonal_weekend_menu_for_april(client):
     reply = res.json()["reply"].lower()
     assert "marec–maj" in reply or "marec-maj" in reply
     assert "cena: 36 eur" in reply
+
+
+def test_v2_info_style_not_uniform_for_repeated_question(client):
+    sid = "info-style-rotation"
+    first = client.post("/v2/chat", json={"message": "Kakšno vino ponujate?", "session_id": sid})
+    second = client.post("/v2/chat", json={"message": "Kakšno vino ponujate?", "session_id": sid})
+    assert first.status_code == 200
+    assert second.status_code == 200
+    reply_1 = first.json()["reply"]
+    reply_2 = second.json()["reply"]
+    assert "vino" in reply_1.lower() or "vin" in reply_1.lower()
+    assert "vino" in reply_2.lower() or "vin" in reply_2.lower()
+    assert reply_1 != reply_2
