@@ -197,3 +197,34 @@ def test_v2_awaiting_email_accepts_email_without_info_detour(client, monkeypatch
     updated = chat_state.get_session(sid).data["reservation"]
     assert updated.get("email") == "satlermarko@gmail.com"
     assert updated.get("step") != "awaiting_email"
+
+
+def test_v2_awaiting_dinner_da_does_not_detour_to_help(client, monkeypatch):
+    # Force a noisy intent to prove terminal guard still consumes valid dinner answer.
+    monkeypatch.setattr(v2_router.intent_mod, "detect_intent", lambda _m, _b: "help")
+
+    sid = "awaiting-dinner-direct-input"
+    session = chat_state.get_session(sid)
+    session.active_flow = "reservation"
+    session.step = "awaiting_dinner"
+    session.data["reservation"] = {
+        "step": "awaiting_dinner",
+        "type": "room",
+        "date": "12.03.2026",
+        "nights": 4,
+        "name": "Miha Novak",
+        "phone": "041123456",
+        "email": "satlermarko@gmail.com",
+        "terminal_interrupt_count": 0,
+        "awaiting_cancel_confirmation": False,
+    }
+
+    res = client.post("/v2/chat", json={"message": "DA", "session_id": sid})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "nadaljujmo z rezervacijo" not in reply
+    assert "lahko odgovorim na info vprašanje" not in reply
+    assert ("za koliko oseb želite večerje" in reply) or ("večerje ob ponedeljkih in torkih" in reply)
+
+    updated = chat_state.get_session(sid).data["reservation"]
+    assert updated.get("step") == "awaiting_dinner_count"

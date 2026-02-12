@@ -86,7 +86,7 @@ def _decision_pipeline(message: str, session, brand) -> str:
         text = (message or "").strip().lower()
         stripped = (message or "").strip()
 
-        # During terminal steps, treat raw contact inputs as flow data (not side questions).
+        # During terminal steps, treat expected raw inputs as flow data (not side questions).
         if current_step == "awaiting_email" and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", stripped):
             if isinstance(reservation_state, dict):
                 reservation_state["terminal_interrupt_count"] = 0
@@ -95,6 +95,29 @@ def _decision_pipeline(message: str, session, brand) -> str:
             return reservation_flow.handle(session, message, brand)
 
         if current_step == "awaiting_phone" and re.fullmatch(r"[\d\s+()./-]{6,}", stripped):
+            if isinstance(reservation_state, dict):
+                reservation_state["terminal_interrupt_count"] = 0
+                reservation_state["awaiting_cancel_confirmation"] = False
+            session.active_flow = "reservation"
+            return reservation_flow.handle(session, message, brand)
+
+        lowered_stripped = stripped.lower()
+        dinner_negative = {"ne", "no", "nocem", "nočem", "brez"}
+        confirmation_negative = {"ne", "no"}
+        if current_step == "awaiting_dinner" and (
+            reservation_flow.is_affirmative(lowered_stripped)
+            or lowered_stripped in dinner_negative
+        ):
+            if isinstance(reservation_state, dict):
+                reservation_state["terminal_interrupt_count"] = 0
+                reservation_state["awaiting_cancel_confirmation"] = False
+            session.active_flow = "reservation"
+            return reservation_flow.handle(session, message, brand)
+
+        if current_step == "awaiting_confirmation" and (
+            reservation_flow.is_affirmative(lowered_stripped)
+            or lowered_stripped in confirmation_negative
+        ):
             if isinstance(reservation_state, dict):
                 reservation_state["terminal_interrupt_count"] = 0
                 reservation_state["awaiting_cancel_confirmation"] = False
