@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+import re
 
 from app2026.brand.registry import get_brand
 from app2026.chat.flows import info as info_flow
@@ -83,7 +84,30 @@ def _decision_pipeline(message: str, session, brand) -> str:
             return "Prosim odgovorite z 'da' (prekini) ali 'ne' (nadaljuj rezervacijo)."
 
         intent = intent_mod.detect_intent(message, brand)
-        if intent in {"info", "help", "greeting"} and isinstance(reservation_state, dict):
+        text = (message or "").strip().lower()
+        question_like = (
+            "?" in text
+            or text.startswith(("kaj", "kje", "kako", "ali", "imate", "je ", "pa "))
+        )
+
+        def looks_like_location_choice() -> bool:
+            if current_step != "awaiting_room_location" or not isinstance(reservation_state, dict):
+                return False
+            options = reservation_state.get("available_locations") or []
+            if not isinstance(options, list):
+                return False
+            lowered = text
+            for opt in options:
+                if isinstance(opt, str) and opt.lower() in lowered:
+                    return True
+            return False
+
+        if (
+            isinstance(reservation_state, dict)
+            and not looks_like_location_choice()
+            and not (current_step == "awaiting_kids_ages" and re.search(r"\d", text))
+            and (intent in {"info", "help", "greeting"} or question_like)
+        ):
             interrupt_count = int(reservation_state.get("terminal_interrupt_count") or 0) + 1
             reservation_state["terminal_interrupt_count"] = interrupt_count
             if intent == "info":
@@ -92,6 +116,8 @@ def _decision_pipeline(message: str, session, brand) -> str:
                 side_reply = "Lahko odgovorim na info vprašanje in nato nadaljujeva rezervacijo."
             else:
                 side_reply = "Pozdravljeni."
+            if side_reply.strip() == "Za to nimam podatka.":
+                side_reply = answer_mod.answer(message, session, brand)
 
             if interrupt_count >= MAX_TERMINAL_INTERRUPTS:
                 reservation_state["awaiting_cancel_confirmation"] = True
