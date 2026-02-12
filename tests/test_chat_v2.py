@@ -257,3 +257,20 @@ def test_v2_info_style_not_uniform_for_repeated_question(client):
     assert "vino" in reply_1.lower() or "vin" in reply_1.lower()
     assert "vino" in reply_2.lower() or "vin" in reply_2.lower()
     assert reply_1 != reply_2
+
+
+def test_v2_info_weekly_menu_query_does_not_start_inquiry(client):
+    res = client.post("/v2/chat", json={"message": "Kaj pa čez teden?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "povpraševanje" not in reply
+    assert "4-hodni" in reply
+    assert "7-hodni" in reply
+
+
+def test_v2_info_vikend_query_returns_seasonal_menu_without_weekly_line(client):
+    res = client.post("/v2/chat", json={"message": "Kaj pa čez vikend?"})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert ("marec" in reply) or ("junij" in reply) or ("september" in reply) or ("december" in reply)
+    assert "med tednom (" not in reply

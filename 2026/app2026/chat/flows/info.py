@@ -145,6 +145,9 @@ def detect_info_key(message: str, brand: Any) -> Optional[str]:
     text = (message or "").lower().strip()
     responses = getattr(brand, "INFO_RESPONSES", {}) or {}
 
+    if any(w in text for w in ["čez teden", "cez teden", "med tednom", "tedenska ponudba", "tedenski meni"]):
+        return "jedilnik" if "jedilnik" in responses else None
+
     if any(w in text for w in ["kako ste", "kako si", "kako gre", "kako vam gre", "kako vam grejo stvari"]):
         return "smalltalk" if "smalltalk" in responses else None
     if any(w in text for w in ["kdaj ste odprti", "odpiralni", "delovni čas", "kdaj odprete"]):
@@ -345,6 +348,33 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
             )
         return "\n".join(lines)
 
+    # Med tednom: degustacijski meniji 4-7 hodov
+    is_weekly_question = any(
+        token in lowered
+        for token in [
+            "čez teden",
+            "cez teden",
+            "med tednom",
+            "tedenska ponudba",
+            "tedenski meni",
+        ]
+    )
+    if is_weekly_question and weekly_menus:
+        ordered = sorted((k, v) for k, v in weekly_menus.items() if isinstance(k, int))
+        lines = ["Med tednom ponujamo degustacijske menije za skupine:"]
+        for count, menu in ordered:
+            price = menu.get("price")
+            lines.append(f"- {count}-hodni meni: {price} EUR / osebo")
+        if weekly_info:
+            days = weekly_info.get("days", "")
+            min_people = weekly_info.get("min_people", "")
+            time_txt = str(weekly_info.get("time", "")).strip()
+            lines.append(
+                f"Termin: {days}, za skupine {min_people}+ oseb, {time_txt}."
+            )
+        lines.append("Če želite, pošljem točen 4-, 5-, 6- ali 7-hodni meni.")
+        return "\n".join(lines)
+
     # Vikend / sezonski jedilnik po mesecih
     is_menu_question = any(
         token in lowered
@@ -354,8 +384,6 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
             "jedilnik",
             "meni",
             "ponudb",
-            "čez teden",
-            "cez teden",
         ]
     )
     if is_menu_question and seasonal_menus:
@@ -372,10 +400,6 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
             lines = [f"{seasonal.get('label', 'Sezonski jedilnik')}:"] + list(
                 seasonal.get("items", [])
             )
-            if weekly_info:
-                lines.append(
-                    f"Med tednom ({weekly_info.get('days')}) sprejemamo skupine {weekly_info.get('min_people')}+ oseb od {weekly_info.get('time')}."
-                )
             return "\n".join(lines)
 
     # Vina (konkreten izbor iz konfiguracije)
