@@ -361,6 +361,18 @@ def search_knowledge_hybrid(query: str, top_k: int = 5) -> list[KnowledgeChunk]:
 _build_bm25_index(KNOWLEDGE_CHUNKS)
 
 
+def get_knowledge_base_health() -> dict[str, object]:
+    """Vrne hitro diagnostiko baze znanja ob zagonu."""
+    return {
+        "knowledge_path": str(KNOWLEDGE_PATH),
+        "knowledge_file_exists": KNOWLEDGE_PATH.exists(),
+        "chunks_loaded": len(KNOWLEDGE_CHUNKS),
+        "bm25_indexed_docs": len(BM25_DOC_TF),
+        "embedding_cache_size": len(EMBEDDING_CACHE),
+        "embedding_model": EMBEDDING_MODEL,
+    }
+
+
 KEYWORD_RULES = {
     "salama": ["salama", "salamo", "salame", "klobasa", "klobaso", "mesni izdelki", "klobase"],
     "bunka": ["bunka", "bunko", "bunke", "pohorska bunka"],

@@ -62,6 +62,16 @@ def is_chroma_available() -> bool:
     return CHROMA_AVAILABLE and CHROMA_PATH.exists()
 
 
+def get_chroma_health() -> Dict[str, Any]:
+    """Vrne diagnostične podatke za Chroma sloj."""
+    return {
+        "installed": CHROMA_AVAILABLE,
+        "path": str(CHROMA_PATH),
+        "path_exists": CHROMA_PATH.exists(),
+        "ready": is_chroma_available(),
+    }
+
+
 def is_tourist_query(question: str) -> bool:
     """Preveri ali je vprašanje turistično (o okolici)."""
     lowered = question.lower()

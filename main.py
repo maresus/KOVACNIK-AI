@@ -13,6 +13,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from app.core.config import Settings
+from app.rag.chroma_service import get_chroma_health
+from app.rag.knowledge_base import get_knowledge_base_health
 from app.services.chat_router import router as chat_router
 from app2026.chat.router import router as chat_v2_router
 from app.services.reservation_router import router as reservation_router
@@ -26,6 +28,15 @@ app = FastAPI(title=settings.project_name)
 @app.on_event("startup")
 def startup_tasks() -> None:
     start_imap_poller()
+    kb_health = get_knowledge_base_health()
+    print(f"[startup][kb] {kb_health}")
+
+    chroma_health = get_chroma_health()
+    print(f"[startup][chroma] {chroma_health}")
+    if not chroma_health.get("ready"):
+        print(
+            "[startup][chroma] Chroma ni pripravljen; uporabljam fallback (knowledge.jsonl + BM25 + embeddings)."
+        )
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
