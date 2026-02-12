@@ -167,3 +167,33 @@ def test_v2_terminal_allows_short_info_then_resumes(client, monkeypatch):
     reply = res.json()["reply"].lower()
     assert "nadaljujmo z rezervacijo" in reply
     assert "koliko so stari" in reply
+
+
+def test_v2_awaiting_email_accepts_email_without_info_detour(client, monkeypatch):
+    # Force intent detector towards info to prove terminal guard still treats raw email as input.
+    monkeypatch.setattr(v2_router.intent_mod, "detect_intent", lambda _m, _b: "info")
+
+    sid = "awaiting-email-direct-input"
+    session = chat_state.get_session(sid)
+    session.active_flow = "reservation"
+    session.step = "awaiting_email"
+    session.data["reservation"] = {
+        "step": "awaiting_email",
+        "type": "room",
+        "name": "Miha Novak",
+        "phone": "041123456",
+        "terminal_interrupt_count": 0,
+        "awaiting_cancel_confirmation": False,
+    }
+
+    res = client.post("/v2/chat", json={"message": "satlermarko@gmail.com", "session_id": sid})
+    assert res.status_code == 200
+    reply = res.json()["reply"].lower()
+    assert "kam naj pošljem" not in reply
+    assert "nadaljujmo z rezervacijo" not in reply
+    assert "kontakt:" not in reply
+    assert ("večerje" in reply) or ("želite še kaj sporočiti" in reply)
+
+    updated = chat_state.get_session(sid).data["reservation"]
+    assert updated.get("email") == "satlermarko@gmail.com"
+    assert updated.get("step") != "awaiting_email"

@@ -83,8 +83,25 @@ def _decision_pipeline(message: str, session, brand) -> str:
                 )
             return "Prosim odgovorite z 'da' (prekini) ali 'ne' (nadaljuj rezervacijo)."
 
-        intent = intent_mod.detect_intent(message, brand)
         text = (message or "").strip().lower()
+        stripped = (message or "").strip()
+
+        # During terminal steps, treat raw contact inputs as flow data (not side questions).
+        if current_step == "awaiting_email" and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", stripped):
+            if isinstance(reservation_state, dict):
+                reservation_state["terminal_interrupt_count"] = 0
+                reservation_state["awaiting_cancel_confirmation"] = False
+            session.active_flow = "reservation"
+            return reservation_flow.handle(session, message, brand)
+
+        if current_step == "awaiting_phone" and re.fullmatch(r"[\d\s+()./-]{6,}", stripped):
+            if isinstance(reservation_state, dict):
+                reservation_state["terminal_interrupt_count"] = 0
+                reservation_state["awaiting_cancel_confirmation"] = False
+            session.active_flow = "reservation"
+            return reservation_flow.handle(session, message, brand)
+
+        intent = intent_mod.detect_intent(message, brand)
         question_like = (
             "?" in text
             or text.startswith(("kaj", "kje", "kako", "ali", "imate", "je ", "pa "))
