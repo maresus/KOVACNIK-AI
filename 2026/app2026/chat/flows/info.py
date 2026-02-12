@@ -7,7 +7,7 @@ from typing import Any, Optional
 from app.rag.knowledge_base import search_knowledge_scored
 
 
-SEMANTIC_THRESHOLD = 0.75
+SEMANTIC_THRESHOLD = 0.68
 SEMANTIC_STOPWORDS = {
     "a", "ali", "al", "pa", "in", "na", "za", "se", "so", "je", "smo", "ste",
     "sem", "biti", "bo", "bi", "da", "ne", "ni", "niso", "si", "mi", "ti",
@@ -25,18 +25,23 @@ def handle(message: str, brand: Any) -> str:
     if key:
         responses = getattr(brand, "INFO_RESPONSES", {})
         if isinstance(responses, dict) and key in responses:
-            return responses[key]
+            return _cleanup_info_text(str(responses[key]))
     hard = _hard_info(message, brand)
     if hard:
-        return hard
+        return _cleanup_info_text(hard)
 
     # 2) RAG fallback (light)
     rag = _semantic_info_answer(message)
     if rag:
-        return rag
+        return _cleanup_info_text(rag)
 
     # 3) Unknown
     return "Za to nimam podatka."
+
+
+def _cleanup_info_text(text: str) -> str:
+    # UI renders plain text, so strip markdown emphasis markers.
+    return (text or "").replace("**", "").strip()
 
 
 def detect_info_key(message: str, brand: Any) -> Optional[str]:

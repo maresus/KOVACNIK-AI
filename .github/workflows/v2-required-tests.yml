@@ -1,0 +1,31 @@
+name: V2 Required Tests
+
+on:
+  push:
+    branches:
+      - v2-2026
+  pull_request:
+    branches:
+      - v2-2026
+  workflow_dispatch:
+
+jobs:
+  test-v2-required:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run V2 required suite
+        run: pytest -q tests/test_chat_v2.py

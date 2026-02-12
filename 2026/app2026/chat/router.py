@@ -165,7 +165,10 @@ def _decision_pipeline(message: str, session, brand) -> str:
             "Pomagam lahko z rezervacijami, jedilnikom, informacijami o lokaciji in urniku ter izdelki."
         )
     if intent == "info":
-        return info_flow.handle(message, brand)
+        info_reply = info_flow.handle(message, brand)
+        if info_reply.strip().lower() == "za to nimam podatka.":
+            return answer_mod.answer(message, session, brand)
+        return info_reply
 
     # 4) Fallback (LLM)
     return answer_mod.answer(message, session, brand)
