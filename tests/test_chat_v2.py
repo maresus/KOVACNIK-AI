@@ -92,3 +92,20 @@ def test_v2_inquiry_start(client):
     res = client.post("/v2/chat", json={"message": "Rad bi ponudbo za dogodek"})
     data = res.json()
     assert "do kdaj" in data["reply"].lower()
+
+
+def test_v2_concurrent_sessions_isolate_state(client):
+    session_a = "session-a"
+    session_b = "session-b"
+
+    start_a = client.post("/v2/chat", json={"message": "Rad bi rezerviral sobo", "session_id": session_a})
+    assert start_a.status_code == 200
+    assert "datum" in start_a.json()["reply"].lower()
+
+    greet_b = client.post("/v2/chat", json={"message": "živjo", "session_id": session_b})
+    assert greet_b.status_code == 200
+    assert "pozdravljeni" in greet_b.json()["reply"].lower()
+
+    continue_a = client.post("/v2/chat", json={"message": "12.12.2099", "session_id": session_a})
+    assert continue_a.status_code == 200
+    assert "nočit" in continue_a.json()["reply"].lower()

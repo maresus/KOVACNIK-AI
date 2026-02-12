@@ -259,7 +259,7 @@
       quickBtns.style.display = 'none';
       showTyping();
       try {
-        const res = await fetch('/chat/stream', {
+        const res = await fetch('/v2/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, session_id: sessionId })

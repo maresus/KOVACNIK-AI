@@ -375,7 +375,7 @@
   </div>
 
   <script>
-    const apiUrl = "/chat/stream";
+    const apiUrl = "/v2/chat";
     const sessionKey = "chat_session_id";
     let sessionId = localStorage.getItem(sessionKey);
     if (!sessionId) {
@@ -437,7 +437,7 @@
       inputEl.focus();
 
       sendBtn.disabled = true;
-      statusEl.textContent = "Pošiljam zahtevo na /chat/stream ...";
+      statusEl.textContent = "Pošiljam zahtevo na /v2/chat ...";
 
       try {
         const res = await fetch(apiUrl, {
@@ -447,8 +447,8 @@
         });
 
         if (!res.ok) {
-          addMessage("Napaka pri klicu /chat/stream (status " + res.status + ")", "bot");
-          statusEl.textContent = "Napaka pri klicu /chat/stream.";
+          addMessage("Napaka pri klicu /v2/chat (status " + res.status + ")", "bot");
+          statusEl.textContent = "Napaka pri klicu /v2/chat.";
         } else {
           if (!res.body) {
             const data = await res.json();
