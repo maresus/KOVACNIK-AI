@@ -1019,7 +1019,9 @@ def handle_reservation_flow(
             if not reservation_state.get("date"):
                 reservation_state["step"] = "awaiting_room_date"
                 return _tr(
-                    f"{reply_prefix} Za kateri datum prihoda? (DD.MM ali DD.MM.YYYY)\n{room_intro_text()}"
+                    f"{reply_prefix}\n\n"
+                    "Za kateri datum prihoda? (DD.MM ali DD.MM.YYYY)\n\n"
+                    f"{room_intro_text()}"
                 )
             if not reservation_state.get("nights"):
                 reservation_state["step"] = "awaiting_nights"
@@ -1058,7 +1060,9 @@ def handle_reservation_flow(
             if not reservation_state.get("date"):
                 reservation_state["step"] = "awaiting_table_date"
                 return _tr(
-                    f"Odlično, mizo rezerviramo z veseljem. Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)\n{table_intro_text()}"
+                    "Odlično, mizo rezerviramo z veseljem.\n\n"
+                    "Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)\n\n"
+                    f"{table_intro_text()}"
                 )
 
             time_for_rules = reservation_state.get("time") or "12:00"
@@ -1102,11 +1106,15 @@ def handle_reservation_flow(
         if choice == "room":
             reservation_state["step"] = "awaiting_room_date"
             return _tr(
-            f"Odlično, sobo uredimo. Za kateri datum prihoda razmišljate? (DD.MM ali DD.MM.YYYY)\n{room_intro_text()}"
+                "Odlično, sobo uredimo.\n\n"
+                "Za kateri datum prihoda razmišljate? (DD.MM ali DD.MM.YYYY)\n\n"
+                f"{room_intro_text()}"
             )
         reservation_state["step"] = "awaiting_table_date"
         return _tr(
-            f"Super, uredim mizo. Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)\n{table_intro_text()}"
+            "Super, uredim mizo.\n\n"
+            "Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)\n\n"
+            f"{table_intro_text()}"
         )
 
     is_room_flow = (

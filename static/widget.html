@@ -262,26 +262,12 @@
         const res = await fetch('/v2/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, session_id: sessionId })
-      });
+          body: JSON.stringify({ message: text, session_id: sessionId })
+        });
         hideTyping();
         if (res.ok) {
-          if (!res.body) {
-            const data = await res.json();
-            addMessageToDOM(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
-          } else {
-            const botEl = addMessageToDOM('', 'bot');
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              botEl.textContent += chunk;
-              messagesEl.scrollTop = messagesEl.scrollHeight;
-            }
-            saveHistory();
-          }
+          const data = await res.json();
+          addMessageToDOM(data.reply || 'Oprostite, prišlo je do napake.', 'bot');
         } else {
           addMessageToDOM('Oprostite, strežnik ni dosegljiv.', 'bot');
         }

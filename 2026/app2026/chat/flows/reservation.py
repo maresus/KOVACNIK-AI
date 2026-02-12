@@ -346,16 +346,18 @@ def parse_reservation_type(message: str) -> Optional[str]:
 
 def room_intro_text(brand: Any) -> str:
     return (
-        "Sobe: ALJAŽ (2+2), JULIJA (2+2), ANA (2+2). "
-        "Minimalno 3 nočitve v juniju/juliju/avgustu, 2 nočitvi v ostalih mesecih. "
-        "Prijava 14:00, odjava 10:00, zajtrk 8:00–9:00, večerja 18:00 (pon/torki brez večerij). "
-        "Sobe so klimatizirane, Wi‑Fi je brezplačen, zajtrk je vključen."
+        "Sobe: ALJAŽ (2+2), JULIJA (2+2), ANA (2+2).\n\n"
+        "Minimalno 3 nočitve v juniju/juliju/avgustu, 2 nočitvi v ostalih mesecih.\n\n"
+        "Prijava 14:00, odjava 10:00, zajtrk 8:00–9:00, večerja 18:00 "
+        "(pon/torki brez večerij).\n\n"
+        "Sobe so klimatizirane, Wi-Fi je brezplačen, zajtrk je vključen."
     )
 
 
 def table_intro_text(brand: Any) -> str:
     return (
-        "Kosila ob sobotah in nedeljah med 12:00 in 20:00, zadnji prihod na kosilo ob 15:00. "
+        "Kosila ob sobotah in nedeljah med 12:00 in 20:00.\n\n"
+        "Zadnji prihod na kosilo je ob 15:00.\n\n"
         "Jedilnici: 'Pri peči' (15 oseb) in 'Pri vrtu' (35 oseb)."
     )
 
