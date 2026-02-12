@@ -330,21 +330,42 @@ def _hard_info(message: str, brand: Any) -> Optional[str]:
         menu = weekly_menus.get(h_count)
         if not menu:
             return None
-        lines = [
-            f"{menu.get('name', f'{h_count}-hodni meni')}:",
-        ]
-        for i, course in enumerate(menu.get("courses", []), start=1):
-            dish = (course or {}).get("dish", "").strip()
-            wine = (course or {}).get("wine")
-            if dish:
-                line = f"{i}. {dish}"
-                if wine:
-                    line += f" ({wine})"
-                lines.append(line)
+
+        def _format_course_line(idx: int, dish: str, wine: Optional[str]) -> str:
+            if wine:
+                return f"{idx}. {dish}\n   Vino: {wine}"
+            return f"{idx}. {dish}"
+
+        def _glass_word(n: int) -> str:
+            if n % 100 in {2, 3, 4} and n % 100 not in {12, 13, 14}:
+                return "kozarci"
+            if n % 10 == 1 and n % 100 != 11:
+                return "kozarec"
+            return "kozarcev"
+
+        lines = [f"{menu.get('name', f'{h_count}-hodni meni')}"]
+        courses = [c for c in (menu.get("courses", []) or []) if (c or {}).get("dish")]
+        if courses and "pozdrav iz kuhinje" in courses[0].get("dish", "").lower():
+            welcome = courses[0]
+            w_wine = welcome.get("wine")
+            lines.append("")
+            lines.append("Dobrodošlica:")
+            lines.append(f"- {welcome.get('dish')}")
+            if w_wine:
+                lines.append(f"  Vino: {w_wine}")
+            courses = courses[1:]
+
+        lines.append("")
+        lines.append("Hodi:")
+        for i, course in enumerate(courses, start=1):
+            lines.append(_format_course_line(i, course.get("dish", "").strip(), course.get("wine")))
+
+        lines.append("")
         lines.append(f"Cena: {menu.get('price')} EUR / odrasla oseba.")
         if menu.get("wine_pairing"):
+            glasses = int(menu.get("wine_glasses") or 0)
             lines.append(
-                f"Vinska spremljava: {menu.get('wine_pairing')} EUR ({menu.get('wine_glasses')} kozarcev)."
+                f"Vinska spremljava: {menu.get('wine_pairing')} EUR ({glasses} {_glass_word(glasses)})."
             )
         return "\n".join(lines)
 
