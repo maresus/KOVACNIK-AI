@@ -17,3 +17,9 @@ class Settings(BaseSettings):
     
     # Database URL za PostgreSQL
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
+
+    # Chat engine rollout flags (v2|v3). v3 is prepared but not switched by default.
+    chat_engine: str = Field(default="v2", alias="CHAT_ENGINE")
+    intent_confidence_min: float = Field(default=0.85, alias="INTENT_CONFIDENCE_MIN")
+    v3_shadow_mode: bool = Field(default=False, alias="V3_SHADOW_MODE")
+    v3_intent_model: str = Field(default="gpt-4.1-mini", alias="V3_INTENT_MODEL")
