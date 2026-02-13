@@ -9,13 +9,12 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 # Allow importing the 2026/app2026 package without a new repo.
 sys.path.insert(0, str(Path(__file__).resolve().parent / "2026"))
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.core.config import Settings
 from app.rag.chroma_service import get_chroma_health
 from app.rag.knowledge_base import get_knowledge_base_health
-from app.services.chat_router import router as chat_router
 from app2026.chat.router import router as chat_v2_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
@@ -84,9 +83,24 @@ def debug_ui_source() -> dict[str, str]:
         "widget_ui": str(widget),
         "widget_ui_exists": str(widget.exists()).lower(),
     }
+<<<<<<< HEAD
+=======
+
+
+@app.api_route("/chat", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+@app.api_route("/chat/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+@app.api_route("/chat/stream", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def legacy_chat_disabled(request: Request) -> JSONResponse:
+    return JSONResponse(
+        status_code=410,
+        content={
+            "detail": "Legacy endpoint '/chat' is intentionally disabled. Use '/v2/chat'.",
+            "path": str(request.url.path),
+        },
+    )
+>>>>>>> v2-2026
 
 def configure_routes() -> None:
-    app.include_router(chat_router)
     app.include_router(chat_v2_router)
     app.include_router(reservation_router)
     app.include_router(admin_router)
