@@ -83,8 +83,6 @@ def debug_ui_source() -> dict[str, str]:
         "widget_ui": str(widget),
         "widget_ui_exists": str(widget.exists()).lower(),
     }
-<<<<<<< HEAD
-=======
 
 
 @app.api_route("/chat", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
@@ -98,7 +96,6 @@ def legacy_chat_disabled(request: Request) -> JSONResponse:
             "path": str(request.url.path),
         },
     )
->>>>>>> v2-2026
 
 def configure_routes() -> None:
     app.include_router(chat_v2_router)
