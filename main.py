@@ -24,6 +24,7 @@ from app.services.imap_poll_service import start_imap_poller
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
+BASE_DIR = Path(__file__).resolve().parent
 
 @app.on_event("startup")
 def startup_tasks() -> None:
@@ -48,28 +49,41 @@ def chat_ui() -> HTMLResponse:
     Preprost UI za testiranje Kovačnik AI chata.
     Streže datoteko static/chat.html iz root mape projekta.
     """
-    html_path = Path("static/chat.html")
+    html_path = BASE_DIR / "static" / "chat.html"
     if not html_path.exists():
         return HTMLResponse(
             "<h1>Chat UI ni najden.</h1><p>Manjka datoteka static/chat.html.</p>",
             status_code=500,
         )
     html = html_path.read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=html, headers={"X-UI-Source": str(html_path)})
 
 @app.get("/widget", response_class=HTMLResponse)
 def widget_ui() -> HTMLResponse:
     """
     Widget verzija chata za embed v WordPress.
     """
-    html_path = Path("static/widget.html")
+    html_path = BASE_DIR / "static" / "widget.html"
     if not html_path.exists():
         return HTMLResponse(
             "<h1>Widget ni najden.</h1>",
             status_code=500,
         )
     html = html_path.read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=html, headers={"X-UI-Source": str(html_path)})
+
+
+@app.get("/debug/ui-source")
+def debug_ui_source() -> dict[str, str]:
+    chat = BASE_DIR / "static" / "chat.html"
+    widget = BASE_DIR / "static" / "widget.html"
+    return {
+        "base_dir": str(BASE_DIR),
+        "chat_ui": str(chat),
+        "chat_ui_exists": str(chat.exists()).lower(),
+        "widget_ui": str(widget),
+        "widget_ui_exists": str(widget.exists()).lower(),
+    }
 
 def configure_routes() -> None:
     app.include_router(chat_router)
