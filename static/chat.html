@@ -2,7 +2,7 @@
 <html lang="sl">
 <head>
   <meta charset="UTF-8" />
-  <title>Zdravstveni center – Pogovor</title>
+  <title>Kovačnik AI – Pogovor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap');
@@ -336,19 +336,19 @@
         <div class="brand">
           <div class="brand-mark"></div>
           <div>
-            <h1>Zdravstveni center</h1>
-            <p>Hitri odgovori za naročanje, cene, delovni čas in kontakt.</p>
+            <h1>Domačija Kovačnik</h1>
+            <p>Topel, jasen in hiter odgovor na vsako vprašanje o naši ponudbi.</p>
           </div>
         </div>
         <div class="top-actions">
           <button id="newSessionBtn" class="btn secondary">Nova seja</button>
-          <div class="presence">Asistent · na voljo</div>
+          <div class="presence">Barbara · prisotna</div>
         </div>
       </div>
 
       <div class="intro">
-        <h2>Dobrodošli v Zdravstvenem centru</h2>
-        <p>Vprašajte o pregledih, cenah, lokaciji ali se naročite na termin.</p>
+        <h2>Dobrodošli na Kovačniku</h2>
+        <p>Vprašajte o sobah, kosilu, izletih ali domačih izdelkih. Odgovorim jedrnato in brez ovinkov.</p>
       </div>
 
       <div class="grid">
@@ -357,14 +357,14 @@
         <div class="composer">
           <textarea
             id="input"
-            placeholder="Napišite vprašanje ali npr. 'Rad bi termin pri dermatologu.'"
+            placeholder="Napiši vprašanje ali npr. 'Rad bi rezerviral sobo za vikend.'"
           ></textarea>
           <div class="composer-actions">
             <div class="chips">
-              <span class="chip" data-prompt="Rad bi se naročil na pregled.">Naročanje</span>
-              <span class="chip" data-prompt="Kje se nahajate?">Lokacija</span>
-              <span class="chip" data-prompt="Kakšne so cene pregledov?">Cenik</span>
-              <span class="chip" data-prompt="Kakšen je delovni čas?">Delovni čas</span>
+              <span class="chip" data-prompt="Kaj ponujate na kmetiji?">Naša ponudba</span>
+              <span class="chip" data-prompt="Kaj prodajate v spletni trgovini?">Trgovina</span>
+              <span class="chip" data-prompt="Rad bi rezerviral sobo.">Rezervacija sobe</span>
+              <span class="chip" data-prompt="Rad bi rezerviral mizo.">Rezervacija mize</span>
             </div>
             <button id="sendBtn" class="btn">Pošlji</button>
           </div>
@@ -405,14 +405,14 @@
     function renderWelcome() {
       messagesEl.innerHTML = `
         <div class="msg bot">
-          Pozdravljeni v Zdravstvenem centru! 👋
+          Pozdravljeni pri Domačiji Kovačnik! 😊
           <br /><br />
-          Pomagam z naročanjem na preglede, informacijami o storitvah, cenah in delovnem času.
+          Lahko pomagam z vprašanji o sobah, mizi za kosilo, izletih ali naših domačih izdelkih.
           <br /><br />
           Poskusite:
-          <br />• "Rad bi termin pri ortopedu."
-          <br />• "Koliko stane pregled pri okulistu?"
-          <br />• "Kje se nahajate?"
+          <br />• "Kaj ponujate za vikend kosila?"
+          <br />• "Imate suho salamo ali pohorsko bunko?"
+          <br />• "Rad bi rezerviral sobo za vikend."
         </div>
       `;
     }

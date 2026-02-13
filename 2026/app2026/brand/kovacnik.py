@@ -44,8 +44,16 @@ FARM_INFO = {
 
 HOST_INFO = {
     "host": "družina Kovačnik",
-    "animals": [],
-    "machinery": "",
+    "animals": [
+        "krave",
+        "teleta",
+        "kokoši",
+        "petelin",
+        "koze",
+        "zajci",
+        "mačke",
+    ],
+    "machinery": "Na kmetiji uporabljamo osnovno kmetijsko mehanizacijo (traktor in priključke) za delo na posestvu.",
 }
 
 INFO_RESPONSES = {
