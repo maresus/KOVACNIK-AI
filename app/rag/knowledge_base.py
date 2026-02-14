@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 from app.core.llm_client import get_llm_client
+from app.rag.paths import get_knowledge_path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-KNOWLEDGE_PATH = BASE_DIR / "knowledge.jsonl"
+KNOWLEDGE_PATH = get_knowledge_path()
 
 
 @dataclass

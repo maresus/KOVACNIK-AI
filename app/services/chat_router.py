@@ -23,6 +23,7 @@ from app.rag.knowledge_base import (
     search_knowledge,
     search_knowledge_scored,
 )
+from app.rag.paths import get_knowledge_path
 from app.core.config import Settings
 from app.core.llm_client import get_llm_client
 from app.rag.chroma_service import answer_tourist_question, is_tourist_query
@@ -148,7 +149,7 @@ def _send_reservation_emails_async(payload: dict) -> None:
 
 FULL_KB_TEXT = ""
 try:
-    kb_path = Path(__file__).resolve().parents[2] / "knowledge.jsonl"
+    kb_path = get_knowledge_path()
     if kb_path.exists():
         chunks = []
         for line in kb_path.read_text(encoding="utf-8").splitlines():
