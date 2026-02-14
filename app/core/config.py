@@ -26,4 +26,6 @@ class Settings(BaseSettings):
     chat_engine: str = Field(default="v2", alias="CHAT_ENGINE")
     intent_confidence_min: float = Field(default=0.85, alias="INTENT_CONFIDENCE_MIN")
     v3_shadow_mode: bool = Field(default=False, alias="V3_SHADOW_MODE")
+    v3_enabled: bool = Field(default=False, alias="V3_ENABLED")
+    v3_canary_percent: int = Field(default=0, alias="V3_CANARY_PERCENT")
     v3_intent_model: str = Field(default="gpt-4.1-mini", alias="V3_INTENT_MODEL")
