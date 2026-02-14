@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from app.rag.paths import get_knowledge_path
+
 
 @dataclass
 class KnowledgeItem:
@@ -14,7 +16,7 @@ class KnowledgeItem:
 class RAGEngine:
     def __init__(self, knowledge_path: Path | None = None) -> None:
         if knowledge_path is None:
-            knowledge_path = Path(__file__).with_name("knowledge.jsonl")
+            knowledge_path = get_knowledge_path()
 
         self.items: List[KnowledgeItem] = []
         if knowledge_path.exists():
