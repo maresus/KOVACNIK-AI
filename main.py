@@ -16,6 +16,7 @@ from app.core.config import Settings
 from app.rag.chroma_service import get_chroma_health
 from app.rag.knowledge_base import get_knowledge_base_health
 from app2026.chat.router import router as chat_v2_router
+from app2026.chat_v3.router import router as chat_v3_router
 from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
 from app.services.webhook_router import router as webhook_router
@@ -99,6 +100,7 @@ def legacy_chat_disabled(request: Request) -> JSONResponse:
 
 def configure_routes() -> None:
     app.include_router(chat_v2_router)
+    app.include_router(chat_v3_router)
     app.include_router(reservation_router)
     app.include_router(admin_router)
     app.include_router(webhook_router)

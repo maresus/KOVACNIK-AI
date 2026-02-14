@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+INFO_INTENTS = [
+    "INFO_PERSON",
+    "INFO_ANIMAL",
+    "INFO_MENU",
+    "INFO_MENU_DETAIL",
+    "INFO_WINE",
+    "INFO_ROOM",
+    "INFO_LOCATION",
+    "INFO_HOURS",
+    "INFO_PRICING",
+    "INFO_GENERAL",
+]
+
+BOOKING_INTENTS = [
+    "BOOKING_TABLE",
+    "BOOKING_ROOM",
+]
+
+FLOW_CONTROL_INTENTS = [
+    "CONTINUE_FLOW",
+    "CANCEL",
+    "CONFIRM",
+]
+
+MISC_INTENTS = [
+    "GREETING",
+    "SMALLTALK",
+    "THANKS",
+    "UNCLEAR",
+]
+
+ALL_INTENTS = INFO_INTENTS + BOOKING_INTENTS + FLOW_CONTROL_INTENTS + MISC_INTENTS

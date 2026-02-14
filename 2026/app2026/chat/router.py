@@ -1,9 +1,5 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from datetime import datetime, timezone
-from pathlib import Path
-import json
-import time
 import re
 
 from app.core.config import Settings
@@ -15,7 +11,7 @@ from app2026.chat.flows.booking_flow import get_booking_continuation
 from app2026.chat import answer as answer_mod
 from app2026.chat import intent as intent_mod
 from app2026.chat.state import get_session
-from app2026.chat_v3 import interpreter as v3_interpreter
+from app2026.chat_v3 import router as v3_router
 
 
 TERMINAL_STEPS = {
@@ -33,7 +29,6 @@ TERMINAL_STEPS = {
 }
 MAX_TERMINAL_INTERRUPTS = 3
 _settings = Settings()
-_SHADOW_LOG_PATH = Path("data/shadow_intents.jsonl")
 
 router = APIRouter(prefix="/v2/chat", tags=["chat-v2"])
 
@@ -57,8 +52,8 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
         session.history = session.history[-20:]
 
     brand = get_brand()
-    _run_shadow_intent_logging(payload.message, session, brand)
     reply = _decision_pipeline(payload.message, session, brand)
+    _run_shadow_intent_logging(payload.message, session, brand, reply)
 
     session.history.append({"role": "assistant", "content": reply})
     if len(session.history) > 20:
@@ -67,35 +62,14 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
     return ChatResponse(reply=reply, session_id=session.session_id)
 
 
-def _run_shadow_intent_logging(message: str, session, brand) -> None:
+def _run_shadow_intent_logging(message: str, session, brand, v2_reply: str) -> None:
     # Phase A: shadow only, no runtime behavior changes.
     if not _settings.v3_shadow_mode:
         return
 
-    old_intent = intent_mod.detect_intent(message, brand)
-    start = time.perf_counter()
-    interpretation = v3_interpreter.parse_intent(
-        message=message,
-        history=session.history,
-        state=session.data,
-    )
-    latency_ms = round((time.perf_counter() - start) * 1000, 2)
-
-    record = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "session_id": session.session_id,
-        "state": session.step or session.active_flow or "idle",
-        "old_intent": old_intent,
-        "new_intent": interpretation.intent,
-        "confidence": interpretation.confidence,
-        "latency_ms": latency_ms,
-        "delta": old_intent != interpretation.intent.lower(),
-    }
-
     try:
-        _SHADOW_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with _SHADOW_LOG_PATH.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        record = v3_router.build_shadow_record_sync(message, session, brand, v2_reply)
+        v3_router.log_shadow_record(record)
     except Exception:
         # Shadow metrics must never break chat responses.
         return
