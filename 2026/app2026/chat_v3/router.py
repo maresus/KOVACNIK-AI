@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import Settings
+from app2026.brand.kovacnik_data import AMBIGUOUS_ENTITIES, resolve_entity
 from app2026.brand.registry import get_brand
 from app2026.chat import intent as v2_intent
 from app2026.chat.state import get_session
@@ -74,6 +75,16 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
 
     history = session.history[-5:]
     result = interpreter.interpret(message, history, session.data)
+
+    # Deterministic disambiguation guard on router level.
+    # This runs before confidence routing and before handler dispatch.
+    name = str((result.entities or {}).get("name", "")).strip().lower()
+    if name and name in AMBIGUOUS_ENTITIES:
+        resolved = resolve_entity(name)
+        if isinstance(resolved, dict) and resolved.get("action") == "clarify":
+            question = str(resolved.get("question") or "").strip()
+            if question:
+                return {"reply": question, "session_id": session.session_id}
 
     threshold = v3_config.get_confidence_threshold(result.intent)
     if result.confidence < threshold:
