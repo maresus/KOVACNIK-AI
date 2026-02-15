@@ -375,7 +375,7 @@
   </div>
 
   <script>
-    const apiUrl = "/v2/chat";
+    const apiUrl = "/v3/chat";
     const sessionKey = "chat_session_id";
     let sessionId = localStorage.getItem(sessionKey);
     if (!sessionId) {
@@ -437,7 +437,7 @@
       inputEl.focus();
 
       sendBtn.disabled = true;
-      statusEl.textContent = "Pošiljam zahtevo na /v2/chat ...";
+      statusEl.textContent = "Pošiljam zahtevo na /v3/chat ...";
 
       try {
         const res = await fetch(apiUrl, {
