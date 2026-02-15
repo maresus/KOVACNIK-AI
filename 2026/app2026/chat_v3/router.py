@@ -7,6 +7,7 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import re
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -26,6 +27,7 @@ from app2026.chat_v3.schemas import InterpretResult
 router = APIRouter(prefix="/v3/chat", tags=["chat-v3"])
 _settings = Settings()
 _SHADOW_LOG_PATH = Path("data/shadow_intents.jsonl")
+_DISAMBIG_LOG_PATH = Path("data/shadow_disambiguation.jsonl")
 
 
 class ChatRequest(BaseModel):
@@ -52,6 +54,44 @@ def _mask_message(message: str) -> str:
     return text
 
 
+def _normalize_name(value: str) -> str:
+    lowered = (value or "").lower()
+    # Minimal normalization for Slovene diacritics in this routing guard.
+    return (
+        lowered.replace("ž", "z")
+        .replace("š", "s")
+        .replace("č", "c")
+        .strip()
+    )
+
+
+def _detect_ambiguous_name_from_message(message: str) -> str | None:
+    normalized = _normalize_name(message)
+    tokens = re.findall(r"[a-z0-9]+", normalized)
+    token_set = set(tokens)
+    for name in AMBIGUOUS_ENTITIES:
+        if _normalize_name(name) in token_set:
+            return name
+    return None
+
+
+def _log_disambiguation_event(session_id: str, message: str, name: str, question: str) -> None:
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "session_id": session_id,
+        "event": "router_disambiguation",
+        "name": name,
+        "message": _mask_message(message),
+        "question": question,
+    }
+    try:
+        _DISAMBIG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _DISAMBIG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        return
+
+
 async def _dispatch(result: InterpretResult, message: str, session, brand) -> dict[str, str]:
     if result.intent.startswith("INFO_"):
         return await info_handler.execute(result, message, session, brand)
@@ -73,18 +113,24 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
             )
             return {"reply": reply["reply"], "session_id": session.session_id}
 
-    history = session.history[-5:]
-    result = interpreter.interpret(message, history, session.data)
-
-    # Deterministic disambiguation guard on router level.
-    # This runs before confidence routing and before handler dispatch.
-    name = str((result.entities or {}).get("name", "")).strip().lower()
-    if name and name in AMBIGUOUS_ENTITIES:
-        resolved = resolve_entity(name)
+    # Deterministic disambiguation must run before interpreter/handlers
+    # and must not depend on LLM output or intent class.
+    ambiguous_name = _detect_ambiguous_name_from_message(message)
+    if ambiguous_name:
+        resolved = resolve_entity(ambiguous_name)
         if isinstance(resolved, dict) and resolved.get("action") == "clarify":
             question = str(resolved.get("question") or "").strip()
             if question:
+                _log_disambiguation_event(
+                    session_id=session.session_id,
+                    message=message,
+                    name=ambiguous_name,
+                    question=question,
+                )
                 return {"reply": question, "session_id": session.session_id}
+
+    history = session.history[-5:]
+    result = interpreter.interpret(message, history, session.data)
 
     threshold = v3_config.get_confidence_threshold(result.intent)
     if result.confidence < threshold:
