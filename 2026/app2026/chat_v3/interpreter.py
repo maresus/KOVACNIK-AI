@@ -9,7 +9,7 @@ from app2026.chat_v3 import config as v3_config
 from app2026.chat_v3.schemas import InterpretResult
 
 _PROMPT_PATH = Path(__file__).with_name("prompts") / "interpreter.txt"
-_AMBIGUOUS_NAMES = {"aljaž", "aljaz", "julija", "ana"}
+_AMBIGUOUS_NAMES = {"aljaž", "aljaz", "julija", "ana"}  # all three are both rooms and family members
 
 
 def _system_prompt() -> str:

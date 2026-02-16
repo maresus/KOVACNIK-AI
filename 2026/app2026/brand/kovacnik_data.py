@@ -94,6 +94,11 @@ PERSONS = {
         "name": "Angelca",
         "role": "babica / gospodinja",
     },
+    "ana": {
+        "name": "Ana",
+        "role": "hči",
+        "notes": ["najmlajša članica družine"],
+    },
 }
 
 ANIMALS = {

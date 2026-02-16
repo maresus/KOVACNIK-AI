@@ -35,8 +35,8 @@ _PERSON_HINTS = frozenset({
     "angelc", "danilo", "barbara", "kmetiji", "kmetija",
 })
 _ROOM_HINTS = frozenset({
-    "soba", "nastanit", "nocit", "nočit", "nocitev", "nočitev",
-    "rezerv", "prenoc", "prenočit", "spalnic",
+    "sob",       # soba / sobo / sobi / sobah
+    "nastanit", "nocit", "nocitev", "rezerv", "prenoc", "spalnic",
 })
 
 
@@ -127,9 +127,10 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     # "iz družine" or "soba" after we asked them to clarify Aljaž/Julija/Ana).
     _pending = session.data.get("_pending_disambiguation")
     if _pending:
-        msg_lower = (message or "").lower()
-        is_person = any(h in msg_lower for h in _PERSON_HINTS)
-        is_room = any(h in msg_lower for h in _ROOM_HINTS)
+        # Normalize diacritics so "iz družine" matches hint "druzin" etc.
+        msg_normalized = _normalize_name(message)
+        is_person = any(h in msg_normalized for h in _PERSON_HINTS)
+        is_room = any(h in msg_normalized for h in _ROOM_HINTS)
         if is_person and not is_room:
             session.data.pop("_pending_disambiguation", None)
             reply = await info_handler.execute(
@@ -164,6 +165,30 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     if ambiguous_name:
         resolved = resolve_entity(ambiguous_name)
         if isinstance(resolved, dict) and resolved.get("action") == "clarify":
+            # If the message itself already provides context, resolve directly
+            # without asking — e.g. "Kakšna je soba Aljaž?" already says "soba".
+            _msg_ctx = _normalize_name(message)
+            if any(h in _msg_ctx for h in _ROOM_HINTS) and not any(h in _msg_ctx for h in _PERSON_HINTS):
+                reply = await info_handler.execute(
+                    InterpretResult(
+                        intent="INFO_ROOM",
+                        entities={"name": ambiguous_name, "_resolved": "room"},
+                        confidence=1.0,
+                    ),
+                    ambiguous_name, session, brand,
+                )
+                return {"reply": reply["reply"], "session_id": session.session_id}
+            if any(h in _msg_ctx for h in _PERSON_HINTS) and not any(h in _msg_ctx for h in _ROOM_HINTS):
+                reply = await info_handler.execute(
+                    InterpretResult(
+                        intent="INFO_PERSON",
+                        entities={"name": ambiguous_name, "_resolved": "person"},
+                        confidence=1.0,
+                    ),
+                    ambiguous_name, session, brand,
+                )
+                return {"reply": reply["reply"], "session_id": session.session_id}
+            # No clear context — ask the user
             question = str(resolved.get("question") or "").strip()
             if question:
                 session.data["_pending_disambiguation"] = ambiguous_name

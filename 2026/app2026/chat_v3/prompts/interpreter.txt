@@ -21,5 +21,6 @@ Pravila:
 3) Če je ime dvoumno (Aljaž, Julija, Ana) in ni jasno ali gre za osebo ali sobo:
    - needs_clarification=true
    - clarification_question izpolni
+   - Ana je hči (najmlajša članica družine) IN ime sobe — vedno vprašaj za pojasnitev
 4) Če si negotov, vrni UNCLEAR z nižjim confidence.
 5) Ne vračaj dodatnih polj. Ne vračaj markdowna.
