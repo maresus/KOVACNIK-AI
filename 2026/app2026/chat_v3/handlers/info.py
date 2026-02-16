@@ -196,6 +196,33 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         sparkling = WINES.get("sparkling") or []
         white = WINES.get("white") or []
         red = WINES.get("red") or []
+
+        # Check if user asked about a specific wine — match by token overlap.
+        _all_wines = (
+            [("Peneča", w) for w in sparkling]
+            + [("Bela", w) for w in white]
+            + [("Rdeča", w) for w in red]
+        )
+        _msg_words = set(re.findall(r"[a-z0-9]+", _normalize_text(message)))
+        _best_score = 0
+        _best: tuple | None = None
+        for _cat, _w in _all_wines:
+            _wine_words = set(re.findall(r"[a-z0-9]+", _normalize_text(_w.get("name", ""))))
+            _score = len(_msg_words & _wine_words)
+            if _score > _best_score:
+                _best_score = _score
+                _best = (_cat, _w)
+        if _best_score >= 2 and _best:
+            _cat, _w = _best
+            _lines = [f"{_w['name']} ({_w.get('type', '')}) — {_cat} vino"]
+            if _w.get("grape"):
+                _lines.append(f"Sorta: {_w['grape']}")
+            if _w.get("price"):
+                _lines.append(f"Cena: {_w['price']:.0f} EUR")
+            if _w.get("desc"):
+                _lines.append(f"Opis: {_w['desc']}")
+            return {"reply": "\n".join(_lines)}
+
         parts: list[str] = []
         if sparkling:
             names = [f"{w['name']} ({w.get('type', '')})" for w in sparkling]
@@ -285,9 +312,48 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             return {"reply": "\n".join(lines)}
         return {"reply": "Žal nimam podatkov o aktualnem meniju. Za informacije pokličite: 031 330 113"}
 
-    if intent == "INFO_ANIMAL":
-        # Check for a specific animal in the message
+    if intent == "INFO_PRICING":
         msg_l = (message or "").lower()
+        # Menu price query → redirect to menu pricing
+        if any(kw in msg_l for kw in ("meni", "kosilo", "vikend", "teden", "degustat", "hodni")):
+            return {
+                "reply": (
+                    "Cene menijev na Domačiji Kovačnik:\n"
+                    "  • Vikend kosilo (sob/ned): 36 EUR/odrasli, otroci 4–12 let -50%\n"
+                    "  • 4-hodni degustacijski meni: 36 EUR (+15 EUR vinska degustacija)\n"
+                    "  • 5-hodni: 43 EUR (+20 EUR)\n"
+                    "  • 6-hodni: 53 EUR (+25 EUR)\n"
+                    "  • 7-hodni: 62 EUR (+29 EUR)\n"
+                    "Za rezervacijo: 031 330 113"
+                )
+            }
+        # Room/accommodation price query
+        price = next(iter(ROOMS.values()), {}).get("price_per_person_eur", 50)
+        return {
+            "reply": (
+                f"Nastanitev na Domačiji Kovačnik:\n"
+                f"  • Cena: {price} EUR na osebo/noč (z zajtrkom)\n"
+                f"  • Otroci do 5 let: brezplačno\n"
+                f"  • Otroci 5–12 let: 50% popust\n"
+                f"  • Minimalno 3 nočitve (junij–avgust), 2 nočitvi (ostale mesece)\n"
+                f"  • Večerja: 25 EUR/osebo (po naročilu)\n"
+                f"Za rezervacijo: 031 330 113"
+            )
+        }
+
+    if intent == "INFO_ANIMAL":
+        # Check if user is asking about bringing pets (not about our farm animals).
+        msg_l = (message or "").lower()
+        if any(kw in msg_l for kw in ("ljubljenč", "hišn")):
+            return {
+                "reply": (
+                    "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
+                    "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
+                    "Na kmetiji imamo konjička Malajko in Marsija, pujsko Pepo, ovčka Čarlija, "
+                    "psičko Luno in še mnogo več."
+                )
+            }
+        # Check for a specific animal in the message
         specific: dict[str, Any] | None = None
         for key, adata in ANIMALS.items():
             aname = (adata.get("name") or "").lower()

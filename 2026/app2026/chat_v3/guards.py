@@ -47,8 +47,31 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
     text = (message or "").strip()
     lowered = text.lower()
 
+    active_flow, pending_field = _extract_pending(session)
+
+    # Active booking flow: handle pending fields BEFORE any shortcuts.
+    # This prevents the menu-number shortcut from hijacking booking inputs (e.g. "4" for nights).
+    if active_flow and pending_field:
+        if pending_field == "email" and EMAIL_RE.fullmatch(text):
+            return {"action": "continue_flow", "field": "email", "value": text}
+        if pending_field == "phone" and PHONE_RE.fullmatch(text):
+            return {"action": "continue_flow", "field": "phone", "value": text}
+        if pending_field == "date" and DATE_RE.search(text):
+            return {"action": "continue_flow", "field": "date", "value": text}
+        if pending_field == "guests":
+            match = NUMBER_RE.search(text)
+            if match:
+                return {"action": "continue_flow", "field": "guests", "value": int(match.group(0))}
+        if pending_field == "confirm":
+            if lowered in YES_WORDS:
+                return {"action": "continue_flow", "field": "confirm", "value": True}
+            if lowered in NO_WORDS:
+                return {"action": "continue_flow", "field": "confirm", "value": False}
+        # Active flow but input doesn't match expected field — don't check menu shortcut.
+        return None
+
     # Menu follow-up: after a menu summary, plain number means menu detail.
-    # This check runs regardless of active_flow so it always works.
+    # Only runs when there is no active booking flow.
     history = getattr(session, "history", []) or []
     recent = " ".join((item.get("content", "") for item in history[-3:] if isinstance(item, dict))).lower()
     if any(k in recent for k in ("4-hodni", "5-hodni", "6-hodni", "7-hodni", "degustacijski meniji")):
@@ -58,26 +81,5 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
                 "field": "courses",
                 "value": int(lowered),
             }
-
-    active_flow, pending_field = _extract_pending(session)
-
-    if not active_flow or not pending_field:
-        return None
-
-    if pending_field == "email" and EMAIL_RE.fullmatch(text):
-        return {"action": "continue_flow", "field": "email", "value": text}
-    if pending_field == "phone" and PHONE_RE.fullmatch(text):
-        return {"action": "continue_flow", "field": "phone", "value": text}
-    if pending_field == "date" and DATE_RE.search(text):
-        return {"action": "continue_flow", "field": "date", "value": text}
-    if pending_field == "guests":
-        match = NUMBER_RE.search(text)
-        if match:
-            return {"action": "continue_flow", "field": "guests", "value": int(match.group(0))}
-    if pending_field == "confirm":
-        if lowered in YES_WORDS:
-            return {"action": "continue_flow", "field": "confirm", "value": True}
-        if lowered in NO_WORDS:
-            return {"action": "continue_flow", "field": "confirm", "value": False}
 
     return None
