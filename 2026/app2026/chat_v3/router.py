@@ -29,6 +29,16 @@ _settings = Settings()
 _SHADOW_LOG_PATH = Path("data/shadow_intents.jsonl")
 _DISAMBIG_LOG_PATH = Path("data/shadow_disambiguation.jsonl")
 
+# Keyword sets for resolving pending disambiguation on the follow-up turn.
+_PERSON_HINTS = frozenset({
+    "druzin", "familij", "oseba", "sin", "hci", "hči", "gospod", "babi",
+    "angelc", "danilo", "barbara", "kmetiji", "kmetija",
+})
+_ROOM_HINTS = frozenset({
+    "soba", "nastanit", "nocit", "nočit", "nocitev", "nočitev",
+    "rezerv", "prenoc", "prenočit", "spalnic",
+})
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -113,6 +123,41 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
             )
             return {"reply": reply["reply"], "session_id": session.session_id}
 
+    # Resolve pending disambiguation from the previous turn (e.g. user replied
+    # "iz družine" or "soba" after we asked them to clarify Aljaž/Julija/Ana).
+    _pending = session.data.get("_pending_disambiguation")
+    if _pending:
+        msg_lower = (message or "").lower()
+        is_person = any(h in msg_lower for h in _PERSON_HINTS)
+        is_room = any(h in msg_lower for h in _ROOM_HINTS)
+        if is_person and not is_room:
+            session.data.pop("_pending_disambiguation", None)
+            reply = await info_handler.execute(
+                InterpretResult(
+                    intent="INFO_PERSON",
+                    entities={"name": _pending, "_resolved": "person"},
+                    confidence=1.0,
+                ),
+                _pending,
+                session,
+                brand,
+            )
+            return {"reply": reply["reply"], "session_id": session.session_id}
+        if is_room and not is_person:
+            session.data.pop("_pending_disambiguation", None)
+            reply = await info_handler.execute(
+                InterpretResult(
+                    intent="INFO_ROOM",
+                    entities={"name": _pending, "_resolved": "room"},
+                    confidence=1.0,
+                ),
+                _pending,
+                session,
+                brand,
+            )
+            return {"reply": reply["reply"], "session_id": session.session_id}
+        # Still ambiguous — fall through to normal flow (interpreter will try)
+
     # Deterministic disambiguation must run before interpreter/handlers
     # and must not depend on LLM output or intent class.
     ambiguous_name = _detect_ambiguous_name_from_message(message)
@@ -121,6 +166,7 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
         if isinstance(resolved, dict) and resolved.get("action") == "clarify":
             question = str(resolved.get("question") or "").strip()
             if question:
+                session.data["_pending_disambiguation"] = ambiguous_name
                 _log_disambiguation_event(
                     session_id=session.session_id,
                     message=message,

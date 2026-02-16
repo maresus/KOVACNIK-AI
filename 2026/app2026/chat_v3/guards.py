@@ -46,6 +46,19 @@ def _extract_pending(session: Any) -> tuple[str | None, str | None]:
 def check(message: str, session: Any) -> dict[str, Any] | None:
     text = (message or "").strip()
     lowered = text.lower()
+
+    # Menu follow-up: after a menu summary, plain number means menu detail.
+    # This check runs regardless of active_flow so it always works.
+    history = getattr(session, "history", []) or []
+    recent = " ".join((item.get("content", "") for item in history[-3:] if isinstance(item, dict))).lower()
+    if any(k in recent for k in ("4-hodni", "5-hodni", "6-hodni", "7-hodni", "degustacijski meniji")):
+        if lowered in {"4", "5", "6", "7"}:
+            return {
+                "action": "menu_detail",
+                "field": "courses",
+                "value": int(lowered),
+            }
+
     active_flow, pending_field = _extract_pending(session)
 
     if not active_flow or not pending_field:
@@ -66,16 +79,5 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
             return {"action": "continue_flow", "field": "confirm", "value": True}
         if lowered in NO_WORDS:
             return {"action": "continue_flow", "field": "confirm", "value": False}
-
-    # Menu follow-up: after a menu summary question, plain number means menu detail.
-    history = getattr(session, "history", []) or []
-    recent = " ".join((item.get("content", "") for item in history[-3:] if isinstance(item, dict))).lower()
-    if any(k in recent for k in ("4-hodni", "5-hodni", "6-hodni", "7-hodni", "degustacijski meniji")):
-        if lowered in {"4", "5", "6", "7"}:
-            return {
-                "action": "menu_detail",
-                "field": "courses",
-                "value": int(lowered),
-            }
 
     return None

@@ -95,7 +95,7 @@ def interpret(message: str, history: list[dict[str, str]] | None, session: dict[
             ],
             max_output_tokens=260,
             temperature=0.0,
-            response_format={"type": "json_object"},
+            text={"format": {"type": "json_object"}},
         )
         raw = _extract_text_from_response(response)
         if not raw:
