@@ -211,9 +211,27 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     if result.needs_clarification and result.clarification_question:
         return {"reply": result.clarification_question, "session_id": session.session_id}
 
+    # Remember whether we were mid-booking BEFORE the transition.
+    _pre_flow = session.active_flow
+    _pre_step = session.step
+
     session.active_flow = state_machine.transition(session.active_flow, result)
     reply = await _dispatch(result, message, session, brand)
-    return {"reply": reply["reply"], "session_id": session.session_id}
+    reply_text = reply["reply"]
+
+    # If user switched topic mid-booking, gently offer to continue after answering.
+    _booking_intents = {"BOOKING_ROOM", "BOOKING_TABLE", "CONTINUE_FLOW", "CANCEL", "CONFIRM"}
+    if (
+        _pre_flow == "reservation"
+        and _pre_step
+        and result.intent not in _booking_intents
+        and session.active_flow == "reservation"  # booking still active (not cancelled/completed)
+    ):
+        from app2026.chat.flows.booking_flow import get_booking_continuation
+        _continuation = get_booking_continuation(_pre_step, {})
+        reply_text = reply_text + f"\n\n—\nNadaljujemo z rezervacijo? {_continuation}"
+
+    return {"reply": reply_text, "session_id": session.session_id}
 
 
 async def build_shadow_record(message: str, session, brand: Any, v2_reply: str) -> dict[str, Any]:

@@ -20,6 +20,11 @@ _STEP_TO_FIELD = {
     "awaiting_people": "guests",
     "awaiting_table_people": "guests",
     "awaiting_confirmation": "confirm",
+    # These steps accept "ne" as a valid in-flow answer — must NOT let LLM see them as CANCEL.
+    "awaiting_note": "note",
+    "awaiting_dinner": "dinner",
+    "awaiting_dinner_count": "dinner_count",
+    "awaiting_kids_info": "kids_info",
 }
 
 
@@ -67,6 +72,21 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
                 return {"action": "continue_flow", "field": "confirm", "value": True}
             if lowered in NO_WORDS:
                 return {"action": "continue_flow", "field": "confirm", "value": False}
+        if pending_field == "note":
+            # Any text is valid: pass through to reservation flow (handles "ne"/"nič" as skip).
+            return {"action": "continue_flow", "field": "note", "value": text}
+        if pending_field == "dinner":
+            if lowered in YES_WORDS:
+                return {"action": "continue_flow", "field": "dinner", "value": True}
+            if lowered in NO_WORDS:
+                return {"action": "continue_flow", "field": "dinner", "value": False}
+        if pending_field == "dinner_count":
+            match = NUMBER_RE.search(text)
+            if match:
+                return {"action": "continue_flow", "field": "dinner_count", "value": int(match.group(0))}
+        if pending_field == "kids_info":
+            # "ne" / "brez" / numbers all valid — pass through so reservation flow handles it.
+            return {"action": "continue_flow", "field": "kids_info", "value": text}
         # Active flow but input doesn't match expected field — don't check menu shortcut.
         return None
 

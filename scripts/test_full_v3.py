@@ -582,6 +582,62 @@ TESTS: list[TC] = [
         Turn("Je kmetija primerna za obisk z otroki?",
              any_=["otrok", "otroci", "živali", "poni", "jahanj", "animat", "50%"]),
     ]),
+
+    # ══════════════════════════════════════════
+    # M. NOVI TESTI (popravki)
+    # ══════════════════════════════════════════
+    TC("Bela vina - samo bela", "NOVI", [
+        Turn("Katera bela vina imate?",
+             any_=["Bela", "Sauvignon", "Rizling", "Muškat"],
+             not_=["Rdeča vina", "Peneča vina"]),
+    ]),
+    TC("Rdeča vina - samo rdeča", "NOVI", [
+        Turn("Katera rdeča vina ponujate?",
+             any_=["Rdeča", "frankinja", "Pinot", "rdec"],
+             not_=["Bela vina", "Peneča vina"]),
+    ]),
+    TC("Peneča vina - samo peneča", "NOVI", [
+        Turn("Imate penino?",
+             any_=["Doppler", "DIONA", "peneč", "Peneča"]),
+    ]),
+    TC("Smučišče Areh", "NOVI", [
+        Turn("Je v bližini kakšno smučišče?",
+             must=["Areh"],
+             any_=["Mariborsko", "25", "35", "minut"]),
+    ]),
+    TC("Smučišče - direktno", "NOVI", [
+        Turn("Kako daleč je Areh od vas?",
+             any_=["Areh", "Mariborsko", "minut", "Pohorje"]),
+    ]),
+    TC("Pohodi Pohorje", "NOVI", [
+        Turn("So v bližini kakšne pohodniške poti?",
+             any_=["Pohorje", "pohod", "sprehod", "Skalc"]),
+    ]),
+    TC("Terme Zreče", "NOVI", [
+        Turn("So v bližini kakšne terme?",
+             any_=["Zreče", "Ptuj", "terme", "30", "40"]),
+    ]),
+    TC("Danilo - brez telefona", "NOVI", [
+        Turn("Kdo je Danilo?",
+             must=["Danilo"],
+             any_=["gospodar", "Štern"],
+             not_=["041"]),
+    ]),
+    TC("Danilo - z telefonom", "NOVI", [
+        Turn("Kakšna je telefonska številka Danila?",
+             must=["Danilo"],
+             any_=["041", "878"]),
+    ]),
+    TC("Barbara - z kontaktom", "NOVI", [
+        Turn("Kako pokličem Barbaro?",
+             any_=["031", "330", "Barbara"]),
+    ]),
+    TC("NE pri posebnih željah - guards check", "NOVI", [
+        # Guards must catch 'ne' at awaiting_note and pass to booking flow (not LLM CANCEL).
+        # After dinner step → ne → should ask about notes (not cancel).
+        Turn("Rad bi rezerviral mizo za kosilo",
+             any_=["datum", "Datum", "kateri", "sobota"]),
+    ]),
 ]
 
 

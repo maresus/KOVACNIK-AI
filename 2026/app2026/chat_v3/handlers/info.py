@@ -70,16 +70,16 @@ def _extract_name(result: InterpretResult, message: str) -> str:
     return ""
 
 
-def _format_person(data: dict[str, Any]) -> str:
+def _format_person(data: dict[str, Any], show_phone: bool = False) -> str:
     name = data.get("name", "Ta oseba")
     role = data.get("role")
     phone = data.get("phone")
     notes = data.get("notes") or []
-    parts = [f"{name} je {role} na domačiji." if role else f"{name} je del družine na domačiji."]
+    parts = [f"{name} je {role} na domačiji." if role else f"{name} je del naše družine."]
     if notes:
-        parts.append("Posebnost: " + ", ".join(str(n) for n in notes) + ".")
-    if phone:
-        parts.append(f"Kontakt: {phone}.")
+        parts.append(", ".join(str(n) for n in notes) + ".")
+    if phone and show_phone:
+        parts.append(f"Pokličete ga/jo na: {phone}.")
     return " ".join(parts)
 
 
@@ -102,10 +102,12 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
     if intent == "INFO_PERSON":
         name = _extract_name(result, message)
         _resolved_type = (result.entities or {}).get("_resolved")
+        msg_l = (message or "").lower()
+        _want_phone = any(kw in msg_l for kw in ("telefon", "kontakt", "pokliče", "poklič", "številk"))
         if name and _resolved_type == "person":
             person_data = PERSONS.get(name)
             if person_data:
-                return {"reply": _format_person(person_data)}
+                return {"reply": _format_person(person_data, show_phone=_want_phone)}
         elif name and _resolved_type == "room":
             room_data = ROOMS.get(name)
             if room_data:
@@ -115,7 +117,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             if resolved.get("action") == "clarify":
                 return {"reply": str(resolved.get("question"))}
             if resolved.get("type") == "person":
-                return {"reply": _format_person(resolved.get("data") or {})}
+                return {"reply": _format_person(resolved.get("data") or {}, show_phone=_want_phone)}
             if resolved.get("type") == "room":
                 return {
                     "reply": f"Ali vas zanima soba {resolved.get('data', {}).get('name', '').strip()} ali oseba z istim imenom?"
@@ -125,9 +127,8 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             adata = ANIMALS[name]
             aname = adata.get("name", name)
             atype = adata.get("type", "")
-            return {"reply": f"{aname} je {atype}." if atype else f"{aname} je žival na naši kmetiji."}
+            return {"reply": f"{aname} je {atype} na naši kmetiji." if atype else f"{aname} je žival na naši kmetiji."}
         # No specific name — score persons by token overlap with message
-        msg_l = (message or "").lower()
         msg_tokens = set(t for t in re.findall(r"[a-zšžčćđ]+", msg_l) if len(t) >= 4)
         best_score = 0
         best_person: dict[str, Any] | None = None
@@ -141,9 +142,9 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 best_score = score
                 best_person = pdata
         if best_score > 0 and best_person:
-            return {"reply": _format_person(best_person)}
+            return {"reply": _format_person(best_person, show_phone=_want_phone)}
         # List all family members as fallback
-        lines = ["Naša družina:"]
+        lines = ["Domačijo Kovačnik vodi družina Štern:"]
         for pdata in PERSONS.values():
             lines.append(f"  • {_format_person(pdata)}")
         return {"reply": "\n".join(lines)}
@@ -182,14 +183,14 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         if any(kw in msg_l for kw in ("kopalnic", "tuš", "banjic")):
             return {"reply": "Vse sobe imajo lastno kopalnico s tušem."}
         # Generic room listing
-        lines = ["Imamo 3 sobe, poimenovane po naših otrocih:"]
+        lines = ["Imamo tri sobe, vsaka poimenovana po enem od naših otrok:"]
         for rdata in ROOMS.values():
             rname = rdata["name"]
             cap = rdata.get("capacity", "")
             price = rdata.get("price_per_person_eur", "")
             feats = ", ".join(rdata.get("features", [])[:3])
-            lines.append(f"  • {rname}: kapaciteta {cap}, {price} EUR/osebo/noč — {feats}")
-        lines.append("\nVse cene vključujejo zajtrk. Check-in 14:00, check-out 10:00.")
+            lines.append(f"  • {rname}: {cap} osebe, {price} EUR/osebo/noč — {feats}")
+        lines.append("\nV ceno je vključen zajtrk. Prijava ob 14:00, odjava ob 10:00.")
         return {"reply": "\n".join(lines)}
 
     if intent == "INFO_WINE":
@@ -197,13 +198,15 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         white = WINES.get("white") or []
         red = WINES.get("red") or []
 
+        _msg_norm = _normalize_text(message)
+        _msg_words = set(re.findall(r"[a-z0-9]+", _msg_norm))
+
         # Check if user asked about a specific wine — match by token overlap.
         _all_wines = (
             [("Peneča", w) for w in sparkling]
             + [("Bela", w) for w in white]
             + [("Rdeča", w) for w in red]
         )
-        _msg_words = set(re.findall(r"[a-z0-9]+", _normalize_text(message)))
         _best_score = 0
         _best: tuple | None = None
         for _cat, _w in _all_wines:
@@ -223,24 +226,44 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 _lines.append(f"Opis: {_w['desc']}")
             return {"reply": "\n".join(_lines)}
 
+        # Category filter: only show the requested category if specified.
+        _want_sparkling = any(kw in _msg_norm for kw in ("penec", "penin", "sparkling", "prosec", "cava", "frizant"))
+        _want_white = any(kw in _msg_norm for kw in ("bela", "belo", "beli"))
+        _want_red = any(kw in _msg_norm for kw in ("rdec", "rdeca", "rdece", "rdeci"))
+
         parts: list[str] = []
-        if sparkling:
-            names = [f"{w['name']} ({w.get('type', '')})" for w in sparkling]
-            parts.append("Peneča vina: " + ", ".join(names))
-        if white:
-            names = [f"{w['name']} ({w.get('type', '')})" for w in white]
-            parts.append("Bela vina: " + ", ".join(names))
-        if red:
-            names = [f"{w['name']} ({w.get('type', '')})" for w in red]
-            parts.append("Rdeča vina: " + ", ".join(names))
+        if _want_sparkling and not _want_white and not _want_red:
+            if sparkling:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in sparkling]
+                parts.append("Peneča vina: " + ", ".join(names))
+            else:
+                return {"reply": "Peneča vina trenutno nimamo na karti."}
+        elif _want_white and not _want_red and not _want_sparkling:
+            if white:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in white]
+                parts.append("Bela vina: " + ", ".join(names))
+            else:
+                return {"reply": "Belih vin trenutno nimamo na karti."}
+        elif _want_red and not _want_white and not _want_sparkling:
+            if red:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in red]
+                parts.append("Rdeča vina: " + ", ".join(names))
+            else:
+                return {"reply": "Rdečih vin trenutno nimamo na karti."}
+        else:
+            # No specific category or multiple — show full list.
+            if sparkling:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in sparkling]
+                parts.append("Peneča vina: " + ", ".join(names))
+            if white:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in white]
+                parts.append("Bela vina: " + ", ".join(names))
+            if red:
+                names = [f"{w['name']} ({w.get('type', '')})" for w in red]
+                parts.append("Rdeča vina: " + ", ".join(names))
+
         if parts:
-            return {
-                "reply": (
-                    "Naša vinska karta:\n"
-                    + "\n".join(parts)
-                    + "\n\nZa podrobnosti (letnik, opis, cena) z veseljem povem več!"
-                )
-            }
+            return {"reply": "Naša vinska karta:\n" + "\n".join(parts)}
         return {"reply": "Žal nimam aktualnih podatkov o vinski karti."}
 
     if intent in ("INFO_MENU", "INFO_MENU_DETAIL"):
@@ -387,56 +410,118 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         phone = CONTACT.get("mobile", "031 330 113")
         # Parking
         if any(kw in msg_l for kw in ("parking", "parkirišč", "parkir", "avto")):
-            return {"reply": "Da, imamo brezplačno parkirišče neposredno ob kmetiji."}
+            return {"reply": "Seveda — imamo brezplačno parkirišče kar ob hiši, dovolj prostora za 10+ avtov."}
         # WiFi (general, outside room context)
         if any(kw in msg_l for kw in ("wifi", "wi-fi", "brezžičn", "internet")):
-            return {"reply": "Da, WiFi je brezplačno na voljo v vseh sobah in skupnih prostorih."}
+            return {"reply": "WiFi je brezplačno na voljo v vseh sobah in skupnih prostorih."}
         # Domači izdelki / shop
         if any(kw in msg_l for kw in ("domač", "salama", "bunk", "marmelad", "sirek", "liker", "pridelk", "nakup", "trgovin", "prodaj")):
             return {
                 "reply": (
-                    "Naši domači izdelki:\n"
+                    "Z veseljem! Naši domači izdelki:\n"
                     "  • Pohorska bunka (sušeno meso)\n"
                     "  • Hišna suha salama\n"
                     "  • Frešerjev zorjen sirček\n"
                     "  • Domači namazi (bučni, zeliščni)\n"
                     "  • Marmelade in kompoti\n"
                     "  • Hišni liker\n"
-                    f"Za nakup pokličite: {phone}"
+                    f"Za nakup pokličite Barbaro: {phone}"
+                )
+            }
+        # Skiing / Areh / Mariborsko Pohorje
+        if any(kw in msg_l for kw in ("smučišč", "smucišč", "smuc", "smuč", "areh", "mariborsko pohorje", "ski", "skijaš", "sneg", "žičnič", "zicnic")):
+            return {
+                "reply": (
+                    "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
+                    "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas. "
+                    "Če potrebujete nasvet o pristopu ali kje je manj gneče, vam z veseljem povemo."
+                )
+            }
+        # Terme / spa
+        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness", "sauna")):
+            return {
+                "reply": (
+                    "Najbližje terme so Terme Zreče in Terme Ptuj — od nas jih dosežete v 30–40 minutah.\n"
+                    "Lepa kombinacija: dopoldne Pohorje, popoldne terme. 😊"
+                )
+            }
+        # Nature / hiking / cycling / walks
+        if any(kw in msg_l for kw in ("pohod", "izlet", "sprehod", "narav", "gozd", "pot", "slap", "skalc", "kolesarj", "koles")):
+            return {
+                "reply": (
+                    "Okolica je res lepa za izlete! Tukaj je, kaj priporočamo:\n"
+                    "  • Sprehodi in pohodi po Pohorju — gozdne poti, razgledne točke\n"
+                    "  • Slap Skalca — prijeten sprehod ob potočku, v bližini\n"
+                    "  • Kolesarjenje (izposoja koles možna po dogovoru)\n"
+                    "Za konkretne predloge glede na čas in kondicijo nam kar povejte!"
                 )
             }
         # Aktivnosti
-        if any(kw in msg_l for kw in ("aktivnost", "počet", "jahanj", "poni", "kolesarj", "pohod", "izlet", "ogled", "doživetj")):
+        if any(kw in msg_l for kw in ("aktivnost", "počet", "jahanj", "poni", "ogled", "doživetj", "počitek")):
             return {
                 "reply": (
-                    "Aktivnosti na Domačiji Kovačnik:\n"
+                    "Pri nas je vedno kaj za početi:\n"
                     "  • Jahanje na ponijih Malajka in Marsi\n"
                     "  • Ogled in hranjenje živali (pujska Pepa, ovca Čarli, psička Luna...)\n"
-                    "  • Pohodništvo in kolesarjenje po Pohorju\n"
-                    "  • Ogled kmečkih opravil in pridelave\n"
+                    "  • Pohodi in kolesarjenje po Pohorju\n"
+                    "  • Ogled kmečkih opravil\n"
                     "  • Animatorske aktivnosti za otroke\n"
-                    f"Več info: {phone}"
+                    f"Pokličite nas za kakšen nasvet: {phone}"
                 )
             }
         # Children / family friendly
         if any(kw in msg_l for kw in ("otrok", "otroci", "druzin", "primern", "mlad")):
             return {
                 "reply": (
-                    f"{farm_name} je odlična destinacija za družine z otroki! "
-                    "Otroci se lahko igrajo z živalmi, jahajo na ponijih, "
-                    "spoznajo kmečko življenje in uživajo v naravnem okolju Pohorja. "
-                    "V vikend meniju otroci (4–12 let) plačajo le 50% cene. "
-                    f"Pokličite: {phone}"
+                    "Domačija Kovačnik je prava domačija za družine! "
+                    "Otroci se imajo pri nas res lepo — igrajo se z živalmi, jahajo na ponijih Malajka in Marsi, "
+                    "spoznajo kmečko življenje in so v naravi. "
+                    "V vikend meniju otroci (4–12 let) plačajo le polovično ceno. "
+                    f"Za rezervacijo pokličite: {phone}"
                 )
             }
         # General farm info / name
         return {
             "reply": (
-                f"Dobrodošli na {farm_name}!\n"
-                f"Nahajamo se na: {CONTACT.get('address', 'Planica 9, 2313 Fram')} (Pohorje)\n"
-                f"Kontakt: {phone} / {CONTACT.get('phone', '02 601 54 00')}\n"
-                "Ponujamo: vikend kosila, tedenski degustacijski meniji, nastanitev v sobah, "
-                "domači izdelki, jahanje, ogled živali."
+                f"Dobrodošli na {farm_name}! "
+                "Smo turistična kmetija na pohorski strani, nad Framom — mirno, naravno, domače.\n"
+                f"Naslov: {CONTACT.get('address', 'Planica 9, 2313 Fram')}\n"
+                "Ponujamo: vikend kosila, tedenski degustacijski meniji, nastanitev v sobah (z zajtrkom), "
+                "domači izdelki, jahanje, ogled živali.\n"
+                f"Za vse informacije: {phone}"
+            )
+        }
+
+    # INFO_LOCATION: handle outdoor/nearby locations before falling to v2.
+    if intent == "INFO_LOCATION":
+        msg_l = (message or "").lower()
+        phone = CONTACT.get("mobile", "031 330 113")
+        if any(kw in msg_l for kw in ("parking", "parkirišč", "parkir")):
+            return {"reply": "Seveda — imamo brezplačno parkirišče kar ob hiši, dovolj prostora za 10+ avtov."}
+        if any(kw in msg_l for kw in ("smučišč", "smucišč", "smuc", "smuč", "areh", "mariborsko pohorje", "ski", "sneg", "žičnič", "zicnic")):
+            return {
+                "reply": (
+                    "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
+                    "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas."
+                )
+            }
+        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness")):
+            return {
+                "reply": "Najbližje terme so Terme Zreče in Terme Ptuj — od nas jih dosežete v 30–40 minutah."
+            }
+        if any(kw in msg_l for kw in ("pohod", "slap", "skalc", "izlet", "gozd")):
+            return {
+                "reply": (
+                    "V okolici je lepo za izlete: pohodi po Pohorju, slap Skalca, gozdne poti.\n"
+                    f"Za konkretne predloge nas pokličite: {phone}"
+                )
+            }
+        # Default: farm location
+        return {
+            "reply": (
+                f"Nahajamo se na naslovu {CONTACT.get('address', 'Planica 9, 2313 Fram')} — "
+                "na pohorski strani, nad Framom. Iz avtoceste A1 izvoz Fram, nato cca. 15 min.\n"
+                f"Koordinate: {CONTACT.get('coordinates', '46.5234, 15.6123')}"
             )
         }
 
