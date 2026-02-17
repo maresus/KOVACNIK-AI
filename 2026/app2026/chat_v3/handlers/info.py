@@ -481,7 +481,14 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 )
             }
         # Product / shop price query misclassified as INFO_PRICING
-        if any(kw in msg_l for kw in ("marmelad", "bunka", "liker", "salama", "sirek", "sirup", "klobasa", "paštet", "namaz", "čaj", "gibanica", "potica", "darilni paket")):
+        _pkg_names = ("kajin paket", "aljazev paket", "anin paket", "julijin paket",
+                      "paket babice", "paket danila", "paket gospodar", "darilni paket",
+                      "darilni bon")
+        _prod_kws = ("marmelad", "bunka", "liker", "salama", "sirek", "sirup",
+                     "klobasa", "paštet", "namaz", "čaj", "gibanica", "potica")
+        if any(kw in msg_l for kw in _pkg_names) or \
+           any(kw in msg_l for kw in _prod_kws) or \
+           ("paket" in msg_l and any(kw in msg_l for kw in ("kajin", "aljazev", "anin", "julijin", "angelce", "danilo", "daril"))):
             shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             return {
                 "reply": (
