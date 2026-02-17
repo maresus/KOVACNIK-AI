@@ -57,6 +57,83 @@ def _normalize_text(text: str) -> str:
     )
 
 
+# Keywords that signal a competing product (so "marmelado + bunko" → full list)
+_SHOP_OTHER_PRODS = frozenset({
+    "bunka", "bunk", "salama", "klobas", "paštet", "liker", "žganje", "tepkovec",
+    "sirup", "namaz", "pesto", "sirček", "sirek", "gibanica", "potica", "piškot",
+    "paket", "bon",
+})
+
+
+def _fmt_price(p: float) -> str:
+    """Format a price as Slovene decimal string: 13.0→'13', 5.5→'5,50'."""
+    if p == int(p):
+        return f"{int(p)} €"
+    return f"{p:.2f}".replace(".", ",") + " €"
+
+
+def _specific_product_reply(msg_l: str) -> str | None:
+    """Return a focused reply if msg asks about ONE specific product category.
+    Returns None if the message is about multiple products (→ show full list).
+    """
+    shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
+
+    def _single(kws: tuple[str, ...]) -> bool:
+        """True if any of kws is in msg_l and no other product keywords clash."""
+        if not any(k in msg_l for k in kws):
+            return False
+        other = _SHOP_OTHER_PRODS - set(kws)
+        return not any(k in msg_l for k in other)
+
+    if _single(("marmelad",)):
+        cat = SHOP.get("categories", {}).get("marmelade", {})
+        examples = ", ".join(cat.get("examples") or [])
+        price = cat.get("price_from", 5.50)
+        price_str = f"{price:.2f}".replace(".", ",")
+        return (
+            f"Domače marmelade Kovačnik ({examples}).\n"
+            f"Cena: od {price_str} €\n"
+            f"🛒 {shop_url}"
+        )
+    if _single(("liker", "žganje", "tepkovec")):
+        items = SHOP.get("categories", {}).get("likerji", {}).get("items", [])
+        lines = ["Likerji in žganje Kovačnik:"]
+        for it in items:
+            lines.append(f"  • {it['name']} — {_fmt_price(it['price'])}")
+        lines.append(f"🛒 {shop_url}")
+        return "\n".join(lines)
+    if _single(("sirup",)):
+        items = SHOP.get("categories", {}).get("sirupi", {}).get("items", [])
+        lines = ["Domači sirupi Kovačnik:"]
+        for it in items:
+            lines.append(f"  • {it['name']} — {_fmt_price(it['price'])}")
+        lines.append(f"🛒 {shop_url}")
+        return "\n".join(lines)
+    if _single(("namaz", "pesto", "paštet")):
+        items = SHOP.get("categories", {}).get("namazi", {}).get("items", [])
+        lines = ["Domači namazi Kovačnik:"]
+        for it in items:
+            lines.append(f"  • {it['name']} — {_fmt_price(it['price'])}")
+        lines.append(f"🛒 {shop_url}")
+        return "\n".join(lines)
+    if _single(("bunka", "bunk", "salama", "klobas")):
+        items = SHOP.get("categories", {}).get("mesni_izdelki", {}).get("items", [])
+        lines = ["Mesni izdelki Kovačnik:"]
+        for it in items:
+            price = it.get("price_range") or _fmt_price(it.get("price", 0))
+            lines.append(f"  • {it['name']} — {price}")
+        lines.append(f"🛒 {shop_url}")
+        return "\n".join(lines)
+    if _single(("gibanica", "potica", "piškot")):
+        items = SHOP.get("categories", {}).get("sladke_dobrote", {}).get("items", [])
+        lines = ["Sladke dobrote Kovačnik:"]
+        for it in items:
+            lines.append(f"  • {it['name']} — {_fmt_price(it['price'])}")
+        lines.append(f"🛒 {shop_url}")
+        return "\n".join(lines)
+    return None
+
+
 def _extract_name(result: InterpretResult, message: str) -> str:
     # Normalize diacritics so LLM's "čarli" matches key "carli" etc.
     direct = _normalize_text(str((result.entities or {}).get("name", ""))).strip()
@@ -272,6 +349,12 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         return {"reply": "\n".join(lines)}
 
     if intent == "INFO_WINE":
+        msg_l = (message or "").lower()
+        # Likerji / žganje — misclassified as INFO_WINE; redirect to shop
+        if any(kw in msg_l for kw in ("liker", "žganje", "tepkovec")):
+            _s = _specific_product_reply(msg_l)
+            if _s:
+                return {"reply": _s}
         sparkling = WINES.get("sparkling") or []
         white = WINES.get("white") or []
         red = WINES.get("red") or []
@@ -376,6 +459,9 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             lines.append(f"🛒 {shop_url}")
             return {"reply": "\n".join(lines)}
         # --- Aktivnosti / outdoor / produkti misclassified as INFO_MENU ---
+        _specific = _specific_product_reply(msg_lower)
+        if _specific:
+            return {"reply": _specific}
         if any(kw in msg_lower for kw in ("liker", "žganje", "bunka", "sirek", "sirček", "salama", "marmelad", "pridelk", "nakup", "prodaj")):
             shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             return {
@@ -481,6 +567,9 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 )
             }
         # Product / shop price query misclassified as INFO_PRICING
+        _specific = _specific_product_reply(msg_l)
+        if _specific:
+            return {"reply": _specific}
         _pkg_names = ("kajin paket", "aljazev paket", "anin paket", "julijin paket",
                       "paket babice", "paket danila", "paket gospodar", "darilni paket",
                       "darilni bon")
@@ -783,6 +872,9 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 )
             }
         # Domači izdelki / shop — with prices and online store link
+        _specific = _specific_product_reply(msg_l)
+        if _specific:
+            return {"reply": _specific}
         if any(kw in msg_l for kw in ("domač", "salama", "bunk", "marmelad", "sirek", "liker", "pridelk", "nakup", "trgovin", "prodaj", "spletna", "prodajate", "kupite", "za nakup")):
             shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             return {

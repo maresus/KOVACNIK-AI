@@ -33,6 +33,14 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "Pokličite nas: 031 330 113"
             )
         }
+    if any(kw in msg_l for kw in ("pozim", "zimsk", "pozimi")):
+        return {
+            "reply": (
+                "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
+                "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas.\n"
+                "Če potrebujete nasvet o pristopu ali kje je manj gneče, vam z veseljem povemo."
+            )
+        }
     if any(kw in msg_l for kw in ("animaci", "animator")):
         return {
             "reply": (
