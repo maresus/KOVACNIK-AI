@@ -131,6 +131,35 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         elif name:
             resolved = resolve_entity(name)
             if resolved.get("action") == "clarify":
+                # If message has strong person context, skip clarification and resolve directly.
+                # Use token scoring to find the right person (e.g. "Kdo je partnerica Aljaža?" → Kaja,
+                # not Aljaž, because "partnerica" matches Kaja's role).
+                _person_ctx = any(kw in msg_l for kw in (
+                    "partner", "partnerica", "kdo je", "oseba", "član", "druzin",
+                    "sin", "hči", "hci", "babic",
+                ))
+                _room_ctx = any(kw in msg_l for kw in (
+                    "soba", "sobo", "sobi", "sob", "nastanit", "nocit", "rezerv",
+                ))
+                if _person_ctx and not _room_ctx:
+                    # Try token scoring first — handles "Kdo je partnerica Aljaža?" → Kaja
+                    _search_tokens = set(t for t in re.findall(r"[a-zšžčćđ]+", msg_l) if len(t) >= 5)
+                    _best_score = 0
+                    _best_person: dict[str, Any] | None = None
+                    for pdata in PERSONS.values():
+                        _role = (pdata.get("role") or "").lower()
+                        _notes = " ".join(str(n) for n in (pdata.get("notes") or [])).lower()
+                        _combined = f"{_role} {_notes}"
+                        _score = sum(1 for tok in _search_tokens if tok in _combined)
+                        if _score > _best_score:
+                            _best_score = _score
+                            _best_person = pdata
+                    if _best_score > 0 and _best_person:
+                        return {"reply": _format_person(_best_person, show_phone=_want_phone)}
+                    # Fallback: direct lookup by extracted name
+                    person_data = PERSONS.get(name)
+                    if person_data:
+                        return {"reply": _format_person(person_data, show_phone=_want_phone)}
                 return {"reply": str(resolved.get("question"))}
             if resolved.get("type") == "person":
                 return {"reply": _format_person(resolved.get("data") or {}, show_phone=_want_phone)}
@@ -334,6 +363,18 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
            not any(kw in msg_lower for kw in ("meni", "menij", "degust", "hodni", "kosilo")):
             return {"reply": "Večerja je na voljo po naročilu: 25 EUR na osebo. Prijavite se ob rezervaciji ali dan prej."}
 
+        # --- Darilni paketi / shop queries misclassified as INFO_MENU ---
+        if any(kw in msg_lower for kw in ("kajin paket", "aljazev paket", "anin paket", "julijin paket", "paket babice", "paket danila", "darilni paket")) or \
+           (any(kw in msg_lower for kw in ("paket", "kajin", "daril")) and any(kw in msg_lower for kw in ("kaj je", "vsebuje", "kaj vsebuje", "kaj je v", "sestavin"))):
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
+            pkg = SHOP.get("categories", {}).get("darilni_paketi", {})
+            lines = ["Darilni paketi Kovačnik:"]
+            for item in pkg.get("items", []):
+                price = item.get("price") or item.get("price_from")
+                price_str = f"od {price} €" if item.get("price_from") else f"{price} €"
+                lines.append(f"  • {item['name']} — {price_str}")
+            lines.append(f"🛒 {shop_url}")
+            return {"reply": "\n".join(lines)}
         # --- Aktivnosti / outdoor / produkti misclassified as INFO_MENU ---
         if any(kw in msg_lower for kw in ("liker", "žganje", "bunka", "sirek", "sirček", "salama", "marmelad", "pridelk", "nakup", "prodaj")):
             shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
@@ -437,6 +478,23 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 "reply": (
                     f"Za večje skupine ({_m_grp_p.group(1)} oseb) pokličite nas neposredno na 031 330 113 — "
                     "skupaj bomo uredili mize in meni po vaših željah."
+                )
+            }
+        # Product / shop price query misclassified as INFO_PRICING
+        if any(kw in msg_l for kw in ("marmelad", "bunka", "liker", "salama", "sirek", "sirup", "klobasa", "paštet", "namaz", "čaj", "gibanica", "potica", "darilni paket")):
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
+            return {
+                "reply": (
+                    "Cene domačih izdelkov:\n"
+                    "  • Pohorska bunka, 500 g — 18–21 €\n"
+                    "  • Suha salama, 650 g — 16 €\n"
+                    "  • Hišna suha klobasa, 180 g — 7 €\n"
+                    "  • Bučni namaz, 212 ml — 7 €\n"
+                    "  • Marmelade — od 5,50 €\n"
+                    "  • Borovničev/Žajbljev liker, 350 ml — 13 €\n"
+                    "  • Bezgov/Metin sirup, 500 ml — 6,50 €\n"
+                    "  • Darilni paketi — od 17,50 €\n"
+                    f"🛒 {shop_url}"
                 )
             }
         # Menu price query → redirect to menu pricing

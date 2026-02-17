@@ -33,6 +33,7 @@ _DISAMBIG_LOG_PATH = Path("data/shadow_disambiguation.jsonl")
 _PERSON_HINTS = frozenset({
     "druzin", "familij", "oseba", "sin", "hci", "hči", "gospod", "babi",
     "angelc", "danilo", "barbara", "kmetiji", "kmetija",
+    "partner", "partnerica", "moz", "zena", "dekle", "fant",
 })
 # Month names — never treat as person/room names in disambiguation
 _MONTH_NAMES = frozenset({
@@ -215,11 +216,18 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
         return {"reply": reply["reply"], "session_id": session.session_id}
 
     if result.needs_clarification and result.clarification_question:
-        # Suppress false disambiguation: month names in booking context are dates, not person names
+        # Suppress false disambiguation: month names in booking context are dates, not person names.
+        # Also suppress when message has clear person context (e.g. "partnerica") without room context —
+        # let info_handler resolve the right person via token scoring.
         _msg_low = message.lower()
+        _msg_norm = _normalize_name(_msg_low)
         _has_month = any(m in _msg_low for m in _MONTH_NAMES)
         _has_booking = any(b in _msg_low for b in _BOOKING_KEYWORDS)
-        if not (_has_month and _has_booking):
+        _has_clear_person = (
+            any(h in _msg_norm for h in _PERSON_HINTS)
+            and not any(h in _msg_norm for h in _ROOM_HINTS)
+        )
+        if not (_has_month and _has_booking) and not _has_clear_person:
             return {"reply": result.clarification_question, "session_id": session.session_id}
 
     # Remember whether we were mid-booking BEFORE the transition.
