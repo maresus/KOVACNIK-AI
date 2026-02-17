@@ -11,6 +11,7 @@ from app2026.brand.kovacnik_data import (
     PERSONS,
     ROOMS,
     SEASONAL_WEEKEND_MENUS,
+    SHOP,
     WEEKDAY_DEGUSTATION,
     WINES,
     resolve_entity,
@@ -210,6 +211,26 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             return {"reply": "Sobe ALJAŽ in JULIJA imata balkon. Soba ANA ima dve spalnici."}
         if any(kw in msg_l for kw in ("kopalnic", "tuš", "banjic")):
             return {"reply": "Vse sobe imajo lastno kopalnico s tušem."}
+        # Winter / outdoor activity queries misclassified as INFO_ROOM
+        if any(kw in msg_l for kw in ("pozim", "zimsk", "na voljo pozimi", "januar", "februar")):
+            return {
+                "reply": (
+                    "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
+                    "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas.\n"
+                    "Pozor: sobe so zaprte med 30.12. in 28.2. (zimski premor)."
+                )
+            }
+        # Summer / outdoor activity queries misclassified as INFO_ROOM
+        if any(kw in msg_l for kw in ("aktivnost", "počet", "jahanj", "poni", "pohod", "izlet", "kolesarj")):
+            return {
+                "reply": (
+                    "Pri nas je vedno kaj za početi:\n"
+                    "  • Jahanje na ponijah Malajka in Marsi (5 € / krog)\n"
+                    "  • Ogled in hranjenje živali\n"
+                    "  • Pohodi in kolesarjenje po Pohorju\n"
+                    "  • Slap Skalca — krajši sprehod"
+                )
+            }
         # Generic room listing
         lines = ["Imamo tri sobe, vsaka poimenovana po enem od naših otrok:"]
         for rdata in ROOMS.values():
@@ -315,16 +336,17 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
 
         # --- Aktivnosti / outdoor / produkti misclassified as INFO_MENU ---
         if any(kw in msg_lower for kw in ("liker", "žganje", "bunka", "sirek", "sirček", "salama", "marmelad", "pridelk", "nakup", "prodaj")):
-            phone = CONTACT.get("mobile", "031 330 113")
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             return {
                 "reply": (
-                    "Naši domači izdelki:\n"
-                    "  • Pohorska bunka (sušeno meso)\n"
-                    "  • Hišna suha salama\n"
+                    "Naši domači izdelki (tudi v spletni trgovini):\n"
+                    "  • Pohorska bunka, 500 g — 18–21 €\n"
+                    "  • Suha salama, 650 g — 16 €\n"
                     "  • Frešerjev zorjen sirček\n"
-                    "  • Domači liker\n"
-                    "  • Marmelade in namazi\n"
-                    f"Za nakup pokličite Barbaro: {phone}"
+                    "  • Bučni namaz, 212 ml — 7 €\n"
+                    "  • Marmelade — od 5,50 €\n"
+                    "  • Likerji (borovničev, žajbljev) — 13 €\n"
+                    f"🛒 {shop_url}"
                 )
             }
         if any(kw in msg_lower for kw in ("kolesarj", "koles", "pohod", "aktivnost", "poletne", "poletj", "zimske", "letne", "izlet")) and \
@@ -508,6 +530,25 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "Aktivnosti: jahanje na ponijih Malajka in Marsi, hranjenje živali, kmečka opravila."
                 )
             }
+        # Traktor — NOT a tourist activity (block hallucination)
+        if any(kw in msg_l for kw in ("traktor",)):
+            return {
+                "reply": (
+                    "Traktor je del naše kmetijske mehanizacije — vožnja za goste ni v ponudbi.\n"
+                    "Za aktivnosti z otroki priporočamo jahanje na ponijih (5 € na krog)."
+                )
+            }
+        # Jahanje / poni queries
+        if any(kw in msg_l for kw in ("jahanj", "poni", "ponij")):
+            return {
+                "reply": (
+                    "Jahanje s ponijem je mogoče! 🐴\n"
+                    "Na kmetiji imata Malajka in Marsi rada najmlajše goste.\n"
+                    "Cena: 5 € na krog. Jahanje je odvisno od vremena in ponijevega razpoloženja.\n"
+                    "Ni vnaprej rezervirano — ob prihodu povejte, da bi radi jahali, pa bomo uredili.\n"
+                    "Več info: https://kovacnik.com/cenik/ponij"
+                )
+            }
         # List all animals
         names = [v.get("name") for v in ANIMALS.values() if v.get("name")]
         if names:
@@ -612,8 +653,9 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 )
             }
         # "All family members" queries misclassified as INFO_GENERAL
+        _msg_l_norm = _normalize_text(msg_l)
         if any(kw in msg_l for kw in ("vsi člani", "vso druz", "vsi v druz", "vsa druz", "celotna druz", "kdo so vsi", "vsem druz")) or \
-           (any(kw in msg_l for kw in ("druzin", "familia", "familij")) and any(kw in msg_l for kw in ("vsi", "vsa", "vsem", "vseh", "kdo so", "kdo so v", "o vaš", "o naš", "povejt"))):
+           (any(kw in _msg_l_norm for kw in ("druzin", "druzinic", "familia", "familij")) and any(kw in _msg_l_norm for kw in ("vsi", "vsa", "vsem", "vseh", "kdo so", "o vas", "o nas", "povejt", "koliko", "clan"))):
             lines = ["Domačijo Kovačnik vodi družina Štern:"]
             for pdata in PERSONS.values():
                 lines.append(f"  • {_format_person(pdata)}")
@@ -657,21 +699,39 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         # WiFi (general, outside room context)
         if any(kw in msg_l for kw in ("wifi", "wi-fi", "brezžičn", "internet")):
             return {"reply": "WiFi je brezplačno na voljo v vseh sobah in skupnih prostorih."}
+        # Klimatizacija misclassified as INFO_GENERAL
+        if any(kw in msg_l for kw in ("klima", "klimat", "klimatiz", "hladilni", "hlajenje")):
+            return {"reply": "Da, vse sobe so klimatizirane — udobne tudi v poletni vročini."}
         # Shipping / delivery queries
         if any(kw in msg_l for kw in ("po pošti", "pošilj", "dostav", "dostavit", "naroč po")):
             return {"reply": f"Domačih izdelkov po pošti žal ne pošiljamo, so pa na voljo ob obisku kmetije. Za naročilo po dogovoru pokličite Barbaro: {phone}"}
-        # Domači izdelki / shop
-        if any(kw in msg_l for kw in ("domač", "salama", "bunk", "marmelad", "sirek", "liker", "pridelk", "nakup", "trgovin", "prodaj")):
+        # Rain / bad weather activities
+        if any(kw in msg_l for kw in ("dežj", "deže", "deževn", "slabo vreme", "slabem vremenu", "dežuje")):
             return {
                 "reply": (
-                    "Z veseljem! Naši domači izdelki:\n"
-                    "  • Pohorska bunka (sušeno meso)\n"
-                    "  • Hišna suha salama\n"
-                    "  • Frešerjev zorjen sirček\n"
-                    "  • Domači namazi (bučni, zeliščni)\n"
-                    "  • Marmelade in kompoti\n"
-                    "  • Hišni liker\n"
-                    f"Za nakup pokličite Barbaro: {phone}"
+                    "Ob dežju je kmetija prav tako prijetna! 🌧️\n"
+                    "  • Ogled živali v hlevu — konjička, pujska, ovca, kokoši...\n"
+                    "  • Degustacija domačih izdelkov (marmelade, likerji, namazi)\n"
+                    "  • Degustacijski meni (po dogovoru)\n"
+                    "  • Degustacija vin v prijetnem domačem vzdušju\n"
+                    f"Pokličite nas: {phone}"
+                )
+            }
+        # Domači izdelki / shop — with prices and online store link
+        if any(kw in msg_l for kw in ("domač", "salama", "bunk", "marmelad", "sirek", "liker", "pridelk", "nakup", "trgovin", "prodaj", "spletna", "prodajate", "kupite", "za nakup")):
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
+            return {
+                "reply": (
+                    "Naši domači izdelki so na voljo v spletni trgovini in ob obisku kmetije:\n"
+                    "  • Pohorska bunka, 500 g — 18–21 €\n"
+                    "  • Suha salama, 650 g — 16 €\n"
+                    "  • Hišna suha klobasa, 180 g — 7 €\n"
+                    "  • Bučni namaz, 212 ml — 7 €\n"
+                    "  • Marmelade (jagoda, malina, aronija…) — 5,50 €\n"
+                    "  • Borovničev/Žajbljev liker, 350 ml — 13 €\n"
+                    "  • Bezgov / Metin sirup, 500 ml — 6,50 €\n"
+                    "  • Darilni paketi — od 17,50 €\n"
+                    f"🛒 Spletna trgovina: {shop_url}"
                 )
             }
         # Skiing / Areh / Mariborsko Pohorje / winter activities (incl. "pozimi")
@@ -722,6 +782,27 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 "reply": (
                     "Animatorske aktivnosti za otroke vodi naša hči Julija — jahanje na ponijih, "
                     "hranjenje živali, kmečka opravila in igre v naravi."
+                )
+            }
+        # Traktor — NOT a tourist activity (block hallucination)
+        if any(kw in msg_l for kw in ("traktor", "traktork")):
+            return {
+                "reply": (
+                    "Traktor je del naše kmetijske mehanizacije — z njim obdelujemo posestvo. "
+                    "Vožnja s traktorjem za goste ni v naši ponudbi.\n"
+                    "Za aktivnosti z otroki priporočamo jahanje na ponijih Malajka in Marsi (5 € na krog) "
+                    "in ogled živali z animatorko Julijo."
+                )
+            }
+        # Jahanje direct question (before generic aktivnosti)
+        if any(kw in msg_l for kw in ("jahanj", "jahati", "jahamo")) and \
+           not any(kw in msg_l for kw in ("aktivnost", "seznam", "katere", "vse")):
+            return {
+                "reply": (
+                    "Jahanje s ponijem je mogoče! 🐴\n"
+                    "Na kmetiji imata Malajka in Marsi rada najmlajše goste.\n"
+                    "Cena: 5 € na krog. Jahanje je odvisno od vremena in ponijevega razpoloženja.\n"
+                    "Ni vnaprej rezervirano — ob prihodu povejte, da bi radi jahali, pa bomo uredili."
                 )
             }
         # Aktivnosti
@@ -819,10 +900,12 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 )
             }
         # Products / shop queries misclassified as INFO_LOCATION
-        if any(kw in msg_l for kw in ("kupim", "kupiti", "kupit", "nakup", "prodaja", "pridelk", "domač", "liker", "bunka", "sirek")):
+        if any(kw in msg_l for kw in ("kupim", "kupiti", "kupit", "nakup", "prodaja", "pridelk", "domač", "liker", "bunka", "sirek", "trgovin", "spletna")):
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             return {
                 "reply": (
-                    "Domače izdelke (bunka, salama, sirček, liker, marmelade) kupite pri nas ob obisku kmetije. "
+                    "Domače izdelke kupite ob obisku kmetije ali v spletni trgovini.\n"
+                    f"🛒 {shop_url}\n"
                     f"Za naročilo vnaprej pokličite Barbaro: {phone}"
                 )
             }

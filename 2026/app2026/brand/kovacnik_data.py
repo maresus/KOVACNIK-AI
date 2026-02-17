@@ -85,6 +85,11 @@ PERSONS = {
         "role": "sin",
         "notes": ["mladi gospodar", "igra diatonično harmoniko"],
     },
+    "kaja": {
+        "name": "Kaja",
+        "role": "partnerica Aljaža",
+        "notes": ["s svojo dobro voljo vedno razvedri goste"],
+    },
     "julija": {
         "name": "Julija",
         "role": "hči",
@@ -118,6 +123,85 @@ WINES = {
     "sparkling": WINE_LIST.get("penece", []),
     "white": WINE_LIST.get("bela", []),
     "red": WINE_LIST.get("rdeca", []),
+}
+
+# Online shop / domači izdelki
+SHOP = {
+    "url": "https://kovacnik.com/kovacnikova-spletna-trgovina/",
+    "katalog_url": "https://kovacnik.com/katalog/",
+    "categories": {
+        "marmelade": {
+            "label": "Marmelade",
+            "price_from": 5.50,
+            "examples": ["Jagoda", "Malina", "Aronija", "Božična", "Stara brajda", "Jabolko & cimet"],
+        },
+        "namazi": {
+            "label": "Namazi",
+            "items": [
+                {"name": "Bučni namaz, 212 ml", "price": 7.00, "url": "https://kovacnik.com/izdelek/bucni-namaz-212-ml/"},
+                {"name": "Čemažev pesto, 212 ml", "price": 5.50, "url": "https://kovacnik.com/izdelek/cemazev-pesto-212-ml/"},
+                {"name": "Jetrna paštetka, 212 ml", "price": 5.50, "url": "https://kovacnik.com/izdelek/jetrna-pastetka-212-ml/"},
+            ],
+        },
+        "likerji": {
+            "label": "Likerji in žganje",
+            "items": [
+                {"name": "Borovničev liker, 350 ml", "price": 13.00, "url": "https://kovacnik.com/izdelek/borovnicev-liker-350-ml/"},
+                {"name": "Žajbljev liker, 350 ml", "price": 13.00, "url": "https://kovacnik.com/izdelek/zajbljev-liker-350-ml/"},
+                {"name": "Tepkovec, 350 ml", "price": 15.00, "url": "https://kovacnik.com/izdelek/tepkovec-350-ml/"},
+            ],
+        },
+        "sirupi": {
+            "label": "Sokovi in sirupi",
+            "items": [
+                {"name": "Bezgov sirup, 500 ml", "price": 6.50, "url": "https://kovacnik.com/izdelek/bezgov-sirup-500-ml/"},
+                {"name": "Metin sirup, 500 ml", "price": 6.50, "url": "https://kovacnik.com/izdelek/metin-sirup-500-ml/"},
+            ],
+        },
+        "mesni_izdelki": {
+            "label": "Mesni izdelki",
+            "items": [
+                {"name": "Pohorska bunka (500 g)", "price_range": "18–21 €", "url": "https://kovacnik.com/izdelek/pohorska-bunka-500-g/"},
+                {"name": "Suha salama, 650 g", "price": 16.00, "url": "https://kovacnik.com/izdelek/suha-salama-200-g/"},
+                {"name": "Hišna suha klobasa, 180 g", "price": 7.00, "url": "https://kovacnik.com/izdelek/hisna-suha-klobasa/"},
+            ],
+        },
+        "darilni_paketi": {
+            "label": "Darilni paketi",
+            "items": [
+                {"name": "Paket babice Angelce", "price": 19.50, "url": "https://kovacnik.com/izdelek/paket-babice-angelce-zeliscni-c/"},
+                {"name": "Paket gospodarja Danila (bunka, tepkovec)", "price": 43.50, "url": "https://kovacnik.com/izdelek/paket-gospodarja-danila-tepkovec/"},
+                {"name": "Kajin paket (sirup, čaj, marmelada)", "price": 17.50, "url": "https://kovacnik.com/izdelek/paket-tete-barbke-na-slano-bucn/"},
+                {"name": "Aljažev paket", "price": 22.00, "url": "https://kovacnik.com/izdelek/aljazev-paket-jabolcni-sok-marmelada-suha-klobasa/"},
+                {"name": "Anin paket (tris marmelad)", "price": 18.00, "url": "https://kovacnik.com/izdelek/anin-paket-3-marmelade/"},
+                {"name": "Julijin paket", "price": 19.00, "url": "https://kovacnik.com/izdelek/julijin-paket-metin-sirup-marmelada-bucni-namaz/"},
+                {"name": "Vaš Kovačnikov paket (po meri)", "price_from": 10.50, "url": "https://kovacnik.com/izdelek/sestavi-svoj-kovacnikov-paket/"},
+            ],
+        },
+        "darilni_boni": {
+            "label": "Darilni boni",
+            "items": [
+                {"name": "Darilni bon 10 €", "price": 10.00, "url": "https://kovacnik.com/izdelek/darilni-bon-10-eur/"},
+                {"name": "Darilni bon 20 €", "price": 20.00, "url": "https://kovacnik.com/izdelek/darilni-bon-20-eur/"},
+                {"name": "Darilni bon 50 €", "price": 50.00, "url": "https://kovacnik.com/izdelek/darilni-bon-50-eur/"},
+            ],
+        },
+        "sladke_dobrote": {
+            "label": "Sladke dobrote",
+            "items": [
+                {"name": "Piškoti gospodinje Barbare, 250 g", "price": 8.00, "url": "https://kovacnik.com/izdelek/piskoti-tete-barbke-250-g/"},
+                {"name": "Pohorska gibanica babice Angelce (10 kosov)", "price": 40.00, "url": "https://kovacnik.com/izdelek/pohorska-gibanica-babice-angelc/"},
+                {"name": "Orehova potica, 1 kg", "price": 30.00, "url": "https://kovacnik.com/izdelek/slovenska-orehova-potica-1-kg/"},
+            ],
+        },
+        "caji": {
+            "label": "Čaji",
+            "items": [
+                {"name": "Zeliščni čaj babice Angelce, 20 g", "price": 4.00, "url": "https://kovacnik.com/izdelek/zeliscni-caj-babice-angelce-20-/"},
+                {"name": "Božični čaj babice Angelce, 60 g", "price": 4.00, "url": "https://kovacnik.com/izdelek/bozicni-caj-babice-angelce/"},
+            ],
+        },
+    },
 }
 
 SEASONAL_WEEKEND_MENUS = {
