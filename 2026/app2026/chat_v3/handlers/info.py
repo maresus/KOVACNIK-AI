@@ -60,6 +60,14 @@ def _extract_name(result: InterpretResult, message: str) -> str:
     # Normalize diacritics so LLM's "čarli" matches key "carli" etc.
     direct = _normalize_text(str((result.entities or {}).get("name", ""))).strip()
     if direct:
+        # Try exact key match first
+        candidates_all = set(PERSONS.keys()) | set(ROOMS.keys()) | set(ANIMALS.keys())
+        if direct in candidates_all:
+            return direct
+        # Genitive/case fallback: first 5 chars prefix match (e.g. "danila"→"danilo")
+        for key in sorted(candidates_all, key=len, reverse=True):
+            if len(key) >= 5 and len(direct) >= 5 and key[:5] == direct[:5]:
+                return key
         return direct
     # Normalize message so "čarli" matches key "carli" etc.
     text = _normalize_text(message)
@@ -67,6 +75,13 @@ def _extract_name(result: InterpretResult, message: str) -> str:
     for key in sorted(candidates, key=len, reverse=True):
         if key in text:
             return key
+    # Case form fallback: first 5 chars prefix match for genitive forms (e.g. "danila"→"danilo")
+    for word in sorted(re.findall(r"[a-z]+", text), key=len, reverse=True):
+        if len(word) < 5:
+            continue
+        for key in sorted(candidates, key=len, reverse=True):
+            if len(key) >= 5 and key[:5] == word[:5]:
+                return key
     return ""
 
 
@@ -172,6 +187,19 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 }
         # No specific room name — check for feature keywords or list all rooms
         msg_l = (message or "").lower()
+        # Photos / gallery queries
+        if any(kw in msg_l for kw in ("fotograf", "galerij", "slika", "slik")):
+            website = CONTACT.get("website", "www.kovacnik.si")
+            return {"reply": f"Fotografije sob si oglejte na spletni strani: {website}"}
+        # Large group / capacity check (misclassified restaurant queries)
+        _m_grp = re.search(r"\b(\d{2,})\s*oseb", msg_l)
+        if _m_grp and int(_m_grp.group(1)) > 20:
+            return {
+                "reply": (
+                    f"Za večje skupine ({_m_grp.group(1)} oseb) pokličite nas neposredno na 031 330 113 — "
+                    "skupaj bomo uredili mize in meni po vaših željah."
+                )
+            }
         if any(kw in msg_l for kw in ("wifi", "wi-fi", "brezžičn", "internet", "wireless")):
             return {"reply": "Da, vse naše sobe imajo brezžično omrežje (WiFi) brezplačno."}
         if any(kw in msg_l for kw in ("klima", "klimat", "hlajenje", "ogrevanje")):
@@ -269,6 +297,49 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
     if intent in ("INFO_MENU", "INFO_MENU_DETAIL"):
         msg_lower = (message or "").lower()
 
+        # --- Last arrival / closing time redirects (misclassified from INFO_HOURS) ---
+        if any(kw in msg_lower for kw in ("zadnji prihod", "zadnji čas", "do kdaj", "kdaj je zadnji", "do katere ure")):
+            return {"reply": "Zadnji prihod na kosilo je ob 15:00. Svetujemo, da pridete čim prej, saj se mize zapolnijo hitro."}
+
+        # --- Minimum people for degustation ---
+        if any(kw in msg_lower for kw in ("koliko oseb", "minimalno oseb", "min oseb", "vsaj oseb", "min. oseb")) and \
+           any(kw in msg_lower for kw in ("degustat", "degustacij", "teden", "hodni")):
+            rules = WEEKDAY_DEGUSTATION.get("rules", {})
+            min_p = rules.get("min_people", 6)
+            return {"reply": f"Za tedensko degustacijo je minimalno {min_p} oseb. Rezervacija obvezna: 031 330 113"}
+
+        # --- Večerja pri sobah (misclassified as INFO_MENU) ---
+        if any(kw in msg_lower for kw in ("večerja", "večerjo", "večer")) and \
+           not any(kw in msg_lower for kw in ("meni", "menij", "degust", "hodni", "kosilo")):
+            return {"reply": "Večerja je na voljo po naročilu: 25 EUR na osebo. Prijavite se ob rezervaciji ali dan prej."}
+
+        # --- Aktivnosti / outdoor / produkti misclassified as INFO_MENU ---
+        if any(kw in msg_lower for kw in ("liker", "žganje", "bunka", "sirek", "sirček", "salama", "marmelad", "pridelk", "nakup", "prodaj")):
+            phone = CONTACT.get("mobile", "031 330 113")
+            return {
+                "reply": (
+                    "Naši domači izdelki:\n"
+                    "  • Pohorska bunka (sušeno meso)\n"
+                    "  • Hišna suha salama\n"
+                    "  • Frešerjev zorjen sirček\n"
+                    "  • Domači liker\n"
+                    "  • Marmelade in namazi\n"
+                    f"Za nakup pokličite Barbaro: {phone}"
+                )
+            }
+        if any(kw in msg_lower for kw in ("kolesarj", "koles", "pohod", "aktivnost", "poletne", "poletj", "zimske", "letne", "izlet")) and \
+           not any(kw in msg_lower for kw in ("kosilo", "meni", "vikend", "degust", "hodni")):
+            return {
+                "reply": (
+                    "Aktivnosti v okolici kmetije:\n"
+                    "  • Pohodništvo po Pohorju in slap Skalca\n"
+                    "  • Kolesarjenje (izposoja po dogovoru)\n"
+                    "  • Jahanje na ponijih\n"
+                    "  • Smučišče Areh in Mariborsko Pohorje (25–35 min)\n"
+                    "  • Terme Zreče (30–40 min)"
+                )
+            }
+
         # --- Specific X-hodni menu (from entities or from message text) ---
         _course_num: int | None = None
         _courses_entity = (result.entities or {}).get("courses")
@@ -304,7 +375,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 return {"reply": "\n".join(_lines)}
 
         # --- General weekday degustation menu list ---
-        if any(kw in msg_lower for kw in ("teden", "tedenski", "degustat", "sreda", "četrtek", "cetrtek", "petek", "hodni")):
+        if any(kw in msg_lower for kw in ("teden", "tedenski", "tednom", "degustat", "degustacij", "sreda", "četrtek", "cetrtek", "petek", "hodni")):
             rules = WEEKDAY_DEGUSTATION.get("rules", {})
             menus = WEEKDAY_DEGUSTATION.get("menus", {})
             days = rules.get("days", "")
@@ -337,8 +408,17 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
 
     if intent == "INFO_PRICING":
         msg_l = (message or "").lower()
+        # Large group inquiry misclassified as INFO_PRICING
+        _m_grp_p = re.search(r"\b(\d{2,})\s*oseb", msg_l)
+        if _m_grp_p and int(_m_grp_p.group(1)) > 20:
+            return {
+                "reply": (
+                    f"Za večje skupine ({_m_grp_p.group(1)} oseb) pokličite nas neposredno na 031 330 113 — "
+                    "skupaj bomo uredili mize in meni po vaših željah."
+                )
+            }
         # Menu price query → redirect to menu pricing
-        if any(kw in msg_l for kw in ("meni", "kosilo", "vikend", "teden", "degustat", "hodni")):
+        if any(kw in msg_l for kw in ("meni", "kosilo", "vikend", "teden", "degustat", "degustacij", "hodni")):
             return {
                 "reply": (
                     "Cene menijev na Domačiji Kovačnik:\n"
@@ -367,6 +447,20 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
     if intent == "INFO_ANIMAL":
         # Check if user is asking about bringing pets (not about our farm animals).
         msg_l = (message or "").lower()
+        _pet_keywords = ("ljubljenč", "hišn", "dovoljeni", "dovoljen", "prepovedan", "pripelj", "prines")
+        _pet_animals = ("pes", "psa", "psi", "psov", "mačk", "mucek")
+        _is_pet_question = any(kw in msg_l for kw in _pet_keywords) or (
+            any(kw in msg_l for kw in _pet_animals) and any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko"))
+        )
+        if _is_pet_question:
+            return {
+                "reply": (
+                    "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
+                    "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
+                    "Na kmetiji imamo konjička Malajko in Marsija, pujsko Pepo, ovčka Čarlija, "
+                    "psičko Luno in še mnogo več."
+                )
+            }
         if any(kw in msg_l for kw in ("ljubljenč", "hišn")):
             return {
                 "reply": (
@@ -391,6 +485,29 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             if acount:
                 desc += f" ({acount})"
             return {"reply": desc + "."}
+        # "Which person cares for animals?" queries misclassified as INFO_ANIMAL
+        if any(kw in msg_l for kw in ("katera oseba", "kdo skrbi", "kdo hranj", "kdo pazi", "kdo se ukvarja")):
+            msg_tokens = set(t for t in re.findall(r"[a-zšžčćđ]+", msg_l) if len(t) >= 4)
+            best_score, best_person = 0, None
+            for pdata in PERSONS.values():
+                notes_str = " ".join(str(n) for n in (pdata.get("notes") or [])).lower()
+                role_str = (pdata.get("role") or "").lower()
+                name_str = (pdata.get("name") or "").lower()
+                combined = f"{name_str} {role_str} {notes_str}"
+                score = sum(1 for tok in msg_tokens if tok in combined)
+                if score > best_score:
+                    best_score, best_person = score, pdata
+            if best_score > 0 and best_person:
+                return {"reply": _format_person(best_person)}
+        # Animation/activities queries misclassified as INFO_ANIMAL
+        if any(kw in msg_l for kw in ("animacij", "animator", "aktivnost za otroke")):
+            julija = PERSONS.get("julija", {})
+            return {
+                "reply": (
+                    "Animatorske aktivnosti za otroke vodi naša hči Julija — skrbi za živali in animira otroke. "
+                    "Aktivnosti: jahanje na ponijih Malajka in Marsi, hranjenje živali, kmečka opravila."
+                )
+            }
         # List all animals
         names = [v.get("name") for v in ANIMALS.values() if v.get("name")]
         if names:
@@ -404,16 +521,145 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         if text:
             return {"reply": text}
 
+    if intent == "INFO_HOURS":
+        msg_l = (message or "").lower()
+        # Breakfast / dinner time — MUST be first
+        if any(kw in msg_l for kw in ("zajtrk", "zajtrka", "zajutrkovat")):
+            return {"reply": "Zajtrk postrežemo med 8:00 in 10:00 zjutraj, v jedilnici ali na balkonu."}
+        if any(kw in msg_l for kw in ("večerja", "večerjo", "večer")):
+            # "ob ponedeljkih/torkih" with evening query → closed
+            if any(kw in msg_l for kw in ("ponedelj", "torek")):  # ponedeljek / ponedeljkih etc.
+                return {
+                    "reply": (
+                        "Ob ponedeljkih in torkih smo zaprti. "
+                        "Večerje so na voljo od srede do nedelje, po naročilu: 031 330 113"
+                    )
+                }
+            return {"reply": "Večerja je na voljo po naročilu: 18:00–20:00. Prijavite se vnaprej: 031 330 113"}
+        # Last arrival for lunch — MUST come before generic "prihod" check
+        if any(kw in msg_l for kw in ("zadnji prihod", "zadnji čas", "kdaj je zadnji", "do katere ure pridemo")):
+            return {"reply": "Zadnji prihod na kosilo je ob 15:00. Svetujemo, da pridete čim prej."}
+        # Kosila med tednom misclassified as INFO_HOURS
+        if any(kw in msg_l for kw in ("med tednom", "sreda", "četrtek", "petek")) and \
+           any(kw in msg_l for kw in ("kosilo", "jemo", "kosila", "degust")):
+            return {
+                "reply": (
+                    "Med tednom (sreda–petek) strežemo degustacijske menije po predhodni rezervaciji, "
+                    "minimalno 6 oseb. Ob sobotah in nedeljah vikend kosila od 12:00 naprej.\n"
+                    "Za rezervacijo: 031 330 113"
+                )
+            }
+        # Check-in / check-out
+        if any(kw in msg_l for kw in ("check-out", "check out", "odjava", "odhod", "do kdaj moram")):
+            if any(kw in msg_l for kw in ("pozn", "kasn", "podaljš", "flexibl", "dogovor")):
+                return {"reply": "Standardni check-out je do 10:00. Podaljšanje je možno po dogovoru: 031 330 113"}
+            return {"reply": "Check-out je do 10:00. Prosimo, da nas pravočasno obvestite o morebitnih zamudah."}
+        if any(kw in msg_l for kw in ("check-in", "check in", "prijava", "kdaj pridem", "od kdaj")):
+            if any(kw in msg_l for kw in ("pozn", "kasn", "flexibl", "dogovor", "zuna", "zgodn")):
+                return {"reply": "Check-in je od 14:00 naprej. Za zgodnji ali pozni dogovor pokličite: 031 330 113"}
+            return {"reply": "Check-in je od 14:00 naprej. V primeru kasnejšega prihoda nas predhodno obvestite."}
+        # Early check-in / late check-out
+        if any(kw in msg_l for kw in ("zgodnji", "zgodaj", "earlier", "early")):
+            return {"reply": "Zgodnji check-in je možen po dogovoru. Pokličite nas: 031 330 113"}
+        # Mon/Tue closed
+        if any(kw in msg_l for kw in ("ponedeljek", "torek", "kdaj ste zaprti", "kdaj zaprti")):
+            return {
+                "reply": (
+                    "Restavracija je zaprta ob ponedeljkih in torkih. "
+                    "Kosila strežemo od srede do nedelje (sob/ned 12:00–21:00, sre–pet po rezervaciji). "
+                    "Sobe so na voljo od srede do nedelje."
+                )
+            }
+        # General opening hours
+        if any(kw in msg_l for kw in ("ura", "delovni čas", "kdaj", "odprt", "odpri", "ure", "kdaj delate")):
+            return {
+                "reply": (
+                    "Delovni čas Domačije Kovačnik:\n"
+                    "  • Restavracija: sob–ned 12:00–21:00, med tednom po rezervaciji\n"
+                    "  • Zaprto: ponedeljek in torek\n"
+                    "  • Sobe: sreda–nedelja (check-in od 14:00, check-out do 10:00)\n"
+                    "Za rezervacije: 031 330 113"
+                )
+            }
+        # Fallback hours response
+        return {
+            "reply": (
+                "Restavracija deluje ob sobotah in nedeljah (12:00–21:00), "
+                "med tednom po predhodni rezervaciji. "
+                "Zaprto ob ponedeljkih in torkih. Za info: 031 330 113"
+            )
+        }
+
     if intent == "INFO_GENERAL":
         msg_l = (message or "").lower()
         farm_name = CONTACT.get("name", "Domačija Kovačnik")
         phone = CONTACT.get("mobile", "031 330 113")
+        # Contact info queries misclassified as INFO_GENERAL
+        if any(kw in msg_l for kw in ("email", "e-pošt", "e-mail", "mail")):
+            email = CONTACT.get("email", "info@kovacnik.si")
+            return {"reply": f"Naš e-naslov: {email}"}
+        if any(kw in msg_l for kw in ("spletna stran", "spletno stran", "spletni", "www", "website", "fotograf")):
+            website = CONTACT.get("website", "www.kovacnik.si")
+            return {"reply": f"Spletna stran: {website}"}
+        if any(kw in msg_l for kw in ("telefonsk", "telefon", "pokliči", "klic", "tel.", "po telefonu", "telefonsk")):
+            return {"reply": f"Pokličite nas na: {phone}"}
+        # Darilni boni / paketi
+        if any(kw in msg_l for kw in ("daril", "darilo", "bon", "voucher", "paket", "poklono")):
+            return {
+                "reply": (
+                    "Darilne bone in pakete nudimo po dogovoru — idealen darilo za obisk kmetije, "
+                    "degustacijo ali vikend kosilo. Pokličite Barbaro: " + phone
+                )
+            }
+        # "All family members" queries misclassified as INFO_GENERAL
+        if any(kw in msg_l for kw in ("vsi člani", "vso druz", "vsi v druz", "vsa druz", "celotna druz", "kdo so vsi", "vsem druz")) or \
+           (any(kw in msg_l for kw in ("druzin", "familia", "familij")) and any(kw in msg_l for kw in ("vsi", "vsa", "vsem", "vseh", "kdo so", "kdo so v", "o vaš", "o naš", "povejt"))):
+            lines = ["Domačijo Kovačnik vodi družina Štern:"]
+            for pdata in PERSONS.values():
+                lines.append(f"  • {_format_person(pdata)}")
+            return {"reply": "\n".join(lines)}
+        # Min people for degustacija (misclassified as INFO_GENERAL)
+        if any(kw in msg_l for kw in ("koliko oseb", "minimalno oseb", "min oseb", "vsaj oseb")) and \
+           any(kw in msg_l for kw in ("degustat", "degustacij")):
+            rules = WEEKDAY_DEGUSTATION.get("rules", {})
+            min_p = rules.get("min_people", 6)
+            return {"reply": f"Za tedensko degustacijo je minimalno {min_p} oseb. Rezervacija obvezna: 031 330 113"}
+        # Animal queries misclassified as INFO_GENERAL → delegate to ANIMAL logic
+        if any(kw in msg_l for kw in ("živali", "živaĺi", "zivali", "konjič", "konjiček", "pujsk", "psič", "mucke", "ovca", "govedo")):
+            names = [v.get("name") for v in ANIMALS.values() if v.get("name")]
+            if names:
+                return {"reply": "Na kmetiji imamo: " + ", ".join(names) + "."}
+        # Large group inquiry
+        _m_group = re.search(r"\b(\d{2,})\s*oseb", msg_l)
+        if _m_group and int(_m_group.group(1)) > 20:
+            return {
+                "reply": (
+                    f"Za večje skupine ({_m_group.group(1)} oseb) pokličite nas neposredno "
+                    "na 031 330 113 — skupaj bomo uredili prostor, mize in meni po vaših željah."
+                )
+            }
+        # Hours / closing days misclassified as INFO_GENERAL
+        if any(kw in msg_l for kw in ("ponedeljek", "torek", "kdaj zaprt", "kdaj odprt", "delovni čas", "ure")):
+            return {
+                "reply": (
+                    "Restavracija je zaprta ob ponedeljkih in torkih. "
+                    "Kosila strežemo od srede do nedelje. "
+                    "Sobe so na voljo od srede do nedelje (check-in od 14:00)."
+                )
+            }
+        # Early/late check-in/out misclassified
+        if any(kw in msg_l for kw in ("check-in", "check in", "check-out", "check out", "odjava", "prijava")):
+            if any(kw in msg_l for kw in ("pozn", "zgodn", "kasn", "flexibl")):
+                return {"reply": "Zgodnji check-in / pozni check-out je možen po dogovoru. Pokličite: 031 330 113"}
         # Parking
         if any(kw in msg_l for kw in ("parking", "parkirišč", "parkir", "avto")):
             return {"reply": "Seveda — imamo brezplačno parkirišče kar ob hiši, dovolj prostora za 10+ avtov."}
         # WiFi (general, outside room context)
         if any(kw in msg_l for kw in ("wifi", "wi-fi", "brezžičn", "internet")):
             return {"reply": "WiFi je brezplačno na voljo v vseh sobah in skupnih prostorih."}
+        # Shipping / delivery queries
+        if any(kw in msg_l for kw in ("po pošti", "pošilj", "dostav", "dostavit", "naroč po")):
+            return {"reply": f"Domačih izdelkov po pošti žal ne pošiljamo, so pa na voljo ob obisku kmetije. Za naročilo po dogovoru pokličite Barbaro: {phone}"}
         # Domači izdelki / shop
         if any(kw in msg_l for kw in ("domač", "salama", "bunk", "marmelad", "sirek", "liker", "pridelk", "nakup", "trgovin", "prodaj")):
             return {
@@ -428,8 +674,8 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     f"Za nakup pokličite Barbaro: {phone}"
                 )
             }
-        # Skiing / Areh / Mariborsko Pohorje
-        if any(kw in msg_l for kw in ("smučišč", "smucišč", "smuc", "smuč", "areh", "mariborsko pohorje", "ski", "skijaš", "sneg", "žičnič", "zicnic")):
+        # Skiing / Areh / Mariborsko Pohorje / winter activities (incl. "pozimi")
+        if any(kw in msg_l for kw in ("smučišč", "smucišč", "smuc", "smuč", "areh", "mariborsko pohorje", "ski", "skijaš", "sneg", "žičnič", "zicnic", "zimsk", "pozim")):
             return {
                 "reply": (
                     "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
@@ -437,12 +683,26 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "Če potrebujete nasvet o pristopu ali kje je manj gneče, vam z veseljem povemo."
                 )
             }
-        # Terme / spa
-        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness", "sauna")):
+        # Terme / spa / sauna
+        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness", "sauna", "savna", "savno")):
             return {
                 "reply": (
                     "Najbližje terme so Terme Zreče in Terme Ptuj — od nas jih dosežete v 30–40 minutah.\n"
                     "Lepa kombinacija: dopoldne Pohorje, popoldne terme. 😊"
+                )
+            }
+        # Summer / seasonal activities
+        if any(kw in msg_l for kw in ("poletne", "letne", "sezon")) and \
+           any(kw in msg_l for kw in ("aktivnost", "počet", "počitek", "ponudb", "prij")):
+            return {
+                "reply": (
+                    "Poletne aktivnosti pri Kovačniku:\n"
+                    "  • Jahanje na ponijih Malajka in Marsi\n"
+                    "  • Pohodi in kolesarjenje po Pohorju\n"
+                    "  • Ogled in hranjenje živali\n"
+                    "  • Animacijske aktivnosti za otroke (Julija)\n"
+                    "  • Slap Skalca — kratki sprehod\n"
+                    "  • Vikend kosila in degustacijski meniji"
                 )
             }
         # Nature / hiking / cycling / walks
@@ -454,6 +714,14 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "  • Slap Skalca — prijeten sprehod ob potočku, v bližini\n"
                     "  • Kolesarjenje (izposoja koles možna po dogovoru)\n"
                     "Za konkretne predloge glede na čas in kondicijo nam kar povejte!"
+                )
+            }
+        # Animation / animatorske aktivnosti
+        if any(kw in msg_l for kw in ("animacij", "animator", "animira")):
+            return {
+                "reply": (
+                    "Animatorske aktivnosti za otroke vodi naša hči Julija — jahanje na ponijih, "
+                    "hranjenje živali, kmečka opravila in igre v naravi."
                 )
             }
         # Aktivnosti
@@ -496,6 +764,26 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
     if intent == "INFO_LOCATION":
         msg_l = (message or "").lower()
         phone = CONTACT.get("mobile", "031 330 113")
+        phone2 = CONTACT.get("phone", "02 603 6033")
+        email = CONTACT.get("email", "info@kovacnik.si")
+        website = CONTACT.get("website", "www.kovacnik.si")
+        # Large group inquiry misclassified as INFO_LOCATION
+        _m_grp_l = re.search(r"\b(\d{2,})\s*oseb", msg_l)
+        if _m_grp_l and int(_m_grp_l.group(1)) > 20:
+            return {
+                "reply": (
+                    f"Za večje skupine ({_m_grp_l.group(1)} oseb) pokličite nas neposredno na {phone} — "
+                    "skupaj bomo uredili mize in meni po vaših željah."
+                )
+            }
+        # Contact info misclassified as INFO_LOCATION
+        if any(kw in msg_l for kw in ("telefonsk", "telefon", "pokliči", "klic", "tel.")):
+            return {"reply": f"Pokličete nas na: {phone} (Barbara) ali {phone2}"}
+        if any(kw in msg_l for kw in ("email", "e-pošt", "e-mail", "mail")):
+            return {"reply": f"Naš e-naslov: {email}"}
+        if any(kw in msg_l for kw in ("spletna stran", "spletno stran", "spletni", "www", "website", "fotograf")):
+            return {"reply": f"Spletna stran: {website}"}
+        # Parking
         if any(kw in msg_l for kw in ("parking", "parkirišč", "parkir")):
             return {"reply": "Seveda — imamo brezplačno parkirišče kar ob hiši, dovolj prostora za 10+ avtov."}
         if any(kw in msg_l for kw in ("smučišč", "smucišč", "smuc", "smuč", "areh", "mariborsko pohorje", "ski", "sneg", "žičnič", "zicnic")):
@@ -505,15 +793,37 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas."
                 )
             }
-        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness")):
+        if any(kw in msg_l for kw in ("terme", "toplice", "spa", "wellness", "sauna", "savna", "savno")):
             return {
                 "reply": "Najbližje terme so Terme Zreče in Terme Ptuj — od nas jih dosežete v 30–40 minutah."
             }
-        if any(kw in msg_l for kw in ("pohod", "slap", "skalc", "izlet", "gozd")):
+        if any(kw in msg_l for kw in ("pohod", "slap", "skalc", "izlet", "gozd", "kolesarj", "koles", "narav", "pot")):
             return {
                 "reply": (
-                    "V okolici je lepo za izlete: pohodi po Pohorju, slap Skalca, gozdne poti.\n"
+                    "V okolici je lepo za izlete:\n"
+                    "  • Pohodi in sprehodi po Pohorju — gozdne poti, razgledne točke\n"
+                    "  • Slap Skalca — prijeten sprehod ob potočku\n"
+                    "  • Kolesarjenje (izposoja koles možna po dogovoru)\n"
                     f"Za konkretne predloge nas pokličite: {phone}"
+                )
+            }
+        if any(kw in msg_l for kw in ("aktivnost", "počet", "jahanj", "poni", "animacij", "animator")):
+            return {
+                "reply": (
+                    "Pri nas je vedno kaj za početi:\n"
+                    "  • Jahanje na ponijih Malajka in Marsi\n"
+                    "  • Ogled in hranjenje živali\n"
+                    "  • Pohodi in kolesarjenje po Pohorju\n"
+                    "  • Animatorske aktivnosti za otroke (vodi Julija)\n"
+                    f"Za rezervacijo: {phone}"
+                )
+            }
+        # Products / shop queries misclassified as INFO_LOCATION
+        if any(kw in msg_l for kw in ("kupim", "kupiti", "kupit", "nakup", "prodaja", "pridelk", "domač", "liker", "bunka", "sirek")):
+            return {
+                "reply": (
+                    "Domače izdelke (bunka, salama, sirček, liker, marmelade) kupite pri nas ob obisku kmetije. "
+                    f"Za naročilo vnaprej pokličite Barbaro: {phone}"
                 )
             }
         # Default: farm location

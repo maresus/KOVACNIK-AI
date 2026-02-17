@@ -7,9 +7,17 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^[\d\s+()./-]{6,}$")
 DATE_RE = re.compile(r"\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b")
 NUMBER_RE = re.compile(r"\b\d{1,3}\b")
+TIME_RE = re.compile(r"\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*(ura|h)\b", re.IGNORECASE)
 
 YES_WORDS = {"da", "ja", "yes", "y", "potrjujem", "seveda"}
 NO_WORDS = {"ne", "no", "n", "ne hvala"}
+
+# Words that, when present in input, suggest an off-topic question (topic switch).
+# We let the LLM + mid-booking continuation logic handle those.
+_QUESTION_WORDS = frozenset({
+    "kdo", "kje", "kaj", "kdaj", "kako", "kateri", "katero", "katerih",
+    "zakaj", "ali imate", "imate", "ponujate", "povejte",
+})
 
 _STEP_TO_FIELD = {
     "awaiting_email": "email",
@@ -20,12 +28,30 @@ _STEP_TO_FIELD = {
     "awaiting_people": "guests",
     "awaiting_table_people": "guests",
     "awaiting_confirmation": "confirm",
-    # These steps accept "ne" as a valid in-flow answer — must NOT let LLM see them as CANCEL.
+    # Steps that accept "ne" as valid in-flow answer — must NOT become CANCEL via LLM.
     "awaiting_note": "note",
     "awaiting_dinner": "dinner",
     "awaiting_dinner_count": "dinner_count",
     "awaiting_kids_info": "kids_info",
+    # Numeric / pass-through steps also at risk of LLM misclassification.
+    "awaiting_nights": "nights",
+    "awaiting_kids_ages": "kids_ages",
+    # Text-based steps where the booking flow must receive the raw input directly.
+    "awaiting_room_location": "location",
+    "awaiting_table_location": "location",
+    "awaiting_name": "booking_name",
+    "awaiting_table_time": "table_time",
+    "awaiting_type": "booking_type",
+    "awaiting_table_event_type": "event_type",
 }
+
+
+def _is_topic_switch(lowered: str) -> bool:
+    """Return True if the input looks like an off-topic question during booking."""
+    if "?" in lowered:
+        return True
+    tokens = set(re.findall(r"[a-zšžčćđ]+", lowered))
+    return bool(tokens & _QUESTION_WORDS)
 
 
 def _extract_pending(session: Any) -> tuple[str | None, str | None]:
@@ -54,46 +80,83 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
 
     active_flow, pending_field = _extract_pending(session)
 
-    # Active booking flow: handle pending fields BEFORE any shortcuts.
-    # This prevents the menu-number shortcut from hijacking booking inputs (e.g. "4" for nights).
+    # ── Active booking flow ───────────────────────────────────────────────────
+    # All known reservation steps are now in _STEP_TO_FIELD, so pending_field
+    # is set for every booking step.  Handle each field type here before any
+    # menu shortcut can fire.
     if active_flow and pending_field:
-        if pending_field == "email" and EMAIL_RE.fullmatch(text):
-            return {"action": "continue_flow", "field": "email", "value": text}
-        if pending_field == "phone" and PHONE_RE.fullmatch(text):
-            return {"action": "continue_flow", "field": "phone", "value": text}
-        if pending_field == "date" and DATE_RE.search(text):
-            return {"action": "continue_flow", "field": "date", "value": text}
-        if pending_field == "guests":
-            match = NUMBER_RE.search(text)
-            if match:
-                return {"action": "continue_flow", "field": "guests", "value": int(match.group(0))}
-        if pending_field == "confirm":
+
+        # ── Pattern-specific matchers ─────────────────────────────────────────
+        if pending_field == "email":
+            if EMAIL_RE.fullmatch(text):
+                return {"action": "continue_flow", "field": "email", "value": text}
+
+        elif pending_field == "phone":
+            if PHONE_RE.fullmatch(text):
+                return {"action": "continue_flow", "field": "phone", "value": text}
+
+        elif pending_field == "date":
+            if DATE_RE.search(text):
+                return {"action": "continue_flow", "field": "date", "value": text}
+
+        elif pending_field == "guests":
+            m = NUMBER_RE.search(text)
+            if m:
+                return {"action": "continue_flow", "field": "guests", "value": int(m.group(0))}
+
+        elif pending_field == "confirm":
             if lowered in YES_WORDS:
                 return {"action": "continue_flow", "field": "confirm", "value": True}
             if lowered in NO_WORDS:
                 return {"action": "continue_flow", "field": "confirm", "value": False}
-        if pending_field == "note":
-            # Any text is valid: pass through to reservation flow (handles "ne"/"nič" as skip).
+
+        elif pending_field == "note":
+            # Any text valid: booking flow handles "ne"/"nič" as skip.
             return {"action": "continue_flow", "field": "note", "value": text}
-        if pending_field == "dinner":
+
+        elif pending_field == "dinner":
             if lowered in YES_WORDS:
                 return {"action": "continue_flow", "field": "dinner", "value": True}
             if lowered in NO_WORDS:
                 return {"action": "continue_flow", "field": "dinner", "value": False}
-        if pending_field == "dinner_count":
-            match = NUMBER_RE.search(text)
-            if match:
-                return {"action": "continue_flow", "field": "dinner_count", "value": int(match.group(0))}
-        if pending_field == "kids_info":
-            # "ne" / "brez" / numbers all valid — pass through so reservation flow handles it.
+
+        elif pending_field == "dinner_count":
+            m = NUMBER_RE.search(text)
+            if m:
+                return {"action": "continue_flow", "field": "dinner_count", "value": int(m.group(0))}
+
+        elif pending_field == "kids_info":
+            # "ne" / "brez" / numbers / ages — all valid; booking flow validates.
             return {"action": "continue_flow", "field": "kids_info", "value": text}
-        # Active flow but input doesn't match expected field — don't check menu shortcut.
+
+        elif pending_field == "nights":
+            # "4 nočitve", "3", "dva" etc. — pass through; booking flow validates.
+            # Topic-switch questions (? / question words) → let LLM + continuation handle.
+            if not _is_topic_switch(lowered):
+                return {"action": "continue_flow", "field": "nights", "value": text}
+
+        elif pending_field == "kids_ages":
+            return {"action": "continue_flow", "field": "kids_ages", "value": text}
+
+        elif pending_field == "table_time":
+            # Any time-like text; booking flow validates.
+            return {"action": "continue_flow", "field": "table_time", "value": text}
+
+        elif pending_field in ("location", "booking_name", "booking_type", "event_type"):
+            # Text-based steps: pass through UNLESS it looks like an off-topic question.
+            if not _is_topic_switch(lowered):
+                return {"action": "continue_flow", "field": pending_field, "value": text}
+            # Looks like a topic switch → return None → LLM + mid-booking continuation.
+
+        # Field didn't match / question detected → do NOT fall through to menu shortcut.
         return None
 
-    # Menu follow-up: after a menu summary, plain number means menu detail.
-    # Only runs when there is no active booking flow.
+    # ── Menu follow-up shortcut ───────────────────────────────────────────────
+    # Only runs when there is NO active booking flow.
     history = getattr(session, "history", []) or []
-    recent = " ".join((item.get("content", "") for item in history[-3:] if isinstance(item, dict))).lower()
+    recent = " ".join(
+        (item.get("content", "") for item in history[-3:] if isinstance(item, dict))
+    ).lower()
     if any(k in recent for k in ("4-hodni", "5-hodni", "6-hodni", "7-hodni", "degustacijski meniji")):
         if lowered in {"4", "5", "6", "7"}:
             return {

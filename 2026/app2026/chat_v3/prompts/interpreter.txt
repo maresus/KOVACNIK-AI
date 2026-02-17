@@ -24,3 +24,10 @@ Pravila:
    - Ana je hči (najmlajša članica družine) IN ime sobe — vedno vprašaj za pojasnitev
 4) Če si negotov, vrni UNCLEAR z nižjim confidence.
 5) Ne vračaj dodatnih polj. Ne vračaj markdowna.
+6) Pozdravne besede ob slovesu (adijo, nasvidenje, čao, do videnja, pa adijo, byebye, bye) = THANKS (NE CANCEL).
+   CANCEL pomeni samo eksplicitno zahtevo za preklic rezervacije (prekliči, stop, nehaj rezervacijo).
+7) INFO_HOURS: vprašanja o delovnem času, check-in, check-out, kdaj so odprti/zaprti, kdaj je zadnji prihod.
+8) INFO_MENU: vprašanja o hrani, menijih, kosilu, jedilniku. NE za check-in/out ure ali delovni čas.
+9) Meseci (januar, februar, marec, april, maj, junij, julij, avgust, september, oktober, november, december)
+   NISO osebna imena. Beseda "julij" = mesec julij, NE oseba Julija.
+   Ne nastavi needs_clarification=true, ko je v sporočilu mesečno ime brez nejasnega konteksta.

@@ -34,6 +34,12 @@ _PERSON_HINTS = frozenset({
     "druzin", "familij", "oseba", "sin", "hci", "hči", "gospod", "babi",
     "angelc", "danilo", "barbara", "kmetiji", "kmetija",
 })
+# Month names — never treat as person/room names in disambiguation
+_MONTH_NAMES = frozenset({
+    "januar", "februar", "marec", "april", "maj", "junij", "julij",
+    "avgust", "september", "oktober", "november", "december",
+})
+_BOOKING_KEYWORDS = frozenset({"rezerv", "book", "sobo", "nočit", "nocit", "room"})
 _ROOM_HINTS = frozenset({
     "sob",       # soba / sobo / sobi / sobah
     "nastanit", "nocit", "nocitev", "rezerv", "prenoc", "spalnic",
@@ -209,7 +215,12 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
         return {"reply": reply["reply"], "session_id": session.session_id}
 
     if result.needs_clarification and result.clarification_question:
-        return {"reply": result.clarification_question, "session_id": session.session_id}
+        # Suppress false disambiguation: month names in booking context are dates, not person names
+        _msg_low = message.lower()
+        _has_month = any(m in _msg_low for m in _MONTH_NAMES)
+        _has_booking = any(b in _msg_low for b in _BOOKING_KEYWORDS)
+        if not (_has_month and _has_booking):
+            return {"reply": result.clarification_question, "session_id": session.session_id}
 
     # Remember whether we were mid-booking BEFORE the transition.
     _pre_flow = session.active_flow
