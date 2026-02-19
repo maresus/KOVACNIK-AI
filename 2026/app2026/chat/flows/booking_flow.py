@@ -320,9 +320,13 @@ def _handle_room_reservation_impl(
         reservation_state["kids"] = parsed["kids"]
         reservation_state["kids_ages"] = parsed["ages"]
         if parsed["kids"] is None and parsed["adults"] is None:
-            # Total given without breakdown — assume all adults, skip kids_info
-            reservation_state["kids"] = 0
-            reservation_state["adults"] = total
+            if total >= 3:
+                # Ask about kids for larger groups — important for pricing
+                reservation_state["step"] = "awaiting_kids_info"
+                return "Ali s seboj pripeljete otroke?"
+            else:
+                reservation_state["kids"] = 0
+                reservation_state["adults"] = total
         if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"

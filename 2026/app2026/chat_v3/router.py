@@ -181,8 +181,7 @@ def _pre_dispatch_trap(message: str) -> str | None:
             "  • Ogled živali v hlevu — Julija jih rada pokaže otrokom\n"
             "  • Degustacija domačih likerjev, sirupov in marmelad\n"
             "  • Degustacijski meni (po dogovoru)\n"
-            "  • Degustacija vin v prijetnem domačem vzdušju\n"
-            "Pokličite nas: 031 330 113"
+            "  • Degustacija vin v prijetnem domačem vzdušju"
         )
 
     return None

@@ -631,8 +631,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 f"  • Otroci do 5 let: brezplačno\n"
                 f"  • Otroci 5–12 let: 50% popust\n"
                 f"  • Minimalno 3 nočitve (junij–avgust), 2 nočitvi (ostale mesece)\n"
-                f"  • Večerja: 25 EUR/osebo (po naročilu)\n"
-                f"Za rezervacijo: 031 330 113"
+                f"  • Večerja: 25 EUR/osebo (po naročilu)"
             )
         }
 
@@ -1092,8 +1091,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "  • Jahanje na ponijih Malajka in Marsi\n"
                     "  • Ogled in hranjenje živali\n"
                     "  • Pohodi in kolesarjenje po Pohorju\n"
-                    "  • Animatorske aktivnosti za otroke (vodi Julija)\n"
-                    f"Za rezervacijo: {phone}"
+                    "  • Animatorske aktivnosti za otroke (vodi Julija)"
                 )
             }
         # Products / shop queries misclassified as INFO_LOCATION
