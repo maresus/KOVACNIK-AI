@@ -60,7 +60,7 @@ def _normalize_text(text: str) -> str:
 # Keywords that signal a competing product (so "marmelado + bunko" → full list)
 _SHOP_OTHER_PRODS = frozenset({
     "bunka", "bunk", "salama", "klobas", "paštet", "liker", "žganje", "tepkovec",
-    "sirup", "namaz", "pesto", "sirček", "sirek", "gibanica", "potica", "piškot",
+    "sirup", "namaz", "pesto", "sirček", "sirek", "gibanica", "potica", "potico", "piškot",
     "paket", "bon",
 })
 
@@ -124,7 +124,7 @@ def _specific_product_reply(msg_l: str) -> str | None:
             lines.append(f"  • {it['name']} — {price}")
         lines.append(f"🛒 {shop_url}")
         return "\n".join(lines)
-    if _single(("gibanica", "potica", "piškot")):
+    if _single(("gibanica", "potica", "potico", "piškot")):
         items = SHOP.get("categories", {}).get("sladke_dobrote", {}).get("items", [])
         lines = ["Sladke dobrote Kovačnik:"]
         for it in items:
@@ -196,7 +196,12 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         name = _extract_name(result, message)
         _resolved_type = (result.entities or {}).get("_resolved")
         msg_l = (message or "").lower()
-        _want_phone = any(kw in msg_l for kw in ("telefon", "kontakt", "pokliče", "poklič", "številk"))
+        _want_phone = any(kw in msg_l for kw in ("telefon", "kontakt", "pokliče", "poklič", "številk", "stevilk", "tel "))
+        # Role-based override: "babica" → Angelca (even if LLM said Julija)
+        if any(kw in msg_l for kw in ("babic", "babica", "babico")):
+            angelca = PERSONS.get("angelca")
+            if angelca:
+                return {"reply": _format_person(angelca, show_phone=_want_phone)}
         if name and _resolved_type == "person":
             person_data = PERSONS.get(name)
             if person_data:
@@ -213,7 +218,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 # not Aljaž, because "partnerica" matches Kaja's role).
                 _person_ctx = any(kw in msg_l for kw in (
                     "partner", "partnerica", "kdo je", "oseba", "član", "druzin",
-                    "sin", "hči", "hci", "babic",
+                    "sin", "hči", "hci", "babic", "babica", "babico",
                 ))
                 _room_ctx = any(kw in msg_l for kw in (
                     "soba", "sobo", "sobi", "sob", "nastanit", "nocit", "rezerv",
@@ -350,6 +355,16 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
 
     if intent == "INFO_WINE":
         msg_l = (message or "").lower()
+        # Buying wine bottles to take home → shop / contact
+        if any(kw in msg_l for kw in ("steklenico", "steklenice", "za domov", "kupiti", "kupim", "nakup", "prodajate", "prodaja")):
+            shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
+            return {
+                "reply": (
+                    "Domača vina Kovačnik so na voljo ob obisku kmetije in po dogovoru.\n"
+                    "Za nakup steklenic pokličite Barbaro: 031 330 113\n"
+                    f"🛒 Spletna trgovina: {shop_url}"
+                )
+            }
         # Likerji / žganje — misclassified as INFO_WINE; redirect to shop
         if any(kw in msg_l for kw in ("liker", "žganje", "tepkovec")):
             _s = _specific_product_reply(msg_l)
@@ -448,7 +463,8 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
 
         # --- Darilni paketi / shop queries misclassified as INFO_MENU ---
         if any(kw in msg_lower for kw in ("kajin paket", "aljazev paket", "anin paket", "julijin paket", "paket babice", "paket danila", "darilni paket")) or \
-           (any(kw in msg_lower for kw in ("paket", "kajin", "daril")) and any(kw in msg_lower for kw in ("kaj je", "vsebuje", "kaj vsebuje", "kaj je v", "sestavin"))):
+           (any(kw in msg_lower for kw in ("paket", "kajin", "daril")) and any(kw in msg_lower for kw in ("kaj je", "vsebuje", "kaj vsebuje", "kaj je v", "sestavin"))) or \
+           (any(kw in msg_lower for kw in ("kajin", "kajnem", "kajnemu")) and any(kw in msg_lower for kw in ("paket", "paketu"))):
             shop_url = SHOP.get("url", "https://kovacnik.com/kovacnikova-spletna-trgovina/")
             pkg = SHOP.get("categories", {}).get("darilni_paketi", {})
             lines = ["Darilni paketi Kovačnik:"]
@@ -789,6 +805,19 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
         msg_l = (message or "").lower()
         farm_name = CONTACT.get("name", "Domačija Kovačnik")
         phone = CONTACT.get("mobile", "031 330 113")
+        # Short "kontakt?" or "kontakt" query → return contact info
+        if msg_l.strip().rstrip("?! ") in ("kontakt", "kontakti", "kontaktni"):
+            phone2 = CONTACT.get("phone", "02 603 6033")
+            email = CONTACT.get("email", "info@kovacnik.si")
+            return {
+                "reply": (
+                    f"Kontakt Domačije Kovačnik:\n"
+                    f"  📞 Barbara: {phone} (rezervacije)\n"
+                    f"  📞 Telefon: {phone2}\n"
+                    f"  📧 E-pošta: {email}\n"
+                    f"  🌐 {CONTACT.get('website', 'www.kovacnik.si')}"
+                )
+            }
         # Contact info queries misclassified as INFO_GENERAL
         if any(kw in msg_l for kw in ("email", "e-pošt", "e-mail", "mail")):
             email = CONTACT.get("email", "info@kovacnik.si")
@@ -1014,6 +1043,17 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "skupaj bomo uredili mize in meni po vaših željah."
                 )
             }
+        # Short "kontakt?" query misclassified as INFO_LOCATION → return full contact info
+        if msg_l.strip().rstrip("?! ") in ("kontakt", "kontakti", "kontaktni"):
+            return {
+                "reply": (
+                    f"Kontakt Domačije Kovačnik:\n"
+                    f"  📞 Barbara: {phone} (rezervacije)\n"
+                    f"  📞 Telefon: {phone2}\n"
+                    f"  📧 E-pošta: {email}\n"
+                    f"  🌐 {CONTACT.get('website', 'www.kovacnik.si')}"
+                )
+            }
         # Contact info misclassified as INFO_LOCATION
         if any(kw in msg_l for kw in ("telefonsk", "telefon", "pokliči", "klic", "tel.")):
             return {"reply": f"Pokličete nas na: {phone} (Barbara) ali {phone2}"}
@@ -1064,6 +1104,28 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "Domače izdelke kupite ob obisku kmetije ali v spletni trgovini.\n"
                     f"🛒 {shop_url}\n"
                     f"Za naročilo vnaprej pokličite Barbaro: {phone}"
+                )
+            }
+        # Distance from major cities
+        if any(kw in msg_l for kw in ("maribor", "celje", "ljubljana", "ptuj", "km", "kolk dalec", "koliko dalec", "kako dalec", "kako daleč")):
+            return {
+                "reply": (
+                    "Razdalje do Domačije Kovačnik:\n"
+                    "  • Maribor: ~30 km (cca. 35 minut vožnje)\n"
+                    "  • Celje: ~45 km (cca. 40 minut)\n"
+                    "  • Ljubljana: ~120 km (cca. 90 minut)\n"
+                    "  • Ptuj: ~50 km (cca. 50 minut)\n"
+                    f"Naslov: {CONTACT.get('address', 'Planica 9, 2313 Fram')}"
+                )
+            }
+        # Public transport / bus
+        if any(kw in msg_l for kw in ("avtobus", "avt. postaja", "javni prevoz", "bus", "vlak", "postaja")):
+            return {
+                "reply": (
+                    "Do kmetije z javnim prevozom je nekoliko težje — nimamo direktne avtobusne linije.\n"
+                    "Priporočamo, da nas pokličete in se dogovorimo za prevoz ali navodila:\n"
+                    "Barbara: 031 330 113\n"
+                    f"Naslov: {CONTACT.get('address', 'Planica 9, 2313 Fram')}"
                 )
             }
         # Default: farm location

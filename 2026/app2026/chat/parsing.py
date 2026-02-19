@@ -65,10 +65,38 @@ def parse_people_count(message: str) -> dict[str, Optional[str | int]]:
         result["kids"] = int(kids_match.group(1))
     if result["adults"] is not None or result["kids"] is not None:
         result["total"] = (result["adults"] or 0) + (result["kids"] or 0)
+        # Also try to extract ages from plain text "6 in 9 let" (without parentheses)
+        if not result["ages"]:
+            ages_plain = re.search(r"\b(\d{1,2})\s*(?:in|,)\s*(\d{1,2})\s*let\b", message, re.IGNORECASE)
+            if ages_plain:
+                result["ages"] = f"{ages_plain.group(1)} in {ages_plain.group(2)} let"
         return result
 
     cleaned = re.sub(r"\d{1,2}\.\d{1,2}\.\d{2,4}", " ", message)
     cleaned = re.sub(r"\d{1,2}:\d{2}", " ", cleaned)
+    # Remove "DD. month" and "month DD" patterns so day numbers aren't counted as people
+    cleaned = re.sub(
+        r"\b\d{1,2}\s*(?:ga|\.)\s*(?:januar|februar|marc|april|maj|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\b",
+        " ", cleaned, flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\b(?:januar|februar|marc|april|maj|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\s+\d{1,2}\b",
+        " ", cleaned, flags=re.IGNORECASE,
+    )
+    # Strip time patterns like "12h", "ob 12" so day/hour numbers aren't counted as people
+    cleaned = re.sub(r"\b\d{1,2}\s*h\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bob\s+\d{1,2}\b", " ", cleaned, flags=re.IGNORECASE)
+    # Strip night count patterns so "2 noci" / "3n" / "2 noči" don't become people count
+    cleaned = re.sub(r"\b\d+\s*noč\w*\b|\b\d+\s*noci\w*\b|\b\d+\s*nocit\w*\b|\b\d+n\b|\b\d+\s*nights?\b", " ", cleaned, flags=re.IGNORECASE)
+    # Strip English month+day patterns so "August 12th" doesn't leave stray digit "12"
+    cleaned = re.sub(
+        r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\w*\s+\d{1,2}(?:st|nd|rd|th)?\b",
+        " ", cleaned, flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\b\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\w*\b",
+        " ", cleaned, flags=re.IGNORECASE,
+    )
 
     total_match = re.search(r"(\d+)\s*(oseb|osbe)", cleaned, re.IGNORECASE)
     if total_match:
@@ -149,7 +177,7 @@ def extract_nights(message: str) -> Optional[int]:
     cleaned = re.sub(r"(vikend|weekend|sobota|nedelja)", " ", cleaned, flags=re.IGNORECASE)
 
     # 1) številka ob besedi noč/nočitev
-    match = re.search(r"(\d+)\s*(noč|noc|noči|noci|nočit|nocit|nočitev)", cleaned, re.IGNORECASE)
+    match = re.search(r"(\d+)\s*(noč|noc|noči|noci|nočit|nocit|nočitev|nights?)", cleaned, re.IGNORECASE)
     if match:
         return int(match.group(1))
 
@@ -162,7 +190,18 @@ def extract_nights(message: str) -> Optional[int]:
 
     # 3) prvo število v kratkem sporočilu (<20 znakov)
     if len(message.strip()) < 20:
-        nums = re.findall(r"\d+", cleaned)
+        # Remove DD.MM (numeric date) patterns so date numbers aren't counted as nights
+        _cl2 = re.sub(r"\b\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?\b", " ", cleaned)
+        # Remove "DD. month" and "month DD" patterns so day numbers aren't counted as nights
+        _cl2 = re.sub(
+            r"\b\d{1,2}\s*(?:ga|\.)\s*(?:januar|februar|marc|april|maj|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\b",
+            " ", _cl2, flags=re.IGNORECASE,
+        )
+        _cl2 = re.sub(
+            r"\b(?:januar|februar|marc|april|maj|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\s+\d{1,2}\b",
+            " ", _cl2, flags=re.IGNORECASE,
+        )
+        nums = re.findall(r"\d+", _cl2)
         if nums:
             num = int(nums[0])
             if 1 <= num <= 30:
@@ -275,6 +314,79 @@ def extract_date(text: str) -> Optional[str]:
     return None
 
 
+def extract_date_with_months(text: str) -> Optional[str]:
+    """
+    Like extract_date() but also recognises Slovene month-name patterns such as
+    "15. avgusta", "20ga avguste", "20. marca", "1. septembra", "julij 25",
+    and English patterns like "August 10th".
+    Falls back to extract_date() if no month-name found.
+    """
+    today = datetime.now()
+    lowered = text.lower().strip()
+
+    # Month-name maps (nominative + genitive forms)
+    _SL_MONTHS: dict[str, int] = {
+        "januar": 1, "januarja": 1,
+        "februar": 2, "februarja": 2,
+        "marec": 3, "marca": 3,
+        "april": 4, "aprila": 4,
+        "maj": 5, "maja": 5,
+        "junij": 6, "junija": 6,
+        "julij": 7, "julija": 7,
+        "avgust": 8, "avgusta": 8, "avguste": 8,
+        "september": 9, "septembra": 9,
+        "oktober": 10, "oktobra": 10,
+        "november": 11, "novembra": 11,
+        "december": 12, "decembra": 12,
+    }
+    _EN_MONTHS: dict[str, int] = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12,
+    }
+
+    def _candidate_date(day: int, month: int) -> Optional[str]:
+        try:
+            dt = datetime(today.year, month, day)
+        except ValueError:
+            return None
+        if dt.date() < today.date():
+            try:
+                dt = datetime(today.year + 1, month, day)
+            except ValueError:
+                return None
+        return dt.strftime("%d.%m.%Y")
+
+    # Pattern: "15. avgusta" / "15ga avgusta" / "15 avgusta"
+    for word, month in _SL_MONTHS.items():
+        m = re.search(rf"\b(\d{{1,2}})\s*(?:ga|\.?)\s*{re.escape(word)}\b", lowered)
+        if m:
+            result = _candidate_date(int(m.group(1)), month)
+            if result:
+                return result
+    # Pattern: "julij 25" / "julija 25"
+    for word, month in _SL_MONTHS.items():
+        m = re.search(rf"\b{re.escape(word)}\s+(\d{{1,2}})\b", lowered)
+        if m:
+            result = _candidate_date(int(m.group(1)), month)
+            if result:
+                return result
+    # English: "August 10th" / "10 August"
+    for word, month in _EN_MONTHS.items():
+        m = re.search(rf"\b(\d{{1,2}})\s*(?:st|nd|rd|th)?\s*{re.escape(word)}\b", lowered)
+        if m:
+            result = _candidate_date(int(m.group(1)), month)
+            if result:
+                return result
+        m2 = re.search(rf"\b{re.escape(word)}\s+(\d{{1,2}})\s*(?:st|nd|rd|th)?\b", lowered)
+        if m2:
+            result = _candidate_date(int(m2.group(1)), month)
+            if result:
+                return result
+
+    return extract_date(text)
+
+
 def extract_date_from_text(message: str) -> Optional[str]:
     return extract_date(message)
 
@@ -285,7 +397,7 @@ def extract_date_range(text: str) -> Optional[tuple[str, str]]:
     """
     today = datetime.now()
     match = re.search(
-        r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\s*(?:do|–|—|-|to)\s*(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\b",
+        r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\s*\.?\s*(?:do|–|—|-|to)\s*(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\s*[./-]\s*(\d{2,4}))?\b",
         text,
         re.IGNORECASE,
     )
@@ -320,7 +432,7 @@ def nights_from_range(start: str, end: str) -> Optional[int]:
 
 def extract_time(text: str) -> Optional[str]:
     """
-    Vrne prvi čas v formatu HH:MM (sprejme 13:00, 13.00 ali 1300).
+    Vrne prvi čas v formatu HH:MM (sprejme 13:00, 13.00, 1300, "ob 12", "12h").
     """
     match = re.search(r"\b(\d{1,2})[:](\d{2})\b", text)
     if match:
@@ -328,6 +440,20 @@ def extract_time(text: str) -> Optional[str]:
         if hour <= 23 and minute <= 59:
             return f"{hour:02d}:{minute:02d}"
         return None
+
+    # "12h" / "13h" pattern
+    hm = re.search(r"\b(\d{1,2})\s*h\b", text, re.IGNORECASE)
+    if hm:
+        hour = int(hm.group(1))
+        if hour <= 23:
+            return f"{hour:02d}:00"
+
+    # "ob 12" / "ob 13 ura" — only a bare hour, no minutes
+    ob_m = re.search(r"\bob\s+(\d{1,2})(?:\s*ura)?\b", text, re.IGNORECASE)
+    if ob_m:
+        hour = int(ob_m.group(1))
+        if hour <= 23:
+            return f"{hour:02d}:00"
 
     for match in re.finditer(r"\b(\d{1,2})\.(\d{2})\b", text):
         tail = text[match.end():]

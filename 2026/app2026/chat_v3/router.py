@@ -109,6 +109,85 @@ def _log_disambiguation_event(session_id: str, message: str, name: str, question
         return
 
 
+def _pre_dispatch_trap(message: str) -> str | None:
+    """Deterministic keyword traps to override LLM misclassification.
+
+    Returns a reply string if the message should be intercepted, else None.
+    Only call this when the user is NOT mid-booking (guards handle those).
+    """
+    msg_l = (message or "").lower()
+
+    # Jahanje / riding (J05 "lahk jaha", J10 "jahanje rezerviral")
+    if re.search(r"\bjaha", msg_l) or any(kw in msg_l for kw in ("lahk jaha", "lahko jaha", "jahamo", "jahanj")):
+        return (
+            "Jahanje s ponijem je mogoče!\n"
+            "Na kmetiji imata Malajka in Marsi rada najmlajše goste.\n"
+            "Cena: 5 € na krog. Ob prihodu povejte, da bi radi jahali."
+        )
+
+    # Kajin paket (S12 "kaj je v kajnem paketu")
+    if any(kw in msg_l for kw in ("kajnem paketu", "kajin paket", "kajin pak", "kajinem paketu")):
+        return (
+            "Kajin paket (sirup, čaj, marmelada) — 17,50 €\n"
+            "🛒 https://kovacnik.com/kovacnikova-spletna-trgovina/"
+        )
+
+    # Bunka slang — "bunk za domov" (S07)
+    if "bunk" in msg_l:
+        return (
+            "Mesni izdelki Kovačnik:\n"
+            "  • Pohorska bunka, 500 g — 18–21 €\n"
+            "  • Suha salama, 650 g — 16 €\n"
+            "  • Hišna suha klobasa, 180 g — 7 €\n"
+            "🛒 https://kovacnik.com/kovacnikova-spletna-trgovina/"
+        )
+
+    # Hišni ljubljenčki / psi (RS14 "Ali sprejmete pse")
+    if (any(kw in msg_l for kw in ("psa", "pse", " pes", "psičko", "psicko")) or re.search(r"\bpes\b", msg_l)):
+        if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "prinest", "pripelj", "sprejmete", "sprejma", "imam")):
+            return (
+                "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
+                "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
+                "Pokličite Barbaro za dogovor: 031 330 113"
+            )
+
+    # Alergije / posebna prehrana (RS15 "alergijo na gluten")
+    if any(kw in msg_l for kw in ("alergij", "alergijo", "brezglutensko", "brezgluten", "celiakij", "laktozni")):
+        return (
+            "Za posebne prehranske zahteve (alergije, vegetarijansko, brezglutensko) "
+            "nas pokličite vnaprej — Barbara bo poskrbela za vaše potrebe.\n"
+            "Pokličite: 031 330 113 ali pišite: info@kovacnik.si"
+        )
+
+    # Danilo kontakt (O03 "Danilova tel stevilka")
+    if "danilo" in msg_l and any(kw in msg_l for kw in ("tel", "stevilka", "kontakt", "poklic", "stik")):
+        return (
+            "Za stik z Danilom in kmetijo pokličite Barbaro: 031 330 113\n"
+            "ali pišite: info@kovacnik.si"
+        )
+
+    # Zima / smučišče (KDZ05, KDZ07)
+    if any(kw in msg_l for kw in ("pozim", "zimsk", "pozimi", "zima ")) or re.search(r"\bzima\b", msg_l):
+        return (
+            "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
+            "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas.\n"
+            "Če potrebujete nasvet o pristopu ali kje je manj gneče, vam z veseljem povemo."
+        )
+
+    # Dež / slabo vreme (KDZ04 "slabo vreme kaj naredimo")
+    if any(kw in msg_l for kw in ("dežj", "deže", "deževn", "slabo vreme", "dežuje", "dezuje")) or re.search(r"\bdez\b", msg_l):
+        return (
+            "Ob dežju je kmetija prav tako prijetna!\n"
+            "  • Ogled živali v hlevu — Julija jih rada pokaže otrokom\n"
+            "  • Degustacija domačih likerjev, sirupov in marmelad\n"
+            "  • Degustacijski meni (po dogovoru)\n"
+            "  • Degustacija vin v prijetnem domačem vzdušju\n"
+            "Pokličite nas: 031 330 113"
+        )
+
+    return None
+
+
 async def _dispatch(result: InterpretResult, message: str, session, brand) -> dict[str, str]:
     if result.intent.startswith("INFO_"):
         return await info_handler.execute(result, message, session, brand)
@@ -168,7 +247,24 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
 
     # Deterministic disambiguation must run before interpreter/handlers
     # and must not depend on LLM output or intent class.
-    ambiguous_name = _detect_ambiguous_name_from_message(message)
+    # Skip disambiguation entirely when user is mid-booking — month names like
+    # "julija" (the month) would otherwise trigger room/person disambiguation.
+    _in_booking = session.active_flow == "reservation"
+
+    # Pre-dispatch keyword traps — fire before disambiguation AND LLM to ensure
+    # deterministic responses for specific topics regardless of LLM classification
+    # or confidence. Only fires when user is NOT mid-booking.
+    if not _in_booking:
+        _trap_reply = _pre_dispatch_trap(message)
+        if _trap_reply is not None:
+            return {"reply": _trap_reply, "session_id": session.session_id}
+
+    # Also skip when the message contains clear booking intent + month name
+    # (e.g. "Ok rad bi rezerviral. Prihod 20. julija..." should not trigger Julija disambiguation)
+    _has_booking_kw = any(kw in message.lower() for kw in ("rezerv", "prihod", "nocit", "nočit", "soba", "sobo", "book"))
+    _has_month = any(m in message.lower() for m in _MONTH_NAMES)
+    _skip_disambig = _in_booking or (_has_booking_kw and _has_month)
+    ambiguous_name = None if _skip_disambig else _detect_ambiguous_name_from_message(message)
     if ambiguous_name:
         resolved = resolve_entity(ambiguous_name)
         if isinstance(resolved, dict) and resolved.get("action") == "clarify":

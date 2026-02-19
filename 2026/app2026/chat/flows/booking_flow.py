@@ -8,6 +8,7 @@ from app2026.chat.parsing import (
     extract_date,
     extract_date_from_text,
     extract_date_range,
+    extract_date_with_months,
     extract_nights,
     extract_time,
     nights_from_range,
@@ -167,7 +168,7 @@ def advance_after_room_people(reservation_state: dict[str, Optional[str | int]],
         reservation_state["nights"] or 0,
     )
     needed = reservation_state["rooms"] or 1
-    if free_rooms and len(free_rooms) > needed:
+    if free_rooms and len(free_rooms) > needed and needed > 1:
         reservation_state["available_locations"] = free_rooms
         reservation_state["step"] = "awaiting_room_location"
         names = ", ".join(free_rooms)
@@ -258,7 +259,7 @@ def _handle_room_reservation_impl(
                     f"Odlično, zabeležila sem {reservation_state['date']} za {reservation_state['nights']} nočitev. "
                     "Za koliko oseb bi bilo bivanje (odrasli + otroci)?"
                 )
-        date_candidate = extract_date(message)
+        date_candidate = extract_date_with_months(message)
         nights_candidate = extract_nights(message)
         if not date_candidate:
             reservation_state["date"] = None
@@ -300,6 +301,9 @@ def _handle_room_reservation_impl(
             return error_message + " Poskusite z drugim številom nočitev."
         reservation_state["nights"] = new_nights
         if reservation_state.get("people"):
+            if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
+                reservation_state["step"] = "awaiting_kids_ages"
+                return "Koliko so stari otroci?"
             return advance_after_room_people_fn(reservation_state, reservation_service)
         reservation_state["step"] = "awaiting_people"
         return "Za koliko oseb bi bilo bivanje (odrasli + otroci)?"
@@ -316,9 +320,10 @@ def _handle_room_reservation_impl(
         reservation_state["kids"] = parsed["kids"]
         reservation_state["kids_ages"] = parsed["ages"]
         if parsed["kids"] is None and parsed["adults"] is None:
-            reservation_state["step"] = "awaiting_kids_info"
-            return "Imate otroke? Koliko in koliko so stari?"
-        if parsed["kids"] and not parsed["ages"]:
+            # Total given without breakdown — assume all adults, skip kids_info
+            reservation_state["kids"] = 0
+            reservation_state["adults"] = total
+        if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
         return advance_after_room_people_fn(reservation_state, reservation_service)
@@ -385,11 +390,17 @@ def _handle_room_reservation_impl(
 
     if step == "awaiting_name":
         full_name = message.strip()
-        if len(full_name.split()) < 2:
-            return "Prosim napišite ime in priimek (npr. 'Ana Kovačnik')."
+        _looks_like_people = bool(re.search(r"\d", full_name)) or any(
+            kw in full_name.lower() for kw in ("odrasl", "otrok", "skupaj", "oseb")
+        )
+        if _looks_like_people or len(full_name.split()) < 2:
+            return "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
         reservation_state["name"] = full_name
         reservation_state["step"] = "awaiting_phone"
-        return "Hvala! Zdaj prosim še telefonsko številko."
+        return (
+            "Hvala! Podatke bomo posredovali Barbari (031 330 113), ki bo potrdila rezervacijo.\n"
+            "Zdaj prosim še telefonsko številko."
+        )
 
     if step == "awaiting_phone":
         phone = message.strip()
@@ -599,14 +610,27 @@ def _handle_table_reservation_impl(
     )
 
     if step == "awaiting_table_date":
-        proposed = extract_date(message) or ""
+        proposed = extract_date_with_months(message) or ""
         if not proposed:
-            return "Za kateri datum (sobota/nedelja)? (DD.MM ali DD.MM.YYYY)"
+            return "Za kateri datum? (DD.MM ali DD.MM.YYYY)"
+        # Skip day-of-week validation — accept any future date the user provides.
         ok, error_message = reservation_service.validate_table_rules(proposed, "12:00")
-        if not ok:
+        # Only reject for capacity/availability errors, not for day-of-week.
+        _is_day_err = any(kw in (error_message or "").lower() for kw in ("sobota", "nedelja", "vikend", "ponedeljek", "torek", "sreda", "četrtek", "petek"))
+        if not ok and not _is_day_err:
             reservation_state["date"] = None
-            return error_message + " Bi poslali datum sobote ali nedelje v obliki DD.MM ali DD.MM.YYYY?"
+            return error_message + " Bi poslali drug datum v obliki DD.MM ali DD.MM.YYYY?"
         reservation_state["date"] = proposed
+        # If user also provided time in the same message, extract it and advance
+        _inline_time = extract_time(message)
+        if _inline_time:
+            _ok_t, _err_t = reservation_service.validate_table_rules(proposed, _inline_time)
+            if _ok_t:
+                reservation_state["time"] = reservation_service._parse_time(_inline_time)
+                if reservation_state.get("people"):
+                    return proceed_after_table_people(reservation_state, reservation_service)
+                reservation_state["step"] = "awaiting_table_people"
+                return "Za koliko oseb pripravimo mizo?"
         reservation_state["step"] = "awaiting_table_time"
         return "Ob kateri uri bi želeli mizo? (12:00–20:00, zadnji prihod na kosilo 15:00)"
 
@@ -621,21 +645,28 @@ def _handle_table_reservation_impl(
             reservation_state["time"] = None
             return error_message + " Poskusiva z novim datumom (sobota/nedelja, DD.MM ali DD.MM.YYYY)."
         reservation_state["time"] = reservation_service._parse_time(desired_time)
-        if not reservation_state.get("people"):
-            parsed = parse_people_count(message)
-            people = parsed["total"]
-            if people:
-                reservation_state["people"] = people
-                reservation_state["adults"] = parsed["adults"]
-                reservation_state["kids"] = parsed["kids"]
-                reservation_state["kids_ages"] = parsed["ages"]
-                if parsed["kids"] is None and parsed["adults"] is None:
-                    reservation_state["step"] = "awaiting_kids_info"
-                    return "Imate otroke? Koliko in koliko so stari?"
-                if parsed["kids"] and not parsed["ages"]:
-                    reservation_state["step"] = "awaiting_kids_ages"
-                    return "Koliko so stari otroci?"
+        if reservation_state.get("people"):
+            return proceed_after_table_people(reservation_state, reservation_service)
+        parsed = parse_people_count(message)
+        people = parsed["total"]
+        if people:
+            reservation_state["people"] = people
+            reservation_state["adults"] = parsed["adults"]
+            reservation_state["kids"] = parsed["kids"]
+            reservation_state["kids_ages"] = parsed["ages"]
+            _has_kids_ctx = (
+                parsed["kids"] is not None
+                or parsed["adults"] is not None
+                or any(kw in message.lower() for kw in ("otrok", "otroci", "otroka"))
+            )
+            if not _has_kids_ctx:
+                reservation_state["kids"] = 0
+                reservation_state["adults"] = people
                 return proceed_after_table_people(reservation_state, reservation_service)
+            if parsed["kids"] and not parsed["ages"]:
+                reservation_state["step"] = "awaiting_kids_ages"
+                return "Koliko so stari otroci?"
+            return proceed_after_table_people(reservation_state, reservation_service)
         reservation_state["step"] = "awaiting_table_people"
         return "Za koliko oseb pripravimo mizo?"
 
@@ -833,9 +864,17 @@ def _handle_table_reservation_impl(
         reservation_state["adults"] = parsed["adults"]
         reservation_state["kids"] = parsed["kids"]
         reservation_state["kids_ages"] = parsed["ages"]
-        if parsed["kids"] is None and parsed["adults"] is None:
-            reservation_state["step"] = "awaiting_kids_info"
-            return "Imate otroke? Koliko in koliko so stari?"
+        # Only ask about kids when the user explicitly mentioned them or split adults/kids
+        _has_kids_context = (
+            parsed["kids"] is not None
+            or parsed["adults"] is not None
+            or any(kw in message.lower() for kw in ("otrok", "otroci", "otroka", "otroka"))
+        )
+        if not _has_kids_context:
+            # Total given without breakdown — assume all adults, skip kids_info
+            reservation_state["kids"] = 0
+            reservation_state["adults"] = people
+            return proceed_after_table_people(reservation_state, reservation_service)
         if parsed["kids"] and not parsed["ages"]:
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
@@ -857,11 +896,17 @@ def _handle_table_reservation_impl(
 
     if step == "awaiting_name":
         full_name = message.strip()
-        if len(full_name.split()) < 2:
-            return "Prosim napišite ime in priimek (npr. 'Ana Kovačnik')."
+        _looks_like_people = bool(re.search(r"\d", full_name)) or any(
+            kw in full_name.lower() for kw in ("odrasl", "otrok", "skupaj", "oseb")
+        )
+        if _looks_like_people or len(full_name.split()) < 2:
+            return "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
         reservation_state["name"] = full_name
         reservation_state["step"] = "awaiting_phone"
-        return "Hvala! Zdaj prosim še telefonsko številko."
+        return (
+            "Hvala! Podatke bomo posredovali Barbari (031 330 113), ki bo potrdila rezervacijo.\n"
+            "Zdaj prosim še telefonsko številko."
+        )
 
     if step == "awaiting_phone":
         phone = message.strip()
@@ -983,7 +1028,7 @@ def handle_reservation_flow(
         return _tr("Ni problema, začniva znova. Želite rezervirati sobo ali mizo za kosilo?")
 
     lowered = message.lower()
-    if reservation_state.get("step") and reservation_state.get("type") == "room" and "miza" in lowered:
+    if reservation_state.get("step") and reservation_state.get("type") == "room" and ("miza" in lowered or "mizo" in lowered):
         reset_reservation_state(state)
         reservation_state["type"] = "table"
         reservation_state["step"] = "awaiting_table_date"
@@ -1002,12 +1047,12 @@ def handle_reservation_flow(
         detected = reservation_state.get("type") or parse_reservation_type(message)
         if detected == "room":
             reservation_state["type"] = "room"
-            prefilled_date = extract_date_from_text(message)
+            prefilled_date = extract_date_with_months(message)
             range_data = extract_date_range(message)
             if range_data:
                 prefilled_date = range_data[0]
             prefilled_nights = None
-            if any(token in message.lower() for token in ["nočit", "nocit", "noči", "noci"]):
+            if any(token in message.lower() for token in ["nočit", "nocit", "noči", "noci", "night"]):
                 prefilled_nights = extract_nights(message)
             if range_data and not prefilled_nights:
                 prefilled_nights = nights_from_range(range_data[0], range_data[1])
@@ -1047,9 +1092,10 @@ def handle_reservation_flow(
                 )
             if reservation_state.get("people"):
                 if reservation_state.get("kids") is None and reservation_state.get("adults") is None:
-                    reservation_state["step"] = "awaiting_kids_info"
-                    return _tr("Imate otroke? Koliko in koliko so stari?")
-                if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
+                    # Total given without breakdown — assume all adults, skip kids_info
+                    reservation_state["kids"] = 0
+                    reservation_state["adults"] = reservation_state["people"]
+                if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
                     reservation_state["step"] = "awaiting_kids_ages"
                     return _tr("Koliko so stari otroci?")
                 reply = advance_after_room_people_fn(reservation_state, reservation_service)
@@ -1061,7 +1107,7 @@ def handle_reservation_flow(
             )
         if detected == "table":
             reservation_state["type"] = "table"
-            prefilled_date = extract_date_from_text(message)
+            prefilled_date = extract_date_with_months(message)
             prefilled_time = extract_time(message)
             prefilled_people = parse_people_count(message)
             if prefilled_date:
@@ -1101,9 +1147,10 @@ def handle_reservation_flow(
                 return _tr("Za koliko oseb pripravimo mizo?")
 
             if reservation_state.get("kids") is None and reservation_state.get("adults") is None:
-                reservation_state["step"] = "awaiting_kids_info"
-                return _tr("Imate otroke? Koliko in koliko so stari?")
-            if reservation_state.get("kids") and not reservation_state.get("kids_ages"):
+                # Total given without breakdown — assume all adults, skip kids_info
+                reservation_state["kids"] = 0
+                reservation_state["adults"] = reservation_state["people"]
+            if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
                 reservation_state["step"] = "awaiting_kids_ages"
                 return _tr("Koliko so stari otroci?")
 

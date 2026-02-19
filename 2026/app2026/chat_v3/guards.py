@@ -6,6 +6,14 @@ from typing import Any
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^[\d\s+()./-]{6,}$")
 DATE_RE = re.compile(r"\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b")
+# Month-name pattern for Slovene/English dates: "15. avgusta", "julij 25", "August 10th"
+_SL_MONTH_RE = re.compile(
+    r"\b\d{1,2}\s*(?:ga|\.?)?\s*(?:januar|februar|marc|april|maja?|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\b"
+    r"|\b(?:januar|februar|marc|april|maj|junij|julij|avgust|septemb|oktob|novemb|decemb)\w*\s+\d{1,2}\b"
+    r"|\b\d{1,2}\s*(?:st|nd|rd|th)?\s*(?:january|february|march|april|may|june|july|august|september|october|november|december)\b"
+    r"|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b",
+    re.IGNORECASE,
+)
 NUMBER_RE = re.compile(r"\b\d{1,3}\b")
 TIME_RE = re.compile(r"\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*(ura|h)\b", re.IGNORECASE)
 
@@ -96,7 +104,7 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
                 return {"action": "continue_flow", "field": "phone", "value": text}
 
         elif pending_field == "date":
-            if DATE_RE.search(text):
+            if DATE_RE.search(text) or _SL_MONTH_RE.search(text):
                 return {"action": "continue_flow", "field": "date", "value": text}
 
         elif pending_field == "guests":
