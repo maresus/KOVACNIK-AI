@@ -167,7 +167,7 @@ def _pre_dispatch_trap(message: str) -> str | None:
         )
 
     # Zima / smučišče (KDZ05, KDZ07)
-    if any(kw in msg_l for kw in ("pozim", "zimsk", "pozimi", "zima ")) or re.search(r"\bzima\b", msg_l):
+    if any(kw in msg_l for kw in ("pozim", "zimsk", "pozimi", "zima ", "sneg", "sneži", "snezi", "smuc", "smuč", "smučišč", "areh")) or re.search(r"\bzima\b", msg_l):
         return (
             "Najbližji smučišči sta Mariborsko Pohorje in Areh — od nas je do obeh nekje 25–35 minut vožnje.\n"
             "Odlična izbira za poldnevni ali celodnevni izlet med bivanjem pri nas.\n"
@@ -175,7 +175,7 @@ def _pre_dispatch_trap(message: str) -> str | None:
         )
 
     # Dež / slabo vreme (KDZ04 "slabo vreme kaj naredimo")
-    if any(kw in msg_l for kw in ("dežj", "deže", "deževn", "slabo vreme", "dežuje", "dezuje")) or re.search(r"\bdez\b", msg_l):
+    if any(kw in msg_l for kw in ("dežj", "deže", "deževn", "slabo vreme", "dežuje", "dezuje", "dezeva")) or re.search(r"\bdez\b", msg_l):
         return (
             "Ob dežju je kmetija prav tako prijetna!\n"
             "  • Ogled živali v hlevu — Julija jih rada pokaže otrokom\n"
