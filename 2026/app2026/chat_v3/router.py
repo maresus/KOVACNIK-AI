@@ -375,7 +375,16 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
                 return {"reply": question, "session_id": session.session_id}
 
     history = session.history[-5:]
-    result = interpreter.interpret(message, history, session.data)
+
+    # Pre-interpretation override: "soba za X oseb" is clearly a booking, not info request
+    _msg_low = message.lower()
+    _has_room_for = re.search(r"sob[oai]\s+(za\s+)?\d+", _msg_low) or any(kw in _msg_low for kw in ("soba za", "sobo za"))
+    _has_people = any(kw in _msg_low for kw in ("odrasl", "oseb", "osebe", "otroc", "otrok"))
+    if _has_room_for and _has_people:
+        # Force BOOKING_ROOM intent - this is clearly a booking request
+        result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.95)
+    else:
+        result = interpreter.interpret(message, history, session.data)
 
     threshold = v3_config.get_confidence_threshold(result.intent)
     if result.confidence < threshold:

@@ -104,7 +104,9 @@ def check(message: str, session: Any) -> dict[str, Any] | None:
                 return {"action": "continue_flow", "field": "phone", "value": text}
 
         elif pending_field == "date":
-            if DATE_RE.search(text) or _SL_MONTH_RE.search(text):
+            # Pass any non-question input to booking flow for validation.
+            # Booking flow will handle invalid dates gracefully.
+            if not _is_topic_switch(lowered):
                 return {"action": "continue_flow", "field": "date", "value": text}
 
         elif pending_field == "guests":
