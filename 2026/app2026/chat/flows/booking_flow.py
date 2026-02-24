@@ -279,6 +279,20 @@ def _handle_room_reservation_impl(
             return error_message + " Prosim pošljite število nočitev."
         reservation_state["date"] = date_candidate
         reservation_state["nights"] = nights_candidate
+        # Try to extract people from the same message (all-in-one input)
+        parsed = parse_people_count(message)
+        if parsed["total"]:
+            reservation_state["people"] = parsed["total"]
+            reservation_state["adults"] = parsed["adults"]
+            reservation_state["kids"] = parsed["kids"]
+            reservation_state["kids_ages"] = parsed["ages"]
+            if parsed["kids"] is None and parsed["adults"] is None:
+                reservation_state["kids"] = 0
+                reservation_state["adults"] = parsed["total"]
+            if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
+                reservation_state["step"] = "awaiting_kids_ages"
+                return "Koliko so stari otroci?"
+            return advance_after_room_people_fn(reservation_state, reservation_service)
         reservation_state["step"] = "awaiting_people"
         return (
             f"Super, zabeležila sem {reservation_state['date']} za {reservation_state['nights']} nočitev. "
@@ -300,6 +314,16 @@ def _handle_room_reservation_impl(
                 return error_message + " Prosimo izberite drug datum prihoda (DD.MM ali DD.MM.YYYY)."
             return error_message + " Poskusite z drugim številom nočitev."
         reservation_state["nights"] = new_nights
+        # Try to extract people from the same message (all-in-one input)
+        parsed = parse_people_count(message)
+        if parsed["total"]:
+            reservation_state["people"] = parsed["total"]
+            reservation_state["adults"] = parsed["adults"]
+            reservation_state["kids"] = parsed["kids"]
+            reservation_state["kids_ages"] = parsed["ages"]
+            if parsed["kids"] is None and parsed["adults"] is None:
+                reservation_state["kids"] = 0
+                reservation_state["adults"] = parsed["total"]
         if reservation_state.get("people"):
             if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
                 reservation_state["step"] = "awaiting_kids_ages"

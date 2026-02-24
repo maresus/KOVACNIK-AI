@@ -8,11 +8,26 @@ from app2026.chat_v3.schemas import InterpretResult
 
 async def execute(result: InterpretResult, message: str, session, brand) -> dict[str, str]:
     if result.intent == "GREETING":
-        return {"reply": "Pozdravljeni! Kako vam lahko pomagam?"}
+        return {
+            "reply": (
+                "Pozdravljeni na Domačiji Kovačnik!\n\n"
+                "Z veseljem vam pomagam pri:\n"
+                "  • Rezervaciji sobe (imamo 3 družinske sobe)\n"
+                "  • Rezervaciji mize za kosilo (sob/ned)\n"
+                "  • Informacijah o ponudbi in kmetiji\n\n"
+                "Kako vam lahko pomagam?"
+            )
+        }
     if result.intent == "THANKS":
-        return {"reply": "Prosim, z veseljem. Če želite, lahko nadaljujeva."}
+        return {"reply": "Prosim, z veseljem! Če vas zanima še kaj, sem tu."}
     if result.intent == "SMALLTALK":
-        return {"reply": "Z veseljem pomagam glede ponudbe, rezervacij in informacij o kmetiji."}
+        return {
+            "reply": (
+                "Jaz sem virtualni pomočnik Domačije Kovačnik.\n\n"
+                "Pomagam pri rezervacijah sob in miz ter odgovarjam na vprašanja o kmetiji.\n"
+                "Če potrebujete osebni pogovor, pokličite Barbaro: 031 330 113"
+            )
+        }
     # Keyword traps — catch deterministic cases even when LLM confidence is low
     # IMPORTANT: these run BEFORE needs_clarification so deterministic content always wins
     msg_l = (message or "").lower()

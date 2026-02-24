@@ -10,4 +10,11 @@ def answer(message: str, session, brand: Any) -> str:
     try:
         return generate_llm_answer(message, history=history or [])
     except Exception:
-        return "Trenutno nimam jasnega odgovora. Lahko vprašanje malo drugače?"
+        return (
+            "Na to vprašanje nimam dobrega odgovora.\n\n"
+            "Z veseljem pomagam pri:\n"
+            "  • Rezervaciji sobe ali mize\n"
+            "  • Informacijah o kmetiji, sobah, jedilnici\n"
+            "  • Cenah in ponudbi\n\n"
+            "Ali vas zanima kaj od tega?"
+        )

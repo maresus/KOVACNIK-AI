@@ -36,9 +36,13 @@ _PERSON_HINTS = frozenset({
     "partner", "partnerica", "moz", "zena", "dekle", "fant",
 })
 # Month names — never treat as person/room names in disambiguation
+# Include genitive forms (julija, avgusta, etc.) used in dates like "22. julija"
 _MONTH_NAMES = frozenset({
-    "januar", "februar", "marec", "april", "maj", "junij", "julij",
-    "avgust", "september", "oktober", "november", "december",
+    "januar", "januarja", "februar", "februarja", "marec", "marca",
+    "april", "aprila", "maj", "maja", "junij", "junija",
+    "julij", "julija",  # julija = genitive, also room/person name
+    "avgust", "avgusta", "september", "septembra",
+    "oktober", "oktobra", "november", "novembra", "december", "decembra",
 })
 _BOOKING_KEYWORDS = frozenset({"rezerv", "book", "sobo", "nočit", "nocit", "room"})
 _ROOM_HINTS = frozenset({
@@ -166,6 +170,68 @@ def _pre_dispatch_trap(message: str) -> str | None:
             "ali pišite: info@kovacnik.si"
         )
 
+    # WiFi / internet
+    if any(kw in msg_l for kw in ("wifi", "wi-fi", "internet", "brezžičn", "omrež")):
+        return (
+            "Wifi je na voljo v celotni hiši — brezplačno in odprto.\n"
+            "Gesla ne potrebujete, samo povežite se na omrežje 'Kovacnik'."
+        )
+
+    # Parking / parkiranje
+    if any(kw in msg_l for kw in ("parking", "parkir", "avto postav", "kam z avtom", "parkirišč")):
+        return (
+            "Parkiranje je brezplačno neposredno pri kmetiji.\n"
+            "Prostora je dovolj za vse goste."
+        )
+
+    # Zajtrk (breakfast)
+    if any(kw in msg_l for kw in ("zajtrk", "zjutraj jem", "zjutraj jest", "jutranjo")):
+        return (
+            "Zajtrk je vključen v ceno nočitve.\n"
+            "  • Postrežemo vsak dan od 8:00 do 9:00\n"
+            "  • Domač pohorski zajtrk s svežimi izdelki z naše kmetije"
+        )
+
+    # Večerja (dinner)
+    if any(kw in msg_l for kw in ("večerj", "vacerj", "večer jem", "večer jest", "polpenzion", "penzion")):
+        if any(kw in msg_l for kw in ("cen", "stane", "koliko", "eur", "€")):
+            return (
+                "Penzionska večerja: 25 € po odrasli osebi\n"
+                "  • Juha, glavna jed in sladica\n"
+                "  • Postrežemo ob 18:00\n"
+                "  • POZOR: Ob ponedeljkih in torkih večerij ne pripravljamo"
+            )
+        return (
+            "Večerjo ponujamo ob 18:00 vsak dan razen ponedeljka in torka.\n"
+            "  • Penzionska večerja (juha, glavna jed, sladica): 25 € / oseba\n"
+            "  • Naročite jo lahko ob prijavi ali med bivanjem"
+        )
+
+    # Check-in / check-out / prijava / odjava
+    if any(kw in msg_l for kw in ("check", "prijav", "odjav", "nastanit", "prihod ura", "kdaj pridem", "kdaj lahko pridem")):
+        if any(kw in msg_l for kw in ("out", "odjav", "oditi", "odide", "zapust")):
+            return "Odjava iz sobe (check-out) je do 10:00."
+        if any(kw in msg_l for kw in ("in", "prijav", "pride", "prihod", "nastanit")):
+            return "Prijava v sobo (check-in) je od 14:00 naprej."
+        return (
+            "Časi prijave in odjave:\n"
+            "  • Prijava (check-in): od 14:00\n"
+            "  • Odjava (check-out): do 10:00"
+        )
+
+    # Klimatizacija / klima
+    if any(kw in msg_l for kw in ("klim", "hlajenje", "vroč", "mraz soba")):
+        return "Vse sobe so klimatizirane — za prijetno temperaturo je poskrbljeno."
+
+    # Min nočitve
+    if any(kw in msg_l for kw in ("minim", "najmanj", "najkraj", "ena noč", "eno noc", "1 noč", "1 noc")):
+        return (
+            "Minimalno število nočitev:\n"
+            "  • Junij, julij, avgust: 3 nočitve\n"
+            "  • Ostali meseci: 2 nočitvi\n\n"
+            "Rezervacija ene nočitve žal ni možna."
+        )
+
     # Zima / smučišče (KDZ05, KDZ07)
     if any(kw in msg_l for kw in ("pozim", "zimsk", "pozimi", "zima ", "sneg", "sneži", "snezi", "smuc", "smuč", "smučišč", "areh")) or re.search(r"\bzima\b", msg_l):
         return (
@@ -260,9 +326,15 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
 
     # Also skip when the message contains clear booking intent + month name
     # (e.g. "Ok rad bi rezerviral. Prihod 20. julija..." should not trigger Julija disambiguation)
-    _has_booking_kw = any(kw in message.lower() for kw in ("rezerv", "prihod", "nocit", "nočit", "soba", "sobo", "book"))
-    _has_month = any(m in message.lower() for m in _MONTH_NAMES)
-    _skip_disambig = _in_booking or (_has_booking_kw and _has_month)
+    # Also skip when there's booking intent + room context — they want to BOOK the room,
+    # not get info about it. Let the interpreter handle it as BOOKING_ROOM.
+    _msg_low = message.lower()
+    _has_booking_intent = any(kw in _msg_low for kw in ("rezerv", "book", "zarezrv", "rad bi", "bi rad", "bi želel", "bi zelel"))
+    _has_room_ctx = any(kw in _msg_low for kw in ("sobo", "soba", "sobi", "mizo", "miza"))
+    _has_month = any(m in _msg_low for m in _MONTH_NAMES)
+    _has_nights = any(kw in _msg_low for kw in ("noči", "noci", "nočitv", "nocitv"))
+    # Skip disambiguation if: booking flow OR (booking intent + month/nights) OR (room context + month)
+    _skip_disambig = _in_booking or (_has_booking_intent and (_has_month or _has_nights)) or (_has_room_ctx and _has_month)
     ambiguous_name = None if _skip_disambig else _detect_ambiguous_name_from_message(message)
     if ambiguous_name:
         resolved = resolve_entity(ambiguous_name)
