@@ -146,6 +146,15 @@ def _pre_dispatch_trap(message: str) -> str | None:
             "🛒 https://kovacnik.com/kovacnikova-spletna-trgovina/"
         )
 
+    # Božanje živali — petting farm animals (NOT bringing pets)
+    # Must fire BEFORE pet policy so "božamo mačke" doesn't trigger pet rejection
+    if any(kw in msg_l for kw in ("bož", "pobož", "božam", "božamo", "boham", "bohamo")):
+        if any(kw in msg_l for kw in ("mačk", "muck", "muce", "zajc", "poni", "konj", "krav", "žival", "mucek", "macke", "macek")):
+            return (
+                "Seveda! Naše živali lahko pobožate ob obisku.\n"
+                "Julija z veseljem pokaže živali otrokom in odraslim."
+            )
+
     # Hišni ljubljenčki / psi (RS14 "Ali sprejmete pse") — razširjen za typo
     if (any(kw in msg_l for kw in ("psa", "pse", " pes", "psičko", "psicko")) or re.search(r"\bpes\b", msg_l)):
         if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "lahk", "prinest", "pripelj", "prpel", "sprejmete", "sprejma", "imam", "vzam", "pelem", "peljem")):

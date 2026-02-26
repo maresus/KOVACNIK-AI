@@ -122,6 +122,16 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "Pokličite: 031 330 113"
             )
         }
+    # Božanje živali — petting farm animals (NOT bringing pets)
+    # Must fire BEFORE pet policy so "božamo mačke" doesn't trigger pet rejection
+    if any(kw in msg_l for kw in ("bož", "pobož", "božam", "božamo", "boham", "bohamo")):
+        if any(kw in msg_l for kw in ("mačk", "muck", "muce", "zajc", "poni", "konj", "krav", "žival", "mucek", "macke", "macek")):
+            return {
+                "reply": (
+                    "Seveda! Naše živali lahko pobožate ob obisku.\n"
+                    "Julija z veseljem pokaže živali otrokom in odraslim."
+                )
+            }
     # Hišni ljubljenčki / psi — razširjen za typo variante
     if any(kw in msg_l for kw in ("psa", "pse", "pes ", " pes", "psicko", "psičko")) or re.search(r"\bpes\b", msg_l):
         if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "lahk", "prinest", "pripelj", "prpelj", "sprejmete", "sprejma", "imam", "vzam", "peljem", "pelem")):
