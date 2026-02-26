@@ -146,9 +146,9 @@ def _pre_dispatch_trap(message: str) -> str | None:
             "🛒 https://kovacnik.com/kovacnikova-spletna-trgovina/"
         )
 
-    # Hišni ljubljenčki / psi (RS14 "Ali sprejmete pse")
+    # Hišni ljubljenčki / psi (RS14 "Ali sprejmete pse") — razširjen za typo
     if (any(kw in msg_l for kw in ("psa", "pse", " pes", "psičko", "psicko")) or re.search(r"\bpes\b", msg_l)):
-        if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "prinest", "pripelj", "sprejmete", "sprejma", "imam")):
+        if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "lahk", "prinest", "pripelj", "prpel", "sprejmete", "sprejma", "imam", "vzam", "pelem", "peljem")):
             return (
                 "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
                 "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
@@ -209,9 +209,19 @@ def _pre_dispatch_trap(message: str) -> str | None:
 
     # Check-in / check-out / prijava / odjava
     if any(kw in msg_l for kw in ("check", "prijav", "odjav", "nastanit", "prihod ura", "kdaj pridem", "kdaj lahko pridem")):
-        if any(kw in msg_l for kw in ("out", "odjav", "oditi", "odide", "zapust")):
+        _has_in = any(kw in msg_l for kw in ("check-in", "checkin", "prijav", "pride", "prihod", "nastanit"))
+        _has_out = any(kw in msg_l for kw in ("check-out", "checkout", "odjav", "oditi", "odide", "zapust"))
+        # BOTH asked together
+        if _has_in and _has_out:
+            return (
+                "Ure prihoda in odhoda:\n"
+                "  • Check-in (prihod): od 14:00 naprej\n"
+                "  • Check-out (odhod): do 10:00\n"
+                "Če potrebujete zgodnejši prihod ali kasnejši odhod, nas pokličite vnaprej: 031 330 113"
+            )
+        if _has_out:
             return "Odjava iz sobe (check-out) je do 10:00."
-        if any(kw in msg_l for kw in ("in", "prijav", "pride", "prihod", "nastanit")):
+        if _has_in:
             return "Prijava v sobo (check-in) je od 14:00 naprej."
         return (
             "Časi prijave in odjave:\n"

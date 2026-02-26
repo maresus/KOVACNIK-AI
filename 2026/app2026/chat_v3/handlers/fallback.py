@@ -122,9 +122,9 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "Pokličite: 031 330 113"
             )
         }
-    # Hišni ljubljenčki / psi
+    # Hišni ljubljenčki / psi — razširjen za typo variante
     if any(kw in msg_l for kw in ("psa", "pse", "pes ", " pes", "psicko", "psičko")) or re.search(r"\bpes\b", msg_l):
-        if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "prinest", "pripelj", "sprejmete", "sprejma", "imam")):
+        if any(kw in msg_l for kw in ("dovol", "prepo", "sme", "lahko", "lahk", "prinest", "pripelj", "prpelj", "sprejmete", "sprejma", "imam", "vzam", "peljem", "pelem")):
             return {
                 "reply": (
                     "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
@@ -132,6 +132,17 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                     "Pokličite Barbaro za dogovor: 031 330 113"
                 )
             }
+    # Check-in IN check-out skupaj
+    if ("check-in" in msg_l or "checkin" in msg_l or "prihod" in msg_l) and \
+       ("check-out" in msg_l or "checkout" in msg_l or "odhod" in msg_l):
+        return {
+            "reply": (
+                "Ure prihoda in odhoda:\n"
+                "  • Check-in (prihod): od 14:00 naprej\n"
+                "  • Check-out (odhod): do 10:00\n"
+                "Če potrebujete zgodnejši prihod ali kasnejši odhod, nas pokličite vnaprej: 031 330 113"
+            )
+        }
     # Alergije / posebna prehrana
     if any(kw in msg_l for kw in ("alergij", "alergijo", "brezglutensko", "brezgluten", "celiakij", "laktozni", "vegansk", "vegetarijan")):
         return {
