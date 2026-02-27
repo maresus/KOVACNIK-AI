@@ -681,3 +681,11 @@ def create_admin_reservation(data: AdminCreateReservation):
         special_needs=data.special_needs,
     )
     return {"success": True, "id": new_id, "warning": warning}
+
+
+@router.delete("/api/admin/reservations/all")
+def delete_all_reservations():
+    """Izbriše VSE rezervacije - za reset baze pred predajo stranki."""
+    _log("delete_all_reservations")
+    count = service.delete_all_reservations()
+    return {"success": True, "deleted": count, "message": f"Izbrisanih {count} rezervacij"}

@@ -822,6 +822,21 @@ class ReservationService:
             cur.close()
             conn.close()
 
+    def delete_all_reservations(self) -> int:
+        """Izbriše VSE rezervacije - za reset baze."""
+        conn = self._conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) as cnt FROM reservations")
+            row = cur.fetchone()
+            count = row["cnt"] if isinstance(row, dict) else row[0]
+            cur.execute("DELETE FROM reservations")
+            conn.commit()
+            return count
+        finally:
+            cur.close()
+            conn.close()
+
     def _fetch_reservations(self) -> list[ReservationRecord]:
         records: list[ReservationRecord] = []
         conn = self._conn()
