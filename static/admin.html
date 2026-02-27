@@ -364,7 +364,6 @@
     <div class="tabs equal">
       <button class="tab active" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
       <button class="tab" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
-      <a class="tab" id="tab-inquiries" href="/admin/inquiries">📝 Povpraševanja</a>
     </div>
 
     <div id="view-tools" style="display:none;">
@@ -382,7 +381,6 @@
         <button class="btn secondary" onclick="exportCsv()">📥 Izvozi CSV</button>
         <button class="btn" onclick="loadAll()">🔄 Osveži podatke</button>
         <a class="btn secondary" href="/admin/conversations">💬 Pogovori</a>
-        <a class="btn secondary" href="/admin/inquiries">📝 Povpraševanja</a>
       </div>
 
       <div class="card list-card">
@@ -406,22 +404,6 @@
         </div>
       </div>
 
-      <div class="card list-card">
-        <div style="font-weight:700; margin-bottom:6px;">Rezervacijski funnel (zadnjih 30 dni)</div>
-        <div class="muted" style="margin-bottom:10px;">Začetek → dokončana rezervacija</div>
-        <div id="funnel-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;"></div>
-      </div>
-
-      <div class="card list-card">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-          <div>
-            <div style="font-weight:700;">Top 5 zgrešenih odgovorov</div>
-            <div class="muted">Hitro izboljševanje baze znanja</div>
-          </div>
-          <button class="btn secondary" id="refreshMissedBtn">Osveži</button>
-        </div>
-        <ol id="missed-questions-list" style="margin-top:10px;"></ol>
-      </div>
     </div>
 
     <div id="view-reservations">
