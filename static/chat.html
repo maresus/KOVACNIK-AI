@@ -404,16 +404,7 @@
 
     function renderWelcome() {
       messagesEl.innerHTML = `
-        <div class="msg bot">
-          Pozdravljeni pri Domačiji Kovačnik! 😊
-          <br /><br />
-          Lahko pomagam z vprašanji o sobah, mizi za kosilo, izletih ali naših domačih izdelkih.
-          <br /><br />
-          Poskusite:
-          <br />• "Kaj ponujate za vikend kosila?"
-          <br />• "Imate suho salamo ali pohorsko bunko?"
-          <br />• "Rad bi rezerviral sobo za vikend."
-        </div>
+        <div class="msg bot">Pozdravljeni! Kako vam lahko pomagam?</div>
       `;
     }
     renderWelcome();
@@ -423,7 +414,10 @@
       div.className = "msg " + who;
       div.textContent = text;
       messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      // Scroll to user message so it stays at top - user scrolls down to read response
+      if (who === "user") {
+        div.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
       localStorage.setItem("last_chat_activity", Date.now().toString());
       return div;
     }

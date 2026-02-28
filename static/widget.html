@@ -209,7 +209,7 @@
     function clearHistory() {
       localStorage.removeItem(STORAGE_KEY);
       messagesEl.innerHTML = '';
-      addMessageToDOM('Pozdravljeni! 👋 Kako vam lahko pomagam?\n\nVprašajte me o:\n• Sobah in nastanitvah\n• Vikend kosilih\n• Naših izdelkih\n• Izletih v okolici', 'bot', false);
+      addMessageToDOM('Pozdravljeni! Kako vam lahko pomagam?', 'bot', false);
       quickBtns.style.display = 'flex';
     }
     
@@ -218,7 +218,10 @@
       div.className = 'msg ' + who;
       div.textContent = text;
       messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      // Scroll to user message so it stays at top - user scrolls down to read response
+      if (who === 'user') {
+        div.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       if (save) saveHistory();
       return div;
     }
@@ -229,7 +232,7 @@
       div.id = 'typing';
       div.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
       messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      // Don't scroll - user message stays visible at top
     }
     
     function hideTyping() {
@@ -306,7 +309,7 @@
     // Initialize
     const hasHistory = loadHistory();
     if (!hasHistory) {
-      addMessageToDOM('Pozdravljeni! 👋 Kako vam lahko pomagam?\n\nVprašajte me o:\n• Sobah in nastanitvah\n• Vikend kosilih\n• Naših izdelkih\n• Izletih v okolici', 'bot', false);
+      addMessageToDOM('Pozdravljeni! Kako vam lahko pomagam?', 'bot', false);
     }
   </script>
 </body>
