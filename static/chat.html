@@ -456,15 +456,23 @@
     }
     renderWelcome();
 
+    let lastUserMsg = null;
+
     function addMessage(text, who = "bot") {
       const div = document.createElement("div");
       div.className = "msg " + who;
       div.textContent = text;
       messagesEl.appendChild(div);
-      // Scroll to user message so it stays at top - user scrolls down to read response
+
       if (who === "user") {
-        div.scrollIntoView({ behavior: "smooth", block: "start" });
+        lastUserMsg = div;
+        // Scroll user message to TOP of messages area
+        messagesEl.scrollTop = div.offsetTop;
+      } else if (lastUserMsg) {
+        // Keep user message at top when bot responds
+        messagesEl.scrollTop = lastUserMsg.offsetTop;
       }
+      updateScrollIndicator();
       localStorage.setItem("last_chat_activity", Date.now().toString());
       return div;
     }
