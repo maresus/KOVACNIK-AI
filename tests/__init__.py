@@ -1,1 +1,1 @@
-# Tests package
+# Kovačnik AI Tests

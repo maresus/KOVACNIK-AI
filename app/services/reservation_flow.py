@@ -609,10 +609,11 @@ def _handle_table_reservation_impl(
             reservation_state["date"] or "", desired_time
         )
         if not ok:
-            reservation_state["step"] = "awaiting_table_date"
-            reservation_state["date"] = None
+            # Stay on the same step - don't reset to date, just ask for new time
+            reservation_state["step"] = "awaiting_table_time"
             reservation_state["time"] = None
-            return error_message + " Poskusiva z novim datumom (sobota/nedelja, DD.MM ali DD.MM.YYYY)."
+            # Keep the date - it was already validated
+            return error_message + " Prosim izberite drugo uro (12:00–20:00, zadnji prihod na kosilo 15:00)."
         reservation_state["time"] = reservation_service._parse_time(desired_time)
         if not reservation_state.get("people"):
             parsed = parse_people_count(message)

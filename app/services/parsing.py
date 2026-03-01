@@ -221,10 +221,10 @@ def extract_date(text: str) -> Optional[str]:
 
     if "danes" in lowered:
         return today.strftime("%d.%m.%Y")
+    if "pojutri" in lowered:  # Check "pojutri" before "jutri" since "jutri" is substring
+        return (today + timedelta(days=2)).strftime("%d.%m.%Y")
     if "jutri" in lowered:
         return (today + timedelta(days=1)).strftime("%d.%m.%Y")
-    if "pojutri" in lowered:
-        return (today + timedelta(days=2)).strftime("%d.%m.%Y")
 
     weekday_map = {
         "ponedeljek": 0,
