@@ -19,6 +19,7 @@ from app2026.chat import intent as v2_intent
 from app2026.chat.state import get_session
 from app2026.chat_v3 import config as v3_config
 from app2026.chat_v3 import guards, interpreter, state_machine
+from app2026.chat_v3 import ood_policy
 from app2026.chat_v3.handlers import booking as booking_handler
 from app2026.chat_v3.handlers import fallback as fallback_handler
 from app2026.chat_v3.handlers import info as info_handler
@@ -292,6 +293,25 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
                 brand,
             )
             return {"reply": reply["reply"], "session_id": session.session_id}
+
+    # ── OOD Policy Guard ────────────────────────────────────────────────────
+    # Check for out-of-domain messages BEFORE disambiguation and pre-dispatch traps.
+    # This ensures OOD messages are handled early and consistently.
+    _ood_result = ood_policy.check_ood(
+        message,
+        rag_similarity=None,  # Will be set after RAG call if needed
+        session_data=session.data,
+    )
+    if _ood_result.is_ood and _ood_result.response:
+        # Handle mixed input if present
+        if _ood_result.in_domain_parts and ood_policy.OOD_MIXED_SPLIT_ENABLED:
+            # Process in-domain part and combine with OOD acknowledgment
+            in_domain_msg = " ".join(_ood_result.in_domain_parts)
+            # Let the rest of the pipeline handle the in-domain part
+            # by continuing with modified message
+            pass  # Fall through - will be handled by normal flow
+        else:
+            return {"reply": _ood_result.response, "session_id": session.session_id}
 
     # Resolve pending disambiguation from the previous turn (e.g. user replied
     # "iz družine" or "soba" after we asked them to clarify Aljaž/Julija/Ana).
