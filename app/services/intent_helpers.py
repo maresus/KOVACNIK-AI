@@ -88,6 +88,9 @@ Zajtrk je vključen v ceno! 🥐""",
 Email: **info@kovacnik.com**""",
     "lokacija": """Nahajamo se na: **Planica 9, 2313 Fram** (Pohorska stran nad Framom). 
 Parking je brezplačen pri domačiji.""",
+    "zgodovina": """Kovačnikova domačija ima dolgo tradicijo na Planici nad Framom. Korenine rodu segajo v 19. stoletje (po nekaterih zapisih celo v leto 1770), ime Kovačnik pa se prenaša iz roda v rod.
+
+Če želite, vam lahko napišem tudi širši povzetek po obdobjih (začetki, razvoj turizma, današnja ponudba).""",
     "min_nocitve": """Minimalno bivanje je:
 - **3 nočitve** v juniju, juliju in avgustu
 - **2 nočitvi** v ostalih mesecih""",
@@ -350,6 +353,8 @@ def _product_link_from_url(url: str, title: str | None) -> str:
 
 def detect_info_intent(message: str) -> Optional[str]:
     text = message.lower().strip()
+    if any(w in text for w in ["zgodovina", "nasa zgodba", "naša zgodba", "zgodba kmetije", "od kdaj", "od katerega leta"]):
+        return "zgodovina"
     if any(w in text for w in ["kako ste", "kako si", "kako gre", "kako vam gre", "kako vam grejo stvari"]):
         return "smalltalk"
     if any(w in text for w in ["kdaj ste odprti", "odpiralni", "delovni čas", "kdaj odprete"]):
