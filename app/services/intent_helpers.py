@@ -415,7 +415,7 @@ def detect_info_intent(message: str) -> Optional[str]:
         return "kapaciteta_mize"
     if any(w in text for w in ["alergij", "gluten", "lakto", "vegan"]):
         return "alergije"
-    if any(w in text for w in ["vino", "vina", "vinsko", "vinska", "wine", "wein", "vinci"]):
+    if re.search(r"\b(vino|vina|vinsk[ao]|wine|wein|vinci)\b", text):
         return "vina"
     if any(w in text for w in ["smučišče", "smucisce", "smučanje", "smucanje", "ski"]):
         return "smucisce"

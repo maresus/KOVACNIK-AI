@@ -708,7 +708,6 @@ WINE_LIST = {
 WINE_KEYWORDS = {
     "vino",
     "vina",
-    "vin",
     "rdec",
     "rdeca",
     "rdeče",
@@ -725,6 +724,14 @@ WINE_KEYWORDS = {
     "frankinja",
     "pinot",
 }
+
+
+def _contains_wine_keyword(text: str) -> bool:
+    lowered = (text or "").lower()
+    # Use word-boundary matching to avoid false positives like "zgodovina" -> "...vina"
+    if re.search(r"\b(vino|vina|vinsk[ao]|wine|wein|vinci)\b", lowered):
+        return True
+    return any(keyword in lowered for keyword in WINE_KEYWORDS)
 
 # sezonski jedilniki
 SEASONAL_MENUS = [
@@ -1112,7 +1119,7 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
         return "room_info"
 
     # vino intent
-    if any(keyword in lower_message for keyword in WINE_KEYWORDS):
+    if _contains_wine_keyword(lower_message):
         return "wine"
 
     # vino followup (če je bila prejšnja interakcija o vinih)
