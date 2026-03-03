@@ -145,6 +145,9 @@ def detect_info_key(message: str, brand: Any) -> Optional[str]:
     text = (message or "").lower().strip()
     responses = getattr(brand, "INFO_RESPONSES", {}) or {}
 
+    if any(w in text for w in ["zgodovina", "nasa zgodba", "naša zgodba", "zgodba kmetije", "od kdaj", "od katerega leta"]):
+        return "zgodovina" if "zgodovina" in responses else None
+
     if any(w in text for w in ["čez teden", "cez teden", "med tednom", "tedenska ponudba", "tedenski meni"]):
         return "jedilnik" if "jedilnik" in responses else None
 
@@ -226,7 +229,7 @@ def detect_info_key(message: str, brand: Any) -> Optional[str]:
         return "kapaciteta_mize" if "kapaciteta_mize" in responses else None
     if any(w in text for w in ["alergij", "gluten", "lakto", "vegan"]):
         return "alergije" if "alergije" in responses else None
-    if any(w in text for w in ["vino", "vina", "vinsko", "vinska", "wine", "wein", "vinci"]):
+    if re.search(r"\b(vino|vina|vinsk[ao]|wine|wein|vinci)\b", text):
         return "vina" if "vina" in responses else None
     if any(w in text for w in ["smučišče", "smucisce", "smučanje", "smucanje", "ski"]):
         return "smucisce" if "smucisce" in responses else None

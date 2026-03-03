@@ -132,6 +132,7 @@ Zajtrk je vključen v ceno! 🥐""",
     "placilo": "Sprejemamo gotovino in večino plačilnih kartic.",
     "kontakt": "Kontakt: **02 601 54 00** / **031 330 113**\nEmail: **info@kovacnik.com**",
     "lokacija": "Nahajamo se na: **Planica 9, 2313 Fram** (Pohorska stran nad Framom). \nParking je brezplačen pri domačiji.",
+    "zgodovina": "Kovačnikova domačija ima dolgo tradicijo na Planici nad Framom. Korenine rodu segajo v 19. stoletje (po nekaterih zapisih celo v leto 1770), ime Kovačnik pa se prenaša iz roda v rod.",
     "min_nocitve": """Minimalno bivanje je:
 - **3 nočitve** v juniju, juliju in avgustu
 - **2 nočitvi** v ostalih mesecih""",
