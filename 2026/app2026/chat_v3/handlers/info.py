@@ -1014,6 +1014,17 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     f"Za rezervacijo pokličite: {phone}"
                 )
             }
+        # History of the farm
+        if any(kw in msg_l for kw in ("zgodovin", "naša zgodba", "nasa zgodba", "zgodba kmetije", "od kdaj")):
+            return {
+                "reply": (
+                    "Kovačnikova domačija ima dolgo tradicijo na Planici nad Framom. "
+                    "Korenine rodu segajo v 19. stoletje (po nekaterih zapisih celo v leto 1770), "
+                    "ime Kovačnik pa se prenaša iz roda v rod. "
+                    "Družina je turistično dejavnost močno razvila v zadnjih desetletjih, "
+                    "posebej po prevzemu mlajše generacije."
+                )
+            }
         # General farm info / name
         return {
             "reply": (
