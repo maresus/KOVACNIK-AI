@@ -1140,6 +1140,8 @@ def detect_intent(message: str, state: dict[str, Optional[str | int]]) -> str:
         return "weekly_menu"
 
     # 3) info o kmetiji / kontakt
+    if detect_info_intent(message):
+        return "farm_info"
     if any(keyword in lower_message for keyword in FARM_INFO_KEYWORDS):
         return "farm_info"
 
@@ -3062,7 +3064,8 @@ Bi želeli rezervirati? Povejte mi datum in število oseb! 🗓️"""
         return finalize(reply, "product_followup")
 
     if intent == "farm_info":
-        reply = answer_farm_info(payload.message)
+        key = detect_info_intent(payload.message)
+        reply = get_info_response(key) if key else answer_farm_info(payload.message)
         last_product_query = None
         last_wine_query = None
         last_info_query = payload.message
