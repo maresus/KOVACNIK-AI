@@ -88,7 +88,7 @@ PERSONS = {
     "kaja": {
         "name": "Kaja",
         "role": "partnerica Aljaža",
-        "notes": ["s svojo dobro voljo vedno razvedri goste"],
+        "notes": ["S svojo dobro voljo vedno razvedri goste"],
     },
     "julija": {
         "name": "Julija",
