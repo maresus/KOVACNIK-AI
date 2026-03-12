@@ -362,8 +362,8 @@
     </div>
 
     <div class="tabs equal">
-      <button class="tab active" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
-      <button class="tab" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
+      <button class="tab" id="tab-room" onclick="setTab('room')">🛏️ Sobe</button>
+      <button class="tab active" id="tab-table" onclick="setTab('table')">🍽️ Mize</button>
     </div>
 
     <div id="view-tools" style="display:none;">
@@ -960,7 +960,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       setViewTab('reservations');
-      setTab('room', true);
+      setTab('table', true);
       setInterval(loadStats, 60000);
       qs('month-select').value = calendarMonth.toString();
       qs('year-input').value = calendarYear.toString();
