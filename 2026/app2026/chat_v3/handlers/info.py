@@ -648,7 +648,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 "reply": (
                     "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
                     "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
-                    "Na kmetiji imamo konjička Malajko in Marsija, pujsko Pepo, ovčka Čarlija, "
+                    "Na kmetiji imamo konjička Malajko, Codyja in Marsija, kozo Mimi,"
                     "psičko Luno in še mnogo več."
                 )
             }
@@ -657,7 +657,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                 "reply": (
                     "Žal hišnih ljubljenčkov pri nas ne sprejemamo.\n"
                     "Če vas zanimajo živali na naši kmetiji, jih ob obisku z veseljem pokažemo! "
-                    "Na kmetiji imamo konjička Malajko in Marsija, pujsko Pepo, ovčka Čarlija, "
+                    "Na kmetiji imamo konjička Malajko, Codyja in Marsija, kozo Mimi,"
                     "psičko Luno in še mnogo več."
                 )
             }
@@ -995,8 +995,8 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             return {
                 "reply": (
                     "Pri nas je vedno kaj za početi:\n"
-                    "  • Jahanje na ponijih Malajka in Marsi\n"
-                    "  • Ogled in hranjenje živali (pujska Pepa, ovca Čarli, psička Luna...)\n"
+                    "  • Jahanje na ponijih Malajka, Cody in Marsi\n"
+                    "  • Ogled in hranjenje živali (koza Mimi, psička Luna, zajčki...)\n"
                     "  • Pohodi in kolesarjenje po Pohorju\n"
                     "  • Ogled kmečkih opravil\n"
                     "  • Animatorske aktivnosti za otroke\n"

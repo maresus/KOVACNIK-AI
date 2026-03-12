@@ -108,14 +108,14 @@ PERSONS = {
 
 ANIMALS = {
     "malajka": {"name": "Malajka", "type": "konjiček"},
+    "cody": {"name": "Cody", "type": "konjiček"},
     "marsi": {"name": "Marsi", "type": "konjiček"},
-    "pepa": {"name": "Pepa", "type": "pujska"},
-    "carli": {"name": "Čarli", "type": "oven"},
+    "mimi": {"name": "Mimi", "type": "koza"},
     "luna": {"name": "Luna", "type": "psička"},
     "mucke": {"name": "Mucke", "type": "mačke"},
     "govedo": {"name": "Goveja čreda", "type": "govedo", "count": "okoli 40 glav"},
     "svinje": {"name": "Svinje", "type": "domače živali"},
-    "racke": {"name": "Račke", "type": "domače živali"},
+    "zajcki": {"name": "Zajčki", "type": "domače živali"},
     "kokosi": {"name": "Kokoši", "type": "domače živali"},
 }
 
