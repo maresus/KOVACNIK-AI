@@ -57,9 +57,19 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Email draft generation - every hour
+    _scheduler.add_job(
+        func=_run_draft_generator,
+        trigger=CronTrigger(minute=0),  # Every hour at :00
+        id="email_draft_generator",
+        name="Email Draft Generator",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     print(f"[SCHEDULER] Zagnan - dnevno poročilo ob {daily_report_time}")
     print(f"[SCHEDULER] Zagnan - tedenski reminder ob četrtkih {weekly_reminder_time}")
+    print(f"[SCHEDULER] Zagnan - generiranje email draftov vsako uro")
 
 
 def stop_scheduler():
@@ -127,6 +137,32 @@ def trigger_weekly_reminder_now():
     """
     print("[SCHEDULER] Ročno sprožen tedenski reminder")
     _run_weekly_reminder()
+
+
+def _run_draft_generator():
+    """Wrapper za zagon email draft generatorja."""
+    from app.services.draft_generator_service import process_unread_emails
+
+    print(f"[SCHEDULER] Zaganjalnik email draft generatorja: {datetime.now()}")
+    try:
+        stats = process_unread_emails()
+        print(f"[SCHEDULER] Draft generator rezultati: {stats}")
+    except Exception as e:
+        print(f"[SCHEDULER] Napaka pri draft generatorju: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def trigger_draft_generator_now():
+    """
+    Ročno sproži draft generator (za testiranje).
+
+    Uporaba:
+        from app.services.scheduler_service import trigger_draft_generator_now
+        trigger_draft_generator_now()
+    """
+    print("[SCHEDULER] Ročno sprožen draft generator")
+    _run_draft_generator()
 
 
 # For testing

@@ -514,4 +514,21 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         return ChatResponse(reply="V3 endpoint je izklopljen. Uporabite /v2/chat.", session_id=payload.session_id)
     brand = get_brand()
     result = await handle_message(payload.message, payload.session_id or "", brand)
+
+    # Log conversation to database for daily reports
+    try:
+        from app.services.reservation_service import ReservationService
+        service = ReservationService()
+        service.log_conversation(
+            session_id=str(result["session_id"]),
+            user_message=payload.message,
+            bot_response=str(result["reply"]),
+            intent=None,  # V3 doesn't expose intent directly
+            needs_followup=False,
+            followup_email=None,
+        )
+    except Exception as e:
+        # Don't fail the chat if logging fails
+        print(f"[V3 CHAT] Napaka pri logganju pogovora: {e}")
+
     return ChatResponse(reply=str(result["reply"]), session_id=str(result["session_id"]))

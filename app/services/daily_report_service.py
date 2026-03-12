@@ -70,7 +70,9 @@ def get_new_conversations(service, since: datetime) -> List[Dict[str, Any]]:
         ORDER BY created_at ASC
     """
 
-    cursor.execute(query, (since.isoformat(),))
+    # Convert datetime to SQLite-compatible format (YYYY-MM-DD HH:MM:SS)
+    since_str = since.strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(query, (since_str,))
     rows = cursor.fetchall()
 
     # Group by session
