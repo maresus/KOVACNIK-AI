@@ -45,8 +45,21 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Weekly table reservation reminder - every Thursday at 18:00
+    weekly_reminder_time = os.getenv("WEEKLY_REMINDER_TIME", "18:00")
+    w_hour, w_minute = map(int, weekly_reminder_time.split(":"))
+
+    _scheduler.add_job(
+        func=_run_weekly_reminder,
+        trigger=CronTrigger(day_of_week="thu", hour=w_hour, minute=w_minute),
+        id="weekly_table_reminder",
+        name="Weekly Table Reservation Reminder",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     print(f"[SCHEDULER] Zagnan - dnevno poročilo ob {daily_report_time}")
+    print(f"[SCHEDULER] Zagnan - tedenski reminder ob četrtkih {weekly_reminder_time}")
 
 
 def stop_scheduler():
@@ -75,6 +88,23 @@ def _run_daily_report():
         traceback.print_exc()
 
 
+def _run_weekly_reminder():
+    """Wrapper za zagon tedenskega reminderja rezervacij."""
+    from app.services.daily_report_service import generate_and_send_weekly_reminder
+
+    print(f"[SCHEDULER] Zaganjalnik tedenskega reminderja: {datetime.now()}")
+    try:
+        success = generate_and_send_weekly_reminder()
+        if success:
+            print("[SCHEDULER] Tedenski reminder uspešno poslan")
+        else:
+            print("[SCHEDULER] Tedenski reminder ni bil poslan")
+    except Exception as e:
+        print(f"[SCHEDULER] Napaka pri tedenskem reminderju: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def trigger_daily_report_now():
     """
     Ročno sproži dnevno poročilo (za testiranje).
@@ -87,7 +117,21 @@ def trigger_daily_report_now():
     _run_daily_report()
 
 
+def trigger_weekly_reminder_now():
+    """
+    Ročno sproži tedenski reminder (za testiranje).
+
+    Uporaba:
+        from app.services.scheduler_service import trigger_weekly_reminder_now
+        trigger_weekly_reminder_now()
+    """
+    print("[SCHEDULER] Ročno sprožen tedenski reminder")
+    _run_weekly_reminder()
+
+
 # For testing
 if __name__ == "__main__":
     print("Testing scheduler...")
     trigger_daily_report_now()
+    print("\n")
+    trigger_weekly_reminder_now()

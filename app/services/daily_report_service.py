@@ -291,7 +291,253 @@ def generate_and_send_daily_report() -> bool:
         return False
 
 
+
+# ============================================================
+# WEEKLY TABLE RESERVATION REMINDER
+# ============================================================
+
+WEEKLY_REMINDER_EMAILS = os.getenv("WEEKLY_REMINDER_EMAILS", "satlermarko@gmail.com")
+
+
+def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Pridobi rezervacije miz za prihajajoči vikend (petek-nedelja).
+    Vrne samo POTRJENE rezervacije.
+    """
+    from datetime import date, timedelta
+
+    today = date.today()
+    # Najdi prihajajoči petek
+    days_until_friday = (4 - today.weekday()) % 7
+    if days_until_friday == 0 and today.weekday() >= 4:  # Če je danes petek ali vikend
+        days_until_friday = 7  # Naslednji petek
+
+    friday = today + timedelta(days=days_until_friday)
+    saturday = friday + timedelta(days=1)
+    sunday = friday + timedelta(days=2)
+
+    # Get all table reservations for these 3 days
+    conn = service._conn()
+    cursor = conn.cursor()
+    ph = service._placeholder()
+
+    query = f"""
+        SELECT id, date, time, people, name, email, phone, location, note, status
+        FROM reservations
+        WHERE reservation_type = 'table'
+        AND status = 'confirmed'
+        AND date IN ({ph}, {ph}, {ph})
+        ORDER BY date ASC, time ASC
+    """
+
+    cursor.execute(query, (
+        friday.strftime("%Y-%m-%d"),
+        saturday.strftime("%Y-%m-%d"),
+        sunday.strftime("%Y-%m-%d"),
+    ))
+
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    # Group by date
+    by_date = {
+        friday.strftime("%Y-%m-%d"): [],
+        saturday.strftime("%Y-%m-%d"): [],
+        sunday.strftime("%Y-%m-%d"): [],
+    }
+
+    for row in rows:
+        reservation = {
+            "id": row[0],
+            "date": row[1],
+            "time": row[2],
+            "people": row[3],
+            "name": row[4],
+            "email": row[5],
+            "phone": row[6],
+            "location": row[7],
+            "note": row[8],
+            "status": row[9],
+        }
+        date_key = row[1]
+        if date_key in by_date:
+            by_date[date_key].append(reservation)
+
+    return by_date
+
+
+def _format_reservation_item(res: Dict[str, Any]) -> str:
+    """Formatira eno rezervacijo v HTML."""
+    special_notes = []
+    if res.get("note"):
+        note = res["note"].lower()
+        if any(kw in note for kw in ("vegan", "vegetar", "gluten", "alergij", "lakto")):
+            special_notes.append(f"⚠️ {res['note']}")
+
+    special_html = ""
+    if special_notes:
+        special_html = f"""
+        <div style="margin-top:4px; padding:6px 10px; background:#fef3c7; border-left:3px solid #f59e0b; border-radius:4px; font-size:13px; color:#92400e;">
+            {'<br>'.join(special_notes)}
+        </div>
+        """
+
+    phone_display = res.get('phone') or '—'
+    location = res.get('location') or '—'
+
+    return f"""
+    <div style="margin:10px 0; padding:12px; background:#fff; border-left:4px solid {BRAND_COLOR}; border-radius:6px;">
+        <div style="font-size:15px; color:#111;">
+            <strong>{res['time']}</strong> | <strong>{res['people']} oseb</strong> | {res['name']}
+        </div>
+        <div style="margin-top:6px; font-size:13px; color:{MUTED_COLOR}; line-height:1.6;">
+            Jedilnica: {location}<br>
+            Telefon: {phone_display}
+        </div>
+        {special_html}
+    </div>
+    """
+
+
+def _format_weekend_reminder_html(by_date: Dict[str, List[Dict[str, Any]]]) -> str:
+    """Generira HTML za tedenski reminder rezervacij."""
+    from datetime import datetime
+
+    # Calculate totals
+    total_reservations = sum(len(reservations) for reservations in by_date.values())
+    total_guests = sum(
+        sum(r.get('people', 0) for r in reservations)
+        for reservations in by_date.values()
+    )
+
+    special_count = 0
+    for reservations in by_date.values():
+        for r in reservations:
+            if r.get('note'):
+                note = r['note'].lower()
+                if any(kw in note for kw in ("vegan", "vegetar", "gluten", "alergij", "lakto")):
+                    special_count += 1
+
+    # Format date labels
+    day_labels = {}
+    day_names = ["Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota", "Nedelja"]
+    for date_str in by_date.keys():
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        day_name = day_names[dt.weekday()]
+        day_labels[date_str] = f"{day_name.upper()} {dt.strftime('%d.%m.%Y')}"
+
+    # Build days HTML
+    days_html = ""
+    for date_str, reservations in by_date.items():
+        if not reservations:
+            continue
+
+        day_total = sum(r.get('people', 0) for r in reservations)
+
+        reservations_html = "".join(_format_reservation_item(r) for r in reservations)
+
+        days_html += f"""
+        <div style="margin:24px 0;">
+            <h3 style="margin:0 0 12px 0; padding:10px; background:{BRAND_COLOR}; color:#fff; border-radius:8px; font-size:16px;">
+                {day_labels[date_str]} | Skupaj: {day_total} oseb
+            </h3>
+            {reservations_html}
+        </div>
+        """
+
+    if not days_html:
+        days_html = f"""
+        <div style="padding:40px; text-align:center; background:#f9fafb; border-radius:10px; color:{MUTED_COLOR};">
+            <p style="margin:0; font-size:16px;">Ni potrjenih rezervacij za prihajajoči vikend.</p>
+        </div>
+        """
+
+    # Summary
+    summary = f"""
+    <div style="background:{BRAND_COLOR}; color:#fff; padding:20px; border-radius:10px; margin-bottom:24px;">
+        <h2 style="margin:0 0 16px 0; font-size:20px;">🍽️ Tedenski pregled - Rezervacije miz</h2>
+        <div style="font-size:14px; line-height:1.8;">
+            <strong>Obdobje:</strong> Prihajajoči vikend (petek-nedelja)<br>
+            <strong>Skupaj rezervacij:</strong> {total_reservations}<br>
+            <strong>Skupaj gostov:</strong> {total_guests}<br>
+            <strong>Posebne zahteve:</strong> {special_count}
+        </div>
+    </div>
+    """
+
+    content = f"""
+    {summary}
+
+    <h2 style="color:{BRAND_COLOR}; font-size:18px; margin:32px 0 16px 0; padding-bottom:8px; border-bottom:2px solid {BORDER_COLOR};">
+        📅 Rezervacije po dnevih
+    </h2>
+
+    {days_html}
+
+    <div style="margin-top:32px; padding:16px; background:#f0fdf4; border:1px solid #86efac; border-radius:8px; font-size:13px; color:#166534;">
+        <strong>Naslednji reminder:</strong> Prihodnji četrtek ob 18:00<br>
+        <strong>Admin panel:</strong> <a href="https://kovacnik-ai.up.railway.app/admin" style="color:{BRAND_COLOR};">Ogled vseh rezervacij</a>
+    </div>
+    """
+
+    return _email_wrapper(content)
+
+
+def generate_and_send_weekly_reminder() -> bool:
+    """
+    Glavna funkcija za generiranje in pošiljanje tedenskega reminderja rezervacij miz.
+    Pošlje vsak četrtek ob 18:00.
+
+    Returns:
+        True če uspešno poslano
+    """
+    from app.services.reservation_service import ReservationService
+
+    try:
+        service = ReservationService()
+
+        print("[WEEKLY REMINDER] Generiram tedenski reminder...")
+
+        # Get weekend reservations
+        by_date = get_upcoming_weekend_reservations(service)
+
+        # Count total
+        total = sum(len(reservations) for reservations in by_date.values())
+        print(f"[WEEKLY REMINDER] Najdenih {total} potrjenih rezervacij")
+
+        # Generate HTML
+        html = _format_weekend_reminder_html(by_date)
+
+        # Send to all recipients
+        recipients = [email.strip() for email in WEEKLY_REMINDER_EMAILS.split(",")]
+
+        today = datetime.now()
+        subject = f"Kovačnik - Rezervacije za vikend ({today.strftime('%d.%m.%Y')})"
+
+        success_count = 0
+        for recipient in recipients:
+            if recipient:
+                success = _send_email(recipient, subject, html)
+                if success:
+                    success_count += 1
+                    print(f"[WEEKLY REMINDER] Poslano na {recipient}")
+                else:
+                    print(f"[WEEKLY REMINDER] Napaka pri pošiljanju na {recipient}")
+
+        print(f"[WEEKLY REMINDER] Poslano na {success_count}/{len(recipients)} naslovov")
+        return success_count > 0
+
+    except Exception as e:
+        print(f"[WEEKLY REMINDER] Napaka: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 # Test function
 if __name__ == "__main__":
     print("Testing daily report generation...")
     generate_and_send_daily_report()
+    print("\nTesting weekly reminder...")
+    generate_and_send_weekly_reminder()
