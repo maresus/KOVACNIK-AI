@@ -21,6 +21,7 @@ from app.services.reservation_router import router as reservation_router
 from app.services.admin_router import router as admin_router
 from app.services.webhook_router import router as webhook_router
 from app.services.imap_poll_service import start_imap_poller
+from app.services.scheduler_service import start_scheduler
 
 settings = Settings()
 app = FastAPI(title=settings.project_name)
@@ -29,6 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent
 @app.on_event("startup")
 def startup_tasks() -> None:
     start_imap_poller()
+    start_scheduler()
     kb_health = get_knowledge_base_health()
     print(f"[startup][kb] {kb_health}")
 

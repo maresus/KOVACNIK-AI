@@ -12,3 +12,4 @@ psycopg2-binary
 pydantic-settings
 pytest>=7.0.0
 pytest-cov>=4.0.0
+APScheduler==3.10.4
