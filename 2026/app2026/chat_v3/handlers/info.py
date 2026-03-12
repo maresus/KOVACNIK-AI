@@ -718,10 +718,14 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
                     "Več info: https://kovacnik.com/cenik/ponij"
                 )
             }
-        # List all animals
-        names = [v.get("name") for v in ANIMALS.values() if v.get("name")]
-        if names:
-            return {"reply": "Na kmetiji imamo: " + ", ".join(names) + "."}
+        # List all animals - natural description
+        return {
+            "reply": (
+                "Ob 40 glavi goveji čredi je svoje mesto na kmetiji našla še cela vrsta domačih živali: "
+                "svinje, zajčki, kokoši, konjički Malajka, Cody, Marsi in koza Mimi. "
+                "Tu pa so še psička Luna in mucke, ki so vedno željni crkljanja!"
+            )
+        }
         chunks = _search_filtered(
             query=message,
             include=("živali", "zivali", "poni", "ovnom", "mucke", "psička", "psicka"),
@@ -850,9 +854,13 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             return {"reply": f"Za tedensko degustacijo je minimalno {min_p} oseb. Rezervacija obvezna: 031 330 113"}
         # Animal queries misclassified as INFO_GENERAL → delegate to ANIMAL logic
         if any(kw in msg_l for kw in ("živali", "živaĺi", "zivali", "konjič", "konjiček", "pujsk", "psič", "mucke", "ovca", "govedo")):
-            names = [v.get("name") for v in ANIMALS.values() if v.get("name")]
-            if names:
-                return {"reply": "Na kmetiji imamo: " + ", ".join(names) + "."}
+            return {
+                "reply": (
+                    "Ob 40 glavi goveji čredi je svoje mesto na kmetiji našla še cela vrsta domačih živali: "
+                    "svinje, zajčki, kokoši, konjički Malajka, Cody, Marsi in koza Mimi. "
+                    "Tu pa so še psička Luna in mucke, ki so vedno željni crkljanja!"
+                )
+            }
         # Large group inquiry
         _m_group = re.search(r"\b(\d{2,})\s*oseb", msg_l)
         if _m_group and int(_m_group.group(1)) > 20:
