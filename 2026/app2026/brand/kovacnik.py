@@ -293,7 +293,7 @@ SEASONAL_MENUS = [
 WEEKLY_MENUS = {
     4: {
         "name": "4-HODNI DEGUSTACIJSKI MENI",
-        "price": 36,
+        "price": 40,
         "wine_pairing": 15,
         "wine_glasses": 4,
         "courses": [
@@ -306,7 +306,7 @@ WEEKLY_MENUS = {
     },
     5: {
         "name": "5-HODNI DEGUSTACIJSKI MENI",
-        "price": 43,
+        "price": 50,
         "wine_pairing": 20,
         "wine_glasses": 5,
         "courses": [
@@ -320,7 +320,7 @@ WEEKLY_MENUS = {
     },
     6: {
         "name": "6-HODNI DEGUSTACIJSKI MENI",
-        "price": 53,
+        "price": 60,
         "wine_pairing": 25,
         "wine_glasses": 6,
         "courses": [
@@ -335,7 +335,7 @@ WEEKLY_MENUS = {
     },
     7: {
         "name": "7-HODNI DEGUSTACIJSKI MENI",
-        "price": 62,
+        "price": 70,
         "wine_pairing": 29,
         "wine_glasses": 7,
         "courses": [
@@ -354,7 +354,7 @@ WEEKLY_MENUS = {
 WEEKLY_INFO = {
     "days": "sreda, četrtek, petek",
     "time": "od 13:00 naprej",
-    "min_people": 6,
+    "min_people": 8,
     "contact": {"phone": "031 330 113", "email": "info@kovacnik.com"},
     "special_diet_extra": 8,
 }

@@ -759,7 +759,7 @@ async def execute(result: InterpretResult, message: str, session: Any, brand: An
             return {
                 "reply": (
                     "Med tednom (sreda–petek) strežemo degustacijske menije po predhodni rezervaciji, "
-                    "minimalno 6 oseb. Ob sobotah in nedeljah vikend kosila od 12:00 naprej.\n"
+                    "minimalno 8 oseb. Ob sobotah in nedeljah vikend kosila od 12:00 naprej.\n"
                     "Za rezervacijo: 031 330 113"
                 )
             }
