@@ -633,6 +633,7 @@ def calendar_tables(month: int, year: int):
         entry["total_people"] += people
         entry["reservations"].append(
             {
+                "id": r.get("id"),
                 "time": r.get("time"),
                 "people": people,
                 "name": r.get("name"),
