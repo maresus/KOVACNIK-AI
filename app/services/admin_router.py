@@ -704,3 +704,43 @@ def delete_all_reservations():
     _log("delete_all_reservations")
     count = service.delete_all_reservations()
     return {"success": True, "deleted": count, "message": f"Izbrisanih {count} rezervacij"}
+
+
+# ============================================================
+# EMAIL SYSTEM TEST ENDPOINTS
+# ============================================================
+
+@router.post("/api/admin/test/daily-report")
+def trigger_daily_report():
+    """Ročno sproži dnevno poročilo (za testiranje)."""
+    _log("trigger_daily_report")
+    try:
+        from app.services.scheduler_service import trigger_daily_report_now
+        trigger_daily_report_now()
+        return {"success": True, "message": "Daily report triggered"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/api/admin/test/weekly-reminder")
+def trigger_weekly_reminder():
+    """Ročno sproži tedenski reminder rezervacij (za testiranje)."""
+    _log("trigger_weekly_reminder")
+    try:
+        from app.services.scheduler_service import trigger_weekly_reminder_now
+        trigger_weekly_reminder_now()
+        return {"success": True, "message": "Weekly reminder triggered"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/api/admin/test/draft-generator")
+def trigger_draft_generator():
+    """Ročno sproži email draft generator (za testiranje)."""
+    _log("trigger_draft_generator")
+    try:
+        from app.services.scheduler_service import trigger_draft_generator_now
+        trigger_draft_generator_now()
+        return {"success": True, "message": "Draft generator triggered"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
