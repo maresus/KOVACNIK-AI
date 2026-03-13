@@ -593,15 +593,19 @@ def calendar_rooms(month: int, year: int):
             entry["reservations"].append(
                 {
                     "id": r.get("id"),
+                    "reservation_type": "room",  # Add this for frontend modal routing
                     "name": r.get("name"),
                     "people": r.get("people"),
                     "kids": r.get("kids"),
+                    "kids_small": r.get("kids_small"),
                     "location": room_id,
                     "email": r.get("email"),
                     "phone": r.get("phone"),
                     "status": status,
                     "date": r.get("date"),
                     "nights": r.get("nights"),
+                    "note": r.get("note"),
+                    "admin_notes": r.get("admin_notes"),
                 }
             )
     return {"days": days}
@@ -634,6 +638,7 @@ def calendar_tables(month: int, year: int):
         entry["reservations"].append(
             {
                 "id": r.get("id"),
+                "reservation_type": "table",  # Add this for frontend modal routing
                 "time": r.get("time"),
                 "people": people,
                 "name": r.get("name"),
@@ -642,6 +647,9 @@ def calendar_tables(month: int, year: int):
                 "email": r.get("email"),
                 "phone": r.get("phone"),
                 "date": r.get("date"),
+                "note": r.get("note"),
+                "special_needs": r.get("special_needs"),
+                "admin_notes": r.get("admin_notes"),
             }
         )
     return calendar
