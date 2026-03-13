@@ -804,3 +804,55 @@ def debug_weekend_reservations():
     except Exception as e:
         import traceback
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.get("/api/admin/debug/recent-conversations")
+def debug_recent_conversations():
+    """Debug endpoint - prikaže zadnje pogovore iz baze."""
+    _log("debug_recent_conversations")
+    try:
+        from datetime import datetime, timedelta
+
+        # Get conversations from last 48 hours
+        since = datetime.now() - timedelta(hours=48)
+        since_str = since.strftime("%Y-%m-%d %H:%M:%S")
+
+        conn = service._conn()
+        cursor = conn.cursor()
+        ph = service._placeholder()
+
+        query = f"""
+            SELECT id, session_id, user_message, created_at
+            FROM conversations
+            WHERE created_at >= {ph}
+            ORDER BY created_at DESC
+            LIMIT 20
+        """
+
+        cursor.execute(query, (since_str,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        conversations = [dict(row) for row in rows]
+
+        # Group by date
+        by_date = {}
+        for conv in conversations:
+            date = conv.get("created_at", "")[:10]  # YYYY-MM-DD
+            if date not in by_date:
+                by_date[date] = []
+            by_date[date].append(conv)
+
+        return {
+            "success": True,
+            "total": len(conversations),
+            "since": since_str,
+            "conversations": conversations,
+            "by_date": {
+                date: len(convs) for date, convs in by_date.items()
+            }
+        }
+    except Exception as e:
+        import traceback
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
