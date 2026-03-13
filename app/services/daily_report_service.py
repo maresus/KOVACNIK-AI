@@ -75,10 +75,13 @@ def get_new_conversations(service, since: datetime) -> List[Dict[str, Any]]:
     cursor.execute(query, (since_str,))
     rows = cursor.fetchall()
 
+    # Convert rows to dicts for compatibility with both SQLite and PostgreSQL
+    rows_dicts = [dict(row) for row in rows]
+
     # Group by session
     sessions = {}
-    for row in rows:
-        session_id = row[0]
+    for row in rows_dicts:
+        session_id = row["session_id"]
         if session_id not in sessions:
             sessions[session_id] = {
                 "session_id": session_id,
@@ -86,24 +89,24 @@ def get_new_conversations(service, since: datetime) -> List[Dict[str, Any]]:
                 "intents": set(),
                 "needs_followup": False,
                 "email": None,
-                "first_message_time": row[6],
+                "first_message_time": row["created_at"],
             }
 
         sessions[session_id]["messages"].append({
-            "user": row[1],
-            "bot": row[2],
-            "intent": row[3],
-            "time": row[6],
+            "user": row["user_message"],
+            "bot": row["bot_response"],
+            "intent": row["intent"],
+            "time": row["created_at"],
         })
 
-        if row[3]:
-            sessions[session_id]["intents"].add(row[3])
+        if row["intent"]:
+            sessions[session_id]["intents"].add(row["intent"])
 
-        if row[4]:  # needs_followup
+        if row["needs_followup"]:
             sessions[session_id]["needs_followup"] = True
 
-        if row[5]:  # followup_email
-            sessions[session_id]["email"] = row[5]
+        if row["followup_email"]:
+            sessions[session_id]["email"] = row["followup_email"]
 
     cursor.close()
     conn.close()
