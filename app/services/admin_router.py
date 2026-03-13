@@ -762,13 +762,28 @@ def debug_weekend_reservations():
         from datetime import date, timedelta
 
         today = date.today()
-        days_until_friday = (4 - today.weekday()) % 7
-        if days_until_friday == 0 and today.weekday() >= 4:
-            days_until_friday = 7
+        weekday = today.weekday()  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
 
-        friday = today + timedelta(days=days_until_friday)
-        saturday = friday + timedelta(days=1)
-        sunday = friday + timedelta(days=2)
+        # Če je danes petek, sobota ali nedelja -> prikaži TA vikend
+        if weekday == 4:  # Petek
+            friday = today
+            saturday = today + timedelta(days=1)
+            sunday = today + timedelta(days=2)
+        elif weekday == 5:  # Sobota
+            friday = today - timedelta(days=1)
+            saturday = today
+            sunday = today + timedelta(days=1)
+        elif weekday == 6:  # Nedelja
+            friday = today - timedelta(days=2)
+            saturday = today - timedelta(days=1)
+            sunday = today
+        else:  # Pon-Čet -> prikaži PRIHAJAJOČI vikend
+            days_until_friday = (4 - weekday) % 7
+            if days_until_friday == 0:
+                days_until_friday = 7
+            friday = today + timedelta(days=days_until_friday)
+            saturday = friday + timedelta(days=1)
+            sunday = friday + timedelta(days=2)
 
         conn = service._conn()
         cursor = conn.cursor()
