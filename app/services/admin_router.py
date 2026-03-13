@@ -744,3 +744,63 @@ def trigger_draft_generator():
         return {"success": True, "message": "Draft generator triggered"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@router.get("/api/admin/debug/weekend-reservations")
+def debug_weekend_reservations():
+    """Debug endpoint - prikaže VSE rezervacije za vikend (ne glede na status)."""
+    _log("debug_weekend_reservations")
+    try:
+        from datetime import date, timedelta
+
+        today = date.today()
+        days_until_friday = (4 - today.weekday()) % 7
+        if days_until_friday == 0 and today.weekday() >= 4:
+            days_until_friday = 7
+
+        friday = today + timedelta(days=days_until_friday)
+        saturday = friday + timedelta(days=1)
+        sunday = friday + timedelta(days=2)
+
+        conn = service._conn()
+        cursor = conn.cursor()
+        ph = service._placeholder()
+
+        # Get ALL table reservations (regardless of status)
+        query = f"""
+            SELECT id, date, time, people, name, status, location
+            FROM reservations
+            WHERE reservation_type = 'table'
+            AND date IN ({ph}, {ph}, {ph})
+            ORDER BY date ASC, time ASC
+        """
+
+        cursor.execute(query, (
+            friday.strftime("%Y-%m-%d"),
+            saturday.strftime("%Y-%m-%d"),
+            sunday.strftime("%Y-%m-%d"),
+        ))
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        reservations = [dict(row) for row in rows]
+
+        return {
+            "success": True,
+            "weekend_dates": {
+                "friday": friday.strftime("%Y-%m-%d"),
+                "saturday": saturday.strftime("%Y-%m-%d"),
+                "sunday": sunday.strftime("%Y-%m-%d"),
+            },
+            "total": len(reservations),
+            "reservations": reservations,
+            "status_counts": {
+                status: len([r for r in reservations if r.get("status") == status])
+                for status in set(r.get("status") for r in reservations)
+            }
+        }
+    except Exception as e:
+        import traceback
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
