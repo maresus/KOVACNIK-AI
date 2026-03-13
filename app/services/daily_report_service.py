@@ -360,6 +360,9 @@ def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]
     cursor.close()
     conn.close()
 
+    # Convert rows to dicts for PostgreSQL compatibility
+    rows_dicts = [dict(row) for row in rows]
+
     # Group by date
     by_date = {
         friday.strftime("%Y-%m-%d"): [],
@@ -367,20 +370,20 @@ def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]
         sunday.strftime("%Y-%m-%d"): [],
     }
 
-    for row in rows:
+    for row in rows_dicts:
         reservation = {
-            "id": row[0],
-            "date": row[1],
-            "time": row[2],
-            "people": row[3],
-            "name": row[4],
-            "email": row[5],
-            "phone": row[6],
-            "location": row[7],
-            "note": row[8],
-            "status": row[9],
+            "id": row["id"],
+            "date": row["date"],
+            "time": row["time"],
+            "people": row["people"],
+            "name": row["name"],
+            "email": row["email"],
+            "phone": row["phone"],
+            "location": row["location"],
+            "note": row["note"],
+            "status": row["status"],
         }
-        date_key = row[1]
+        date_key = row["date"]
         if date_key in by_date:
             by_date[date_key].append(reservation)
 
