@@ -710,7 +710,7 @@ def delete_all_reservations():
 # EMAIL SYSTEM TEST ENDPOINTS
 # ============================================================
 
-@router.post("/api/admin/test/daily-report")
+@router.api_route("/api/admin/test/daily-report", methods=["GET", "POST"])
 def trigger_daily_report():
     """Ročno sproži dnevno poročilo (za testiranje)."""
     _log("trigger_daily_report")
@@ -722,7 +722,7 @@ def trigger_daily_report():
         return {"success": False, "error": str(e)}
 
 
-@router.post("/api/admin/test/weekly-reminder")
+@router.api_route("/api/admin/test/weekly-reminder", methods=["GET", "POST"])
 def trigger_weekly_reminder():
     """Ročno sproži tedenski reminder rezervacij (za testiranje)."""
     _log("trigger_weekly_reminder")
@@ -734,7 +734,7 @@ def trigger_weekly_reminder():
         return {"success": False, "error": str(e)}
 
 
-@router.post("/api/admin/test/draft-generator")
+@router.api_route("/api/admin/test/draft-generator", methods=["GET", "POST"])
 def trigger_draft_generator():
     """Ročno sproži email draft generator (za testiranje)."""
     _log("trigger_draft_generator")
