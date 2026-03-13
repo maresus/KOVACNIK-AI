@@ -383,7 +383,13 @@ def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]
             "note": row["note"],
             "status": row["status"],
         }
-        date_key = row["date"]
+        # Convert date from DD.MM.YYYY to YYYY-MM-DD for dictionary key
+        try:
+            db_date = datetime.strptime(row["date"], "%d.%m.%Y")
+            date_key = db_date.strftime("%Y-%m-%d")
+        except Exception:
+            date_key = row["date"]
+
         if date_key in by_date:
             by_date[date_key].append(reservation)
 
