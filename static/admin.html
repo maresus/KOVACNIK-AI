@@ -2289,13 +2289,19 @@
 
     function openEdit(dataStr) {
       const r = JSON.parse(decodeURIComponent(dataStr));
+      console.log('[DEBUG] openEdit called with:', r);
+      console.log('[DEBUG] reservation_type:', r.reservation_type);
+      console.log('[DEBUG] id:', r.id);
+
       if (!r.id) {
         toast('Rezervacije ni mogoče odpreti (manjka ID).', 'warning');
         return;
       }
       if (r.reservation_type === 'table') {
+        console.log('[DEBUG] Opening TABLE modal');
         openTableEditModal(r);
       } else {
+        console.log('[DEBUG] Opening ROOM modal (type:', r.reservation_type, ')');
         openRoomEditModal(r);
       }
     }
