@@ -312,14 +312,28 @@ def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]
     from datetime import date, timedelta
 
     today = date.today()
-    # Najdi prihajajoči petek
-    days_until_friday = (4 - today.weekday()) % 7
-    if days_until_friday == 0 and today.weekday() >= 4:  # Če je danes petek ali vikend
-        days_until_friday = 7  # Naslednji petek
+    weekday = today.weekday()  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
 
-    friday = today + timedelta(days=days_until_friday)
-    saturday = friday + timedelta(days=1)
-    sunday = friday + timedelta(days=2)
+    # Če je danes petek, sobota ali nedelja -> prikaži TA vikend
+    if weekday == 4:  # Petek
+        friday = today
+        saturday = today + timedelta(days=1)
+        sunday = today + timedelta(days=2)
+    elif weekday == 5:  # Sobota
+        friday = today - timedelta(days=1)
+        saturday = today
+        sunday = today + timedelta(days=1)
+    elif weekday == 6:  # Nedelja
+        friday = today - timedelta(days=2)
+        saturday = today - timedelta(days=1)
+        sunday = today
+    else:  # Pon-Čet -> prikaži PRIHAJAJOČI vikend
+        days_until_friday = (4 - weekday) % 7
+        if days_until_friday == 0:
+            days_until_friday = 7
+        friday = today + timedelta(days=days_until_friday)
+        saturday = friday + timedelta(days=1)
+        sunday = friday + timedelta(days=2)
 
     # Get all table reservations for these 3 days
     conn = service._conn()
