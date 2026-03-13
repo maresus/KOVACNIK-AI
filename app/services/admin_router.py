@@ -798,11 +798,12 @@ def debug_weekend_reservations():
             ORDER BY date ASC, time ASC
         """
 
-        cursor.execute(query, (
-            friday.strftime("%Y-%m-%d"),
-            saturday.strftime("%Y-%m-%d"),
-            sunday.strftime("%Y-%m-%d"),
-        ))
+        # Database stores dates in DD.MM.YYYY format, not YYYY-MM-DD
+        friday_str = friday.strftime("%d.%m.%Y")
+        saturday_str = saturday.strftime("%d.%m.%Y")
+        sunday_str = sunday.strftime("%d.%m.%Y")
+
+        cursor.execute(query, (friday_str, saturday_str, sunday_str))
 
         rows = cursor.fetchall()
         cursor.close()

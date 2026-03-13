@@ -349,10 +349,11 @@ def get_upcoming_weekend_reservations(service) -> Dict[str, List[Dict[str, Any]]
         ORDER BY date ASC, time ASC
     """
 
+    # Database stores dates in DD.MM.YYYY format
     cursor.execute(query, (
-        friday.strftime("%Y-%m-%d"),
-        saturday.strftime("%Y-%m-%d"),
-        sunday.strftime("%Y-%m-%d"),
+        friday.strftime("%d.%m.%Y"),
+        saturday.strftime("%d.%m.%Y"),
+        sunday.strftime("%d.%m.%Y"),
     ))
 
     rows = cursor.fetchall()
