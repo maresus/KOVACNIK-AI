@@ -428,6 +428,109 @@ def reject_reservation(reservation_id: int):
     return {"success": True, "email_sent": True}
 
 
+# ============================================================
+# EMAIL LINK HANDLERS (GET) - za klik iz emaila
+# ============================================================
+
+def _email_action_html(title: str, message: str, success: bool = True) -> str:
+    """Generira HTML stran za prikaz po kliku na email link."""
+    color = "#22c55e" if success else "#ef4444"
+    icon = "✅" if success else "❌"
+    return f"""
+    <!DOCTYPE html>
+    <html lang="sl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{title} - Domačija Kovačnik</title>
+        <style>
+            body {{ font-family: -apple-system, sans-serif; background: #f7f3ee; margin: 0; padding: 40px 20px; }}
+            .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+            .icon {{ font-size: 64px; margin-bottom: 20px; }}
+            h1 {{ color: #7b5e3b; margin: 0 0 16px; font-size: 24px; }}
+            p {{ color: #666; line-height: 1.6; margin: 0 0 24px; }}
+            .status {{ display: inline-block; padding: 8px 16px; border-radius: 20px; background: {color}22; color: {color}; font-weight: 600; }}
+            a {{ display: inline-block; margin-top: 24px; color: #7b5e3b; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="icon">{icon}</div>
+            <h1>{title}</h1>
+            <p>{message}</p>
+            <a href="/admin">← Nazaj na admin panel</a>
+        </div>
+    </body>
+    </html>
+    """
+
+
+@router.get("/api/admin/reservations/{reservation_id}/confirm")
+def confirm_reservation_get(reservation_id: int):
+    """GET handler za potrditev iz emaila - vrne HTML stran."""
+    res = service.get_reservation(reservation_id)
+    if not res:
+        return HTMLResponse(_email_action_html(
+            "Rezervacija ni najdena",
+            f"Rezervacija #{reservation_id} ne obstaja.",
+            success=False
+        ), status_code=404)
+
+    if res.get("status") == "confirmed":
+        return HTMLResponse(_email_action_html(
+            "Že potrjeno",
+            f"Rezervacija #{reservation_id} je bila že potrjena.",
+            success=True
+        ))
+
+    # Potrdi rezervacijo
+    service.update_reservation(
+        reservation_id,
+        status="confirmed",
+        confirmed_at=datetime.now().isoformat(),
+        confirmed_by=os.getenv("ADMIN_EMAIL", "info@kovacnik.com"),
+    )
+    res = service.get_reservation(reservation_id) or res
+    send_reservation_confirmed(res)
+
+    return HTMLResponse(_email_action_html(
+        "Rezervacija potrjena",
+        f"Rezervacija #{reservation_id} za {res.get('name', 'gosta')} je bila uspešno potrjena. Gostu je bil poslan email.",
+        success=True
+    ))
+
+
+@router.get("/api/admin/reservations/{reservation_id}/reject")
+def reject_reservation_get(reservation_id: int):
+    """GET handler za zavrnitev iz emaila - vrne HTML stran."""
+    res = service.get_reservation(reservation_id)
+    if not res:
+        return HTMLResponse(_email_action_html(
+            "Rezervacija ni najdena",
+            f"Rezervacija #{reservation_id} ne obstaja.",
+            success=False
+        ), status_code=404)
+
+    if res.get("status") == "rejected":
+        return HTMLResponse(_email_action_html(
+            "Že zavrnjeno",
+            f"Rezervacija #{reservation_id} je bila že zavrnjena.",
+            success=False
+        ))
+
+    # Zavrni rezervacijo
+    service.update_reservation(reservation_id, status="rejected")
+    res = service.get_reservation(reservation_id) or res
+    send_reservation_rejected(res)
+
+    return HTMLResponse(_email_action_html(
+        "Rezervacija zavrnjena",
+        f"Rezervacija #{reservation_id} za {res.get('name', 'gosta')} je bila zavrnjena. Gostu je bil poslan email.",
+        success=False
+    ))
+
+
 @router.post("/api/admin/send-message")
 def send_message(data: SendMessageRequest):
     """Pošlje sporočilo gostu in opcijsko status nastavi na 'processing'."""
