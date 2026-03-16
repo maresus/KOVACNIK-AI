@@ -118,6 +118,7 @@
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn secondary" href="/admin">⬅ Nazaj na admin</a>
         <button class="btn" id="refreshBtn">Osveži</button>
+        <button class="btn" id="deleteAllBtn" style="background:#dc2626;">🗑 Zbriši vse</button>
       </div>
     </header>
 
@@ -283,6 +284,29 @@
 
     loadBtn.addEventListener('click', loadConversations);
     refreshBtn.addEventListener('click', loadConversations);
+
+    // Delete all conversations
+    document.getElementById('deleteAllBtn').addEventListener('click', async () => {
+      const confirmed = confirm('Ali ste prepričani, da želite ZBRISATI VSE pogovore?\n\nTo dejanje je NEPOPRAVLJIVO!');
+      if (!confirmed) return;
+
+      const doubleConfirm = confirm('ZADNJE OPOZORILO: Vsi pogovori bodo trajno izbrisani.\n\nNadaljujem?');
+      if (!doubleConfirm) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/conversations/all`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Uspešno zbrisanih ${data.deleted} pogovorov.`);
+          loadConversations();
+        } else {
+          alert('Napaka: ' + (data.error || 'Neznana napaka'));
+        }
+      } catch (e) {
+        alert('Napaka pri brisanju: ' + e.message);
+      }
+    });
+
     loadConversations();
   </script>
 </body>
