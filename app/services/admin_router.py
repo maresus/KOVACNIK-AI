@@ -140,6 +140,7 @@ class AdminCreateReservation(BaseModel):
     people: int
     reservation_type: str
     source: str = "admin"
+    status: Optional[str] = None  # pending, confirmed, etc.
     nights: Optional[int] = None
     rooms: Optional[int] = None
     time: Optional[str] = None
@@ -683,6 +684,11 @@ def create_admin_reservation(data: AdminCreateReservation):
         if suggested_location and not data.location:
             location = suggested_location
 
+    # Določi status: WordPress rezervacije so pending, ostale confirmed
+    final_status = data.status
+    if not final_status:
+        final_status = "pending" if data.source == "wordpress" else "confirmed"
+
     new_id = service.create_reservation(
         date=data.date,
         nights=data.nights,
@@ -695,11 +701,11 @@ def create_admin_reservation(data: AdminCreateReservation):
         phone=data.phone,
         email=data.email,
         note=data.note,
-        status="confirmed",
+        status=final_status,
         admin_notes=data.admin_notes,
         kids=data.kids,
         kids_small=data.kids_small,
-        source="admin",
+        source=data.source,
         event_type=data.event_type,
         special_needs=data.special_needs,
     )
