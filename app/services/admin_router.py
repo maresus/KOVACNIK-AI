@@ -1000,16 +1000,18 @@ def delete_all_conversations():
         cursor = conn.cursor()
 
         # Preštej pred brisanjem
-        cursor.execute("SELECT COUNT(*) FROM conversations")
-        count_before = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) as cnt FROM conversations")
+        row = cursor.fetchone()
+        count_before = row["cnt"] if isinstance(row, dict) else row[0]
 
         # Pobriši vse
         cursor.execute("DELETE FROM conversations")
         conn.commit()
 
         # Preštej po brisanju
-        cursor.execute("SELECT COUNT(*) FROM conversations")
-        count_after = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) as cnt FROM conversations")
+        row = cursor.fetchone()
+        count_after = row["cnt"] if isinstance(row, dict) else row[0]
 
         cursor.close()
         conn.close()
