@@ -11,7 +11,7 @@
     placeholder: 'Vprašajte karkoli...',
     welcomeMessage: 'Pozdravljeni! 👋 Sem vaš virtualni pomočnik za Domačijo Kovačnik. Kako vam lahko pomagam z rezervacijo ali informacijami?',
     mobileBreakpoint: 768,
-    autoOpenDesktop: false,  // Brez auto-popup
+    autoOpenDesktop: true,  // Auto-popup na desktopu
     autoOpenDelay: 2000,  // ms
     maxStoredMessages: 50  // Maksimalno število shranjenih sporočil
   };
