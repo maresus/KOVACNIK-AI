@@ -39,10 +39,12 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "info@kovacnik.com")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Domačija Kovačnik")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "info@kovacnik.com")
+CC_ADMIN_EMAIL = os.getenv("CC_ADMIN_EMAIL", "")  # Dodaten email za kopijo
 SMTP_SSL = os.getenv("SMTP_SSL", "").strip().lower() in {"1", "true", "yes"}
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 SUBJECT_PREFIX = os.getenv("SUBJECT_PREFIX", "").strip()
+BASE_URL = os.getenv("BASE_URL", "https://kovacnik-ai-production.up.railway.app")
 
 # Brand barve (enake kot WordPress)
 BRAND_COLOR = "#7b5e3b"
@@ -258,7 +260,7 @@ def _admin_new_reservation_html(data: Dict[str, Any], confirm_url: str = "", rej
     
     <p style="margin-top:20px; color:{MUTED_COLOR}; font-size:13px;">
         Rezervacija ustvarjena: {datetime.now().strftime('%d.%m.%Y %H:%M')}<br>
-        Odpri admin panel: <a href="http://localhost:8000/admin" style="color:{BRAND_COLOR};">Admin rezervacije</a>
+        Odpri admin panel: <a href="{BASE_URL}/admin" style="color:{BRAND_COLOR};">Admin rezervacije</a>
     </p>
     """
     return _email_wrapper(content)
@@ -418,12 +420,12 @@ def send_guest_confirmation(data: Dict[str, Any]) -> bool:
 def send_admin_notification(data: Dict[str, Any], confirm_url: str = "", reject_url: str = "") -> bool:
     """
     Pošlje obvestilo adminu o novi rezervaciji.
-    
+
     Args:
         data: Podatki rezervacije
-        confirm_url: URL za potrditev (opcijsko)
-        reject_url: URL za zavrnitev (opcijsko)
-    
+        confirm_url: URL za potrditev (opcijsko - če ni podan, se generira iz BASE_URL)
+        reject_url: URL za zavrnitev (opcijsko - če ni podan, se generira iz BASE_URL)
+
     Returns:
         True če uspešno poslano
     """
@@ -431,9 +433,23 @@ def send_admin_notification(data: Dict[str, Any], confirm_url: str = "", reject_
     rid = data.get('id')
     tag = f"Rezervacija #{rid}" if rid else "Rezervacija"
     subject = f"{tag} - Nova rezervacija {res_type} – {data.get('name', 'Neznano')}"
-    
+
+    # Auto-generiraj confirm/reject URL-je če niso podani in imamo ID
+    if rid and not confirm_url:
+        confirm_url = f"{BASE_URL}/api/admin/reservations/{rid}/confirm"
+    if rid and not reject_url:
+        reject_url = f"{BASE_URL}/api/admin/reservations/{rid}/reject"
+
     html = _admin_new_reservation_html(data, confirm_url, reject_url)
-    return _send_email(ADMIN_EMAIL, subject, html)
+
+    # Pošlji na glavni admin email
+    result = _send_email(ADMIN_EMAIL, subject, html)
+
+    # Pošlji tudi na CC email če je nastavljen
+    if CC_ADMIN_EMAIL and CC_ADMIN_EMAIL != ADMIN_EMAIL:
+        _send_email(CC_ADMIN_EMAIL, subject, html)
+
+    return result
 
 
 def send_reservation_confirmed(data: Dict[str, Any]) -> bool:
