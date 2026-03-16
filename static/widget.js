@@ -92,40 +92,51 @@
     /* Mobilni full-screen */
     @media (max-width: ${CONFIG.mobileBreakpoint}px) {
       #kv-widget-panel {
-        bottom: 0;
-        right: 0;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        max-height: 100%;
-        border-radius: 0;
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100dvh !important;
+        height: 100vh !important;
+        max-height: none !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
       }
 
-      /* Skrij bubble ko je panel odprt na mobilnem */
-      #kv-widget-panel.kv-open ~ #kv-widget-bubble,
-      #kv-widget-container:has(#kv-widget-panel.kv-open) #kv-widget-bubble {
-        display: none !important;
+      #kv-widget-panel.kv-open {
+        display: flex !important;
       }
 
       #kv-widget-bubble {
-        bottom: 16px;
-        right: 16px;
+        bottom: 20px;
+        right: 20px;
         width: 56px;
         height: 56px;
       }
 
-      /* Safe area za iPhone notch */
       #kv-widget-header {
-        padding-top: max(16px, env(safe-area-inset-top));
+        padding-top: max(16px, env(safe-area-inset-top)) !important;
+        padding-left: max(16px, env(safe-area-inset-left)) !important;
+        padding-right: max(16px, env(safe-area-inset-right)) !important;
+      }
+
+      #kv-widget-messages {
+        -webkit-overflow-scrolling: touch;
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
       }
 
       #kv-widget-input-area {
-        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        padding-left: max(16px, env(safe-area-inset-left)) !important;
+        padding-right: max(16px, env(safe-area-inset-right)) !important;
       }
 
       #kv-widget-input {
-        font-size: 16px; /* Prepreči zoom na iOS */
+        font-size: 16px !important; /* Prepreči zoom na iOS */
+      }
+
+      #kv-scroll-down {
+        bottom: 90px;
       }
     }
 
@@ -487,9 +498,12 @@
   function openPanel() {
     document.getElementById('kv-widget-panel').classList.add('kv-open');
     document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
-    // Skrij bubble na mobilnem ko je panel odprt
+    // Na mobilnem: skrij bubble in blokiraj scroll strani
     if (window.innerWidth <= CONFIG.mobileBreakpoint) {
       document.getElementById('kv-widget-bubble').style.display = 'none';
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
     }
     document.getElementById('kv-widget-input').focus();
     localStorage.setItem('kv_widget_open', 'true');
@@ -504,8 +518,11 @@
 
   function closePanel() {
     document.getElementById('kv-widget-panel').classList.remove('kv-open');
-    // Pokaži bubble spet
+    // Pokaži bubble spet in omogoči scroll strani
     document.getElementById('kv-widget-bubble').style.display = 'flex';
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
     localStorage.setItem('kv_widget_open', 'false');
   }
 
