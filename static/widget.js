@@ -73,20 +73,20 @@
       background: #fff;
       border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-      display: none;
+      display: flex;
       flex-direction: column;
       overflow: hidden;
       z-index: 999998;
-      animation: kv-slide-up 0.25s ease-out;
-    }
-
-    @keyframes kv-slide-up {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(20px);
+      transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
     }
 
     #kv-widget-panel.kv-open {
-      display: flex;
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
     }
 
     /* Mobilni full-screen */
@@ -103,7 +103,9 @@
       }
 
       #kv-widget-panel.kv-open {
-        display: flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: translateY(0) !important;
       }
 
       #kv-widget-bubble {
