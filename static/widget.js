@@ -111,29 +111,28 @@
     }
 
     #kv-widget-header {
-      background: ${CONFIG.brandColor};
-      color: white;
+      background: #ffffff;
+      color: #1a1a1a;
       padding: 16px 20px;
       display: flex;
       align-items: center;
       gap: 12px;
       flex-shrink: 0;
+      border-bottom: 1px solid #e8e0d8;
     }
 
     #kv-widget-header-icon {
-      width: 42px;
-      height: 42px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 50%;
+      width: 48px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    #kv-widget-header-icon svg {
-      width: 22px;
-      height: 22px;
-      fill: white;
+    #kv-widget-header-icon img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
     }
 
     #kv-widget-header-text {
@@ -144,18 +143,19 @@
       margin: 0;
       font-size: 16px;
       font-weight: 600;
+      color: ${CONFIG.brandColor};
     }
 
     #kv-widget-header-text p {
       margin: 2px 0 0;
       font-size: 12px;
-      opacity: 0.85;
+      color: #6a6a6a;
     }
 
     .kv-header-btn {
       background: none;
       border: none;
-      color: white;
+      color: ${CONFIG.brandColor};
       cursor: pointer;
       padding: 8px;
       border-radius: 8px;
@@ -163,13 +163,13 @@
     }
 
     .kv-header-btn:hover {
-      background: rgba(255,255,255,0.15);
+      background: rgba(123,94,59,0.1);
     }
 
     .kv-header-btn svg {
       width: 18px;
       height: 18px;
-      fill: white;
+      fill: ${CONFIG.brandColor};
     }
 
     #kv-widget-messages {
@@ -394,7 +394,7 @@
     panel.id = 'kv-widget-panel';
     panel.innerHTML = `
       <div id="kv-widget-header">
-        <div id="kv-widget-header-icon">${icons.home}</div>
+        <div id="kv-widget-header-icon"><img src="https://kovacnik.com/wp-content/uploads/2023/03/LOGO-KOVACNIK-2023.png" alt="Kovačnik"></div>
         <div id="kv-widget-header-text">
           <h3>${CONFIG.title}</h3>
           <p>${CONFIG.subtitle}</p>
