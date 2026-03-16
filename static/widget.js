@@ -3,7 +3,7 @@
 
   // Konfiguracija
   const CONFIG = {
-    apiUrl: 'https://kovacnik-ai-production.up.railway.app/api/chat',
+    apiUrl: 'https://kovacnik-ai-production.up.railway.app/v2/chat',
     brandColor: '#7b5e3b',
     brandColorHover: '#5d472d',
     title: 'Domačija Kovačnik',
