@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "2026"))
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import Settings
 from app.rag.chroma_service import get_chroma_health
@@ -26,6 +27,9 @@ from app.services.scheduler_service import start_scheduler
 settings = Settings()
 app = FastAPI(title=settings.project_name)
 BASE_DIR = Path(__file__).resolve().parent
+
+# Mount static files (za widget.js, css, slike...)
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 @app.on_event("startup")
 def startup_tasks() -> None:
