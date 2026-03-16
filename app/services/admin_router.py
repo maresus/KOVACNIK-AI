@@ -989,3 +989,37 @@ def debug_recent_conversations():
     except Exception as e:
         import traceback
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.delete("/api/admin/conversations/all")
+def delete_all_conversations():
+    """Pobriše VSE pogovore iz baze. POZOR: nepopravljivo!"""
+    _log("delete_all_conversations")
+    try:
+        conn = service._conn()
+        cursor = conn.cursor()
+
+        # Preštej pred brisanjem
+        cursor.execute("SELECT COUNT(*) FROM conversations")
+        count_before = cursor.fetchone()[0]
+
+        # Pobriši vse
+        cursor.execute("DELETE FROM conversations")
+        conn.commit()
+
+        # Preštej po brisanju
+        cursor.execute("SELECT COUNT(*) FROM conversations")
+        count_after = cursor.fetchone()[0]
+
+        cursor.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "deleted": count_before,
+            "remaining": count_after,
+            "message": f"Pobrisanih {count_before} pogovorov"
+        }
+    except Exception as e:
+        import traceback
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
