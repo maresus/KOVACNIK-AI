@@ -11,7 +11,7 @@
     placeholder: 'Vprašajte karkoli...',
     welcomeMessage: 'Pozdravljeni! 👋 Sem vaš virtualni pomočnik za Domačijo Kovačnik. Kako vam lahko pomagam z rezervacijo ali informacijami?',
     mobileBreakpoint: 768,
-    autoOpenDesktop: true,
+    autoOpenDesktop: false,  // Brez auto-popup
     autoOpenDelay: 2000,  // ms
     maxStoredMessages: 50  // Maksimalno število shranjenih sporočil
   };
@@ -288,6 +288,40 @@
       height: 20px;
       fill: white;
     }
+
+    /* Scroll down arrow indicator */
+    #kv-scroll-down {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 36px;
+      height: 36px;
+      background: ${CONFIG.brandColor};
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 10;
+      animation: kv-bounce-arrow 1s infinite;
+    }
+
+    #kv-scroll-down.kv-visible {
+      display: flex;
+    }
+
+    #kv-scroll-down svg {
+      width: 20px;
+      height: 20px;
+      fill: white;
+    }
+
+    @keyframes kv-bounce-arrow {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(4px); }
+    }
   `;
 
   // Ikone (SVG)
@@ -296,7 +330,8 @@
     close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
     send: '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
     home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
-    refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
+    refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+    arrowDown: '<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>'
   };
 
   // Session ID in shranjeni pogovori
@@ -368,6 +403,7 @@
         <button class="kv-header-btn" id="kv-widget-close" title="Zapri">${icons.close}</button>
       </div>
       <div id="kv-widget-messages"></div>
+      <div id="kv-scroll-down" title="Scroll dol">${icons.arrowDown}</div>
       <div id="kv-widget-input-area">
         <input type="text" id="kv-widget-input" placeholder="${CONFIG.placeholder}">
         <button id="kv-widget-send">${icons.send}</button>
@@ -384,6 +420,21 @@
     document.getElementById('kv-widget-send').onclick = sendMessage;
     document.getElementById('kv-widget-input').onkeypress = function(e) {
       if (e.key === 'Enter') sendMessage();
+    };
+
+    // Scroll arrow functionality
+    const messagesEl = document.getElementById('kv-widget-messages');
+    const scrollArrow = document.getElementById('kv-scroll-down');
+
+    scrollArrow.onclick = function() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    };
+
+    messagesEl.onscroll = function() {
+      const isNearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 50;
+      if (isNearBottom) {
+        scrollArrow.classList.remove('kv-visible');
+      }
     };
 
     // Naloži shranjene pogovore ali welcome message
@@ -432,11 +483,23 @@
 
   function addMessageToUI(text, sender) {
     const messages = document.getElementById('kv-widget-messages');
+    const scrollArrow = document.getElementById('kv-scroll-down');
+
+    // Preveri ali smo blizu dna PRED dodajanjem
+    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 50;
+
     const msg = document.createElement('div');
     msg.className = 'kv-message kv-' + sender;
     msg.innerHTML = '<div class="kv-message-bubble">' + escapeHtml(text) + '</div>';
     messages.appendChild(msg);
-    messages.scrollTop = messages.scrollHeight;
+
+    // Če smo bili blizu dna, scrollaj na dno
+    // Če ne, pokaži puščico
+    if (wasNearBottom) {
+      messages.scrollTop = messages.scrollHeight;
+    } else if (scrollArrow) {
+      scrollArrow.classList.add('kv-visible');
+    }
   }
 
   function addMessage(text, sender, save = true) {
@@ -449,12 +512,22 @@
 
   function showTyping() {
     const messages = document.getElementById('kv-widget-messages');
+    const scrollArrow = document.getElementById('kv-scroll-down');
+
+    // Preveri ali smo blizu dna
+    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 50;
+
     const typing = document.createElement('div');
     typing.id = 'kv-typing-indicator';
     typing.className = 'kv-message kv-bot';
     typing.innerHTML = '<div class="kv-message-bubble kv-typing"><span></span><span></span><span></span></div>';
     messages.appendChild(typing);
-    messages.scrollTop = messages.scrollHeight;
+
+    if (wasNearBottom) {
+      messages.scrollTop = messages.scrollHeight;
+    } else if (scrollArrow) {
+      scrollArrow.classList.add('kv-visible');
+    }
   }
 
   function hideTyping() {
