@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <title>Kovačnik Chat Widget - Embed Navodila</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        h1 { color: #7b5e3b; }
+        code { background: #f4f4f4; padding: 2px 8px; border-radius: 4px; font-size: 14px; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; overflow-x: auto; }
+        pre code { background: none; color: inherit; padding: 0; }
+        .note { background: #fff8e1; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Kovačnik Chat Widget</h1>
+
+    <h2>Namestitev</h2>
+    <p>Dodajte naslednjo kodo <strong>pred zaključni &lt;/body&gt; tag</strong> na vaši spletni strani:</p>
+
+    <pre><code>&lt;!-- Kovačnik Chat Widget --&gt;
+&lt;script src="https://kovacnik-ai-production.up.railway.app/static/widget.js"&gt;&lt;/script&gt;</code></pre>
+
+    <h2>Obnašanje</h2>
+    <ul>
+        <li><strong>Desktop (širina > 768px):</strong> Widget se avtomatsko odpre po 2 sekundah v desnem spodnjem kotu</li>
+        <li><strong>Mobilni (širina ≤ 768px):</strong> Prikazana je samo ikonica - klik odpre fullscreen chat</li>
+    </ul>
+
+    <h2>Prilagoditve</h2>
+    <p>Za prilagoditev barv, besedil ali obnašanja kontaktirajte razvijalca.</p>
+
+    <div class="note">
+        <strong>Opomba:</strong> Widget uporablja <code>localStorage</code> za shranjevanje session ID-ja,
+        kar omogoča kontinuiran pogovor tudi po osvežitvi strani.
+    </div>
+
+    <h2>WordPress namestitev</h2>
+    <p>V WordPress dodajte widget v <strong>Videz → Pripomočki → HTML blok</strong> v footer, ali pa dodajte v <code>functions.php</code>:</p>
+
+    <pre><code>// Kovačnik Chat Widget
+add_action('wp_footer', function() {
+    echo '&lt;script src="https://kovacnik-ai-production.up.railway.app/static/widget.js"&gt;&lt;/script&gt;';
+});</code></pre>
+
+    <hr style="margin: 40px 0;">
+    <p style="color: #888;">Widget verzija 1.0 | Domačija Kovačnik</p>
+</body>
+</html>

@@ -1,0 +1,463 @@
+(function() {
+  'use strict';
+
+  // Konfiguracija
+  const CONFIG = {
+    apiUrl: 'https://kovacnik-ai-production.up.railway.app/api/chat',
+    brandColor: '#7b5e3b',
+    brandColorHover: '#5d472d',
+    title: 'Domačija Kovačnik',
+    subtitle: 'Kako vam lahko pomagam?',
+    placeholder: 'Vprašajte karkoli...',
+    welcomeMessage: 'Pozdravljeni! 👋 Sem vaš virtualni pomočnik za Domačijo Kovačnik. Kako vam lahko pomagam z rezervacijo ali informacijami?',
+    mobileBreakpoint: 768,
+    autoOpenDesktop: true,
+    autoOpenDelay: 2000  // ms
+  };
+
+  // CSS stili
+  const styles = `
+    #kv-widget-container * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    #kv-widget-bubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: ${CONFIG.brandColor};
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    #kv-widget-bubble:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+    }
+
+    #kv-widget-bubble svg {
+      width: 28px;
+      height: 28px;
+      fill: white;
+    }
+
+    #kv-widget-bubble.kv-has-notification::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      background: #ef4444;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    #kv-widget-panel {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 380px;
+      height: 520px;
+      max-height: calc(100vh - 120px);
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 999998;
+      animation: kv-slide-up 0.25s ease-out;
+    }
+
+    @keyframes kv-slide-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #kv-widget-panel.kv-open {
+      display: flex;
+    }
+
+    /* Mobilni full-screen */
+    @media (max-width: ${CONFIG.mobileBreakpoint}px) {
+      #kv-widget-panel {
+        bottom: 0;
+        right: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+      }
+
+      #kv-widget-bubble {
+        bottom: 16px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
+      }
+    }
+
+    #kv-widget-header {
+      background: ${CONFIG.brandColor};
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    #kv-widget-header-icon {
+      width: 42px;
+      height: 42px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #kv-widget-header-icon svg {
+      width: 22px;
+      height: 22px;
+      fill: white;
+    }
+
+    #kv-widget-header-text h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    #kv-widget-header-text p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    #kv-widget-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+
+    #kv-widget-close:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    #kv-widget-close svg {
+      width: 20px;
+      height: 20px;
+      fill: white;
+    }
+
+    #kv-widget-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: #f9f7f5;
+    }
+
+    .kv-message {
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .kv-message.kv-bot {
+      align-items: flex-start;
+    }
+
+    .kv-message.kv-user {
+      align-items: flex-end;
+    }
+
+    .kv-message-bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .kv-bot .kv-message-bubble {
+      background: white;
+      color: #1a1a1a;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .kv-user .kv-message-bubble {
+      background: ${CONFIG.brandColor};
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .kv-typing {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+    }
+
+    .kv-typing span {
+      width: 8px;
+      height: 8px;
+      background: #999;
+      border-radius: 50%;
+      animation: kv-bounce 1.2s infinite;
+    }
+
+    .kv-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .kv-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes kv-bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+
+    #kv-widget-input-area {
+      padding: 12px 16px;
+      background: white;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    #kv-widget-input {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 24px;
+      padding: 12px 18px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #kv-widget-input:focus {
+      border-color: ${CONFIG.brandColor};
+    }
+
+    #kv-widget-send {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: ${CONFIG.brandColor};
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+
+    #kv-widget-send:hover {
+      background: ${CONFIG.brandColorHover};
+    }
+
+    #kv-widget-send:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    #kv-widget-send svg {
+      width: 20px;
+      height: 20px;
+      fill: white;
+    }
+  `;
+
+  // Ikone (SVG)
+  const icons = {
+    chat: '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7z"/></svg>',
+    close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+    send: '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
+    home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>'
+  };
+
+  // Session ID za pogovor
+  let sessionId = localStorage.getItem('kv_widget_session') || generateSessionId();
+  localStorage.setItem('kv_widget_session', sessionId);
+
+  function generateSessionId() {
+    return 'widget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // Ustvari widget HTML
+  function createWidget() {
+    // Dodaj stile
+    const styleEl = document.createElement('style');
+    styleEl.textContent = styles;
+    document.head.appendChild(styleEl);
+
+    // Container
+    const container = document.createElement('div');
+    container.id = 'kv-widget-container';
+
+    // Bubble (ikonica)
+    const bubble = document.createElement('div');
+    bubble.id = 'kv-widget-bubble';
+    bubble.innerHTML = icons.chat;
+    bubble.onclick = togglePanel;
+
+    // Panel
+    const panel = document.createElement('div');
+    panel.id = 'kv-widget-panel';
+    panel.innerHTML = `
+      <div id="kv-widget-header">
+        <div id="kv-widget-header-icon">${icons.home}</div>
+        <div id="kv-widget-header-text">
+          <h3>${CONFIG.title}</h3>
+          <p>${CONFIG.subtitle}</p>
+        </div>
+        <button id="kv-widget-close">${icons.close}</button>
+      </div>
+      <div id="kv-widget-messages"></div>
+      <div id="kv-widget-input-area">
+        <input type="text" id="kv-widget-input" placeholder="${CONFIG.placeholder}">
+        <button id="kv-widget-send">${icons.send}</button>
+      </div>
+    `;
+
+    container.appendChild(bubble);
+    container.appendChild(panel);
+    document.body.appendChild(container);
+
+    // Event listeners
+    document.getElementById('kv-widget-close').onclick = closePanel;
+    document.getElementById('kv-widget-send').onclick = sendMessage;
+    document.getElementById('kv-widget-input').onkeypress = function(e) {
+      if (e.key === 'Enter') sendMessage();
+    };
+
+    // Dodaj welcome message
+    addMessage(CONFIG.welcomeMessage, 'bot');
+
+    // Auto-open na desktopu
+    if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
+      setTimeout(function() {
+        if (!document.getElementById('kv-widget-panel').classList.contains('kv-open')) {
+          openPanel();
+        }
+      }, CONFIG.autoOpenDelay);
+    }
+  }
+
+  function togglePanel() {
+    const panel = document.getElementById('kv-widget-panel');
+    if (panel.classList.contains('kv-open')) {
+      closePanel();
+    } else {
+      openPanel();
+    }
+  }
+
+  function openPanel() {
+    document.getElementById('kv-widget-panel').classList.add('kv-open');
+    document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
+    document.getElementById('kv-widget-input').focus();
+  }
+
+  function closePanel() {
+    document.getElementById('kv-widget-panel').classList.remove('kv-open');
+  }
+
+  function addMessage(text, sender) {
+    const messages = document.getElementById('kv-widget-messages');
+    const msg = document.createElement('div');
+    msg.className = 'kv-message kv-' + sender;
+    msg.innerHTML = '<div class="kv-message-bubble">' + escapeHtml(text) + '</div>';
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function showTyping() {
+    const messages = document.getElementById('kv-widget-messages');
+    const typing = document.createElement('div');
+    typing.id = 'kv-typing-indicator';
+    typing.className = 'kv-message kv-bot';
+    typing.innerHTML = '<div class="kv-message-bubble kv-typing"><span></span><span></span><span></span></div>';
+    messages.appendChild(typing);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function hideTyping() {
+    const typing = document.getElementById('kv-typing-indicator');
+    if (typing) typing.remove();
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('kv-widget-input');
+    const sendBtn = document.getElementById('kv-widget-send');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    // Dodaj user message
+    addMessage(text, 'user');
+    input.value = '';
+    sendBtn.disabled = true;
+
+    // Pokaži typing indicator
+    showTyping();
+
+    try {
+      const response = await fetch(CONFIG.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          session_id: sessionId
+        })
+      });
+
+      hideTyping();
+
+      if (!response.ok) throw new Error('API error');
+
+      const data = await response.json();
+      const reply = data.reply || data.response || data.message || 'Oprostite, prišlo je do napake.';
+      addMessage(reply, 'bot');
+
+    } catch (err) {
+      hideTyping();
+      addMessage('Oprostite, trenutno ni mogoče vzpostaviti povezave. Poskusite ponovno.', 'bot');
+      console.error('[KV Widget] Error:', err);
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  // Zaženi widget ko je DOM pripravljen
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', createWidget);
+  } else {
+    createWidget();
+  }
+})();
