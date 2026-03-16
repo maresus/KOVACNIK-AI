@@ -496,15 +496,11 @@
     // Če je autoScroll false (pri nalaganju), ne scrollaj
     if (!autoScroll) return;
 
-    // Preveri ali smo blizu dna
-    const isNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
-
-    // Če smo blizu dna, scrollaj na dno
-    // Če ne, pokaži puščico
-    if (isNearBottom) {
-      messages.scrollTop = messages.scrollHeight;
-    } else if (scrollArrow) {
-      scrollArrow.classList.add('kv-visible');
+    // Ko pošlješ novo sporočilo, VEDNO scrollaj na dno da vidiš pogovor
+    messages.scrollTop = messages.scrollHeight;
+    // Skrij puščico ker smo na dnu
+    if (scrollArrow) {
+      scrollArrow.classList.remove('kv-visible');
     }
   }
 
@@ -520,19 +516,16 @@
     const messages = document.getElementById('kv-widget-messages');
     const scrollArrow = document.getElementById('kv-scroll-down');
 
-    // Preveri ali smo blizu dna
-    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 50;
-
     const typing = document.createElement('div');
     typing.id = 'kv-typing-indicator';
     typing.className = 'kv-message kv-bot';
     typing.innerHTML = '<div class="kv-message-bubble kv-typing"><span></span><span></span><span></span></div>';
     messages.appendChild(typing);
 
-    if (wasNearBottom) {
-      messages.scrollTop = messages.scrollHeight;
-    } else if (scrollArrow) {
-      scrollArrow.classList.add('kv-visible');
+    // Vedno scrollaj na dno ko se pokaže typing
+    messages.scrollTop = messages.scrollHeight;
+    if (scrollArrow) {
+      scrollArrow.classList.remove('kv-visible');
     }
   }
 
