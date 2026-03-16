@@ -12,7 +12,8 @@
     welcomeMessage: 'Pozdravljeni! 👋 Sem vaš virtualni pomočnik za Domačijo Kovačnik. Kako vam lahko pomagam z rezervacijo ali informacijami?',
     mobileBreakpoint: 768,
     autoOpenDesktop: true,
-    autoOpenDelay: 2000  // ms
+    autoOpenDelay: 2000,  // ms
+    maxStoredMessages: 50  // Maksimalno število shranjenih sporočil
   };
 
   // CSS stili
@@ -135,6 +136,10 @@
       fill: white;
     }
 
+    #kv-widget-header-text {
+      flex: 1;
+    }
+
     #kv-widget-header-text h3 {
       margin: 0;
       font-size: 16px;
@@ -147,8 +152,7 @@
       opacity: 0.85;
     }
 
-    #kv-widget-close {
-      margin-left: auto;
+    .kv-header-btn {
       background: none;
       border: none;
       color: white;
@@ -158,13 +162,13 @@
       transition: background 0.15s;
     }
 
-    #kv-widget-close:hover {
+    .kv-header-btn:hover {
       background: rgba(255,255,255,0.15);
     }
 
-    #kv-widget-close svg {
-      width: 20px;
-      height: 20px;
+    .kv-header-btn svg {
+      width: 18px;
+      height: 18px;
       fill: white;
     }
 
@@ -291,15 +295,46 @@
     chat: '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7z"/></svg>',
     close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
     send: '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
-    home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>'
+    home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
   };
 
-  // Session ID za pogovor
+  // Session ID in shranjeni pogovori
   let sessionId = localStorage.getItem('kv_widget_session') || generateSessionId();
   localStorage.setItem('kv_widget_session', sessionId);
 
+  // Naloži shranjene pogovore
+  let storedMessages = [];
+  try {
+    const stored = localStorage.getItem('kv_widget_messages');
+    if (stored) {
+      storedMessages = JSON.parse(stored);
+    }
+  } catch (e) {
+    storedMessages = [];
+  }
+
   function generateSessionId() {
     return 'widget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  function saveMessages() {
+    // Ohrani samo zadnjih N sporočil
+    const toSave = storedMessages.slice(-CONFIG.maxStoredMessages);
+    localStorage.setItem('kv_widget_messages', JSON.stringify(toSave));
+  }
+
+  function clearConversation() {
+    storedMessages = [];
+    localStorage.removeItem('kv_widget_messages');
+    // Nov session ID za nov pogovor
+    sessionId = generateSessionId();
+    localStorage.setItem('kv_widget_session', sessionId);
+    // Počisti UI
+    const messages = document.getElementById('kv-widget-messages');
+    messages.innerHTML = '';
+    // Dodaj welcome message
+    addMessage(CONFIG.welcomeMessage, 'bot', false);
   }
 
   // Ustvari widget HTML
@@ -329,7 +364,8 @@
           <h3>${CONFIG.title}</h3>
           <p>${CONFIG.subtitle}</p>
         </div>
-        <button id="kv-widget-close">${icons.close}</button>
+        <button class="kv-header-btn" id="kv-widget-refresh" title="Nov pogovor">${icons.refresh}</button>
+        <button class="kv-header-btn" id="kv-widget-close" title="Zapri">${icons.close}</button>
       </div>
       <div id="kv-widget-messages"></div>
       <div id="kv-widget-input-area">
@@ -344,21 +380,29 @@
 
     // Event listeners
     document.getElementById('kv-widget-close').onclick = closePanel;
+    document.getElementById('kv-widget-refresh').onclick = clearConversation;
     document.getElementById('kv-widget-send').onclick = sendMessage;
     document.getElementById('kv-widget-input').onkeypress = function(e) {
       if (e.key === 'Enter') sendMessage();
     };
 
-    // Dodaj welcome message
-    addMessage(CONFIG.welcomeMessage, 'bot');
+    // Naloži shranjene pogovore ali welcome message
+    if (storedMessages.length > 0) {
+      storedMessages.forEach(function(msg) {
+        addMessageToUI(msg.text, msg.sender);
+      });
+    } else {
+      addMessage(CONFIG.welcomeMessage, 'bot', false);
+    }
 
-    // Auto-open na desktopu
-    if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
+    // Auto-open na desktopu (samo če ni bil že odprt prej)
+    const wasOpen = localStorage.getItem('kv_widget_open') === 'true';
+    if (wasOpen || (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint && storedMessages.length === 0)) {
       setTimeout(function() {
         if (!document.getElementById('kv-widget-panel').classList.contains('kv-open')) {
           openPanel();
         }
-      }, CONFIG.autoOpenDelay);
+      }, wasOpen ? 100 : CONFIG.autoOpenDelay);
     }
   }
 
@@ -375,19 +419,32 @@
     document.getElementById('kv-widget-panel').classList.add('kv-open');
     document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
     document.getElementById('kv-widget-input').focus();
+    localStorage.setItem('kv_widget_open', 'true');
+    // Scroll na dno
+    const messages = document.getElementById('kv-widget-messages');
+    messages.scrollTop = messages.scrollHeight;
   }
 
   function closePanel() {
     document.getElementById('kv-widget-panel').classList.remove('kv-open');
+    localStorage.setItem('kv_widget_open', 'false');
   }
 
-  function addMessage(text, sender) {
+  function addMessageToUI(text, sender) {
     const messages = document.getElementById('kv-widget-messages');
     const msg = document.createElement('div');
     msg.className = 'kv-message kv-' + sender;
     msg.innerHTML = '<div class="kv-message-bubble">' + escapeHtml(text) + '</div>';
     messages.appendChild(msg);
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMessage(text, sender, save = true) {
+    addMessageToUI(text, sender);
+    if (save) {
+      storedMessages.push({ text: text, sender: sender, time: Date.now() });
+      saveMessages();
+    }
   }
 
   function showTyping() {
