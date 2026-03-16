@@ -446,14 +446,13 @@
       addMessage(CONFIG.welcomeMessage, 'bot', false);
     }
 
-    // Auto-open na desktopu (samo če ni bil že odprt prej)
-    const wasOpen = localStorage.getItem('kv_widget_open') === 'true';
-    if (wasOpen || (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint && storedMessages.length === 0)) {
+    // Auto-open na desktopu - vedno odpri na desktopu
+    if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
       setTimeout(function() {
         if (!document.getElementById('kv-widget-panel').classList.contains('kv-open')) {
           openPanel();
         }
-      }, wasOpen ? 100 : CONFIG.autoOpenDelay);
+      }, CONFIG.autoOpenDelay);
     }
   }
 
