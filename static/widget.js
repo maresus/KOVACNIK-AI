@@ -437,13 +437,13 @@
       }
     };
 
-    // Naloži shranjene pogovore ali welcome message
+    // Naloži shranjene pogovore ali welcome message (brez auto-scroll)
     if (storedMessages.length > 0) {
       storedMessages.forEach(function(msg) {
-        addMessageToUI(msg.text, msg.sender);
+        addMessageToUI(msg.text, msg.sender, false);  // false = ne scrollaj
       });
     } else {
-      addMessage(CONFIG.welcomeMessage, 'bot', false);
+      addMessageToUI(CONFIG.welcomeMessage, 'bot', false);  // false = ne scrollaj
     }
 
     // Auto-open na desktopu - vedno odpri na desktopu
@@ -470,9 +470,13 @@
     document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
     document.getElementById('kv-widget-input').focus();
     localStorage.setItem('kv_widget_open', 'true');
-    // Scroll na dno
+    // NE scrollaj na dno - ostani na vrhu
+    // Če je več vsebine, pokaži puščico
     const messages = document.getElementById('kv-widget-messages');
-    messages.scrollTop = messages.scrollHeight;
+    const scrollArrow = document.getElementById('kv-scroll-down');
+    if (messages.scrollHeight > messages.clientHeight) {
+      scrollArrow.classList.add('kv-visible');
+    }
   }
 
   function closePanel() {
@@ -480,21 +484,24 @@
     localStorage.setItem('kv_widget_open', 'false');
   }
 
-  function addMessageToUI(text, sender) {
+  function addMessageToUI(text, sender, autoScroll = true) {
     const messages = document.getElementById('kv-widget-messages');
     const scrollArrow = document.getElementById('kv-scroll-down');
-
-    // Preveri ali smo blizu dna PRED dodajanjem
-    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 50;
 
     const msg = document.createElement('div');
     msg.className = 'kv-message kv-' + sender;
     msg.innerHTML = '<div class="kv-message-bubble">' + escapeHtml(text) + '</div>';
     messages.appendChild(msg);
 
-    // Če smo bili blizu dna, scrollaj na dno
+    // Če je autoScroll false (pri nalaganju), ne scrollaj
+    if (!autoScroll) return;
+
+    // Preveri ali smo blizu dna
+    const isNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
+
+    // Če smo blizu dna, scrollaj na dno
     // Če ne, pokaži puščico
-    if (wasNearBottom) {
+    if (isNearBottom) {
       messages.scrollTop = messages.scrollHeight;
     } else if (scrollArrow) {
       scrollArrow.classList.add('kv-visible');
