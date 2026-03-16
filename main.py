@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "2026"))
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import Settings
 from app.rag.chroma_service import get_chroma_health
@@ -27,6 +28,15 @@ from app.services.scheduler_service import start_scheduler
 settings = Settings()
 app = FastAPI(title=settings.project_name)
 BASE_DIR = Path(__file__).resolve().parent
+
+# CORS - dovoli dostop z vseh domen (za widget embed)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Dovoli vse domene
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static files (za widget.js, css, slike...)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
