@@ -102,11 +102,30 @@
         border-radius: 0;
       }
 
+      /* Skrij bubble ko je panel odprt na mobilnem */
+      #kv-widget-panel.kv-open ~ #kv-widget-bubble,
+      #kv-widget-container:has(#kv-widget-panel.kv-open) #kv-widget-bubble {
+        display: none !important;
+      }
+
       #kv-widget-bubble {
         bottom: 16px;
         right: 16px;
         width: 56px;
         height: 56px;
+      }
+
+      /* Safe area za iPhone notch */
+      #kv-widget-header {
+        padding-top: max(16px, env(safe-area-inset-top));
+      }
+
+      #kv-widget-input-area {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+      }
+
+      #kv-widget-input {
+        font-size: 16px; /* Prepreči zoom na iOS */
       }
     }
 
@@ -468,6 +487,10 @@
   function openPanel() {
     document.getElementById('kv-widget-panel').classList.add('kv-open');
     document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
+    // Skrij bubble na mobilnem ko je panel odprt
+    if (window.innerWidth <= CONFIG.mobileBreakpoint) {
+      document.getElementById('kv-widget-bubble').style.display = 'none';
+    }
     document.getElementById('kv-widget-input').focus();
     localStorage.setItem('kv_widget_open', 'true');
     // NE scrollaj na dno - ostani na vrhu
@@ -481,6 +504,8 @@
 
   function closePanel() {
     document.getElementById('kv-widget-panel').classList.remove('kv-open');
+    // Pokaži bubble spet
+    document.getElementById('kv-widget-bubble').style.display = 'flex';
     localStorage.setItem('kv_widget_open', 'false');
   }
 
