@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpoznajAI – Admin</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --surface: #13263a;
+      --surface2: #1a3348;
+      --accent: #c6f135;
+      --accent-dim: rgba(198,241,53,0.12);
+      --text: #e8f4f8;
+      --muted: #7a9ab0;
+      --border: #1e3a52;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo { font-size: 1.25rem; font-weight: 700; }
+    .logo span { color: var(--accent); }
+    .badge {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(198,241,53,0.3);
+    }
+
+    .page { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .stat .label { color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 4px 0 2px; }
+    .stat .hint { color: var(--muted); font-size: 0.82rem; }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+      height: calc(100vh - 220px);
+      min-height: 400px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-body { overflow-y: auto; flex: 1; }
+
+    /* Session list */
+    .session-item {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .session-item:hover { background: var(--surface2); }
+    .session-item.active { background: var(--accent-dim); border-left: 3px solid var(--accent); }
+    .session-id { font-size: 0.82rem; color: var(--accent); font-weight: 600; font-family: monospace; }
+    .session-meta { font-size: 0.78rem; color: var(--muted); margin-top: 3px; }
+    .session-count {
+      display: inline-block;
+      background: var(--surface2);
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      float: right;
+    }
+
+    /* Messages */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+    .empty-icon { font-size: 2.5rem; opacity: 0.4; }
+
+    .messages-list { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .msg { display: flex; flex-direction: column; max-width: 80%; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .msg.user .msg-bubble {
+      background: var(--accent);
+      color: #0d1b2a;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.assistant .msg-bubble {
+      background: var(--surface2);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+    .msg-ts { font-size: 0.72rem; color: var(--muted); margin-top: 3px; padding: 0 4px; }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 700px) {
+      .layout { grid-template-columns: 1fr; height: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Spoznaj<span>AI</span></div>
+  <div class="badge">Admin</div>
+</header>
+
+<div class="page">
+  <div class="stats" id="stats">
+    <div class="stat"><div class="label">Vsi pogovori</div><div class="value" id="s-total">—</div><div class="hint">od začetka</div></div>
+    <div class="stat"><div class="label">Danes</div><div class="value" id="s-today">—</div><div class="hint">novih pogovorov</div></div>
+    <div class="stat"><div class="label">Sporočila</div><div class="value" id="s-msgs">—</div><div class="hint">skupaj od strank</div></div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="panel-header">
+        Pogovori
+        <button class="refresh-btn" onclick="loadSessions()">Osveži</button>
+      </div>
+      <div class="panel-body" id="sessions-list">
+        <div class="empty-state"><div class="empty-icon">💬</div><span>Nalagam...</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" id="chat-header">Izberite pogovor</div>
+      <div class="panel-body" id="chat-body">
+        <div class="empty-state">
+          <div class="empty-icon">←</div>
+          <span>Kliknite na pogovor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let activeSession = null;
+
+  async function loadStats() {
+    const r = await fetch('/admin/stats');
+    const d = await r.json();
+    document.getElementById('s-total').textContent = d.total_sessions;
+    document.getElementById('s-today').textContent = d.today_sessions;
+    document.getElementById('s-msgs').textContent = d.total_messages;
+  }
+
+  async function loadSessions() {
+    const r = await fetch('/admin/sessions');
+    const sessions = await r.json();
+    const el = document.getElementById('sessions-list');
+
+    if (!sessions.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><span>Ni pogovorov</span></div>';
+      return;
+    }
+
+    el.innerHTML = sessions.map(s => `
+      <div class="session-item ${s.session_id === activeSession ? 'active' : ''}"
+           onclick="loadChat('${s.session_id}')">
+        <span class="session-count">${s.msg_count} msg</span>
+        <div class="session-id">${s.session_id.substring(0, 16)}...</div>
+        <div class="session-meta">${formatTs(s.started)} · zadnje: ${formatTs(s.last_msg)}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadChat(sessionId) {
+    activeSession = sessionId;
+    loadSessions();
+
+    document.getElementById('chat-header').textContent = sessionId;
+
+    const r = await fetch(`/admin/sessions/${sessionId}`);
+    const msgs = await r.json();
+    const el = document.getElementById('chat-body');
+
+    if (!msgs.length) {
+      el.innerHTML = '<div class="empty-state"><span>Prazno</span></div>';
+      return;
+    }
+
+    el.innerHTML = '<div class="messages-list">' + msgs.map(m => `
+      <div class="msg ${m.role}">
+        <div class="msg-bubble">${escHtml(m.content)}</div>
+        <div class="msg-ts">${m.ts}</div>
+      </div>
+    `).join('') + '</div>';
+
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function formatTs(ts) {
+    if (!ts) return '—';
+    return ts.replace('T', ' ').substring(0, 16);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadStats();
+  loadSessions();
+  setInterval(() => { loadStats(); loadSessions(); }, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #00334a;
+      --primary-dark: #001f2d;
+      --primary-light: #004d6e;
+      --accent: #afd037;
+      --accent-glow: rgba(175,208,55,0.3);
+      --border: rgba(255,255,255,0.1);
+      --bot-msg: rgba(255,255,255,0.05);
+      --radius: 12px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: var(--primary-dark);
+      color: white;
+    }
+
+    .chat-header {
+      background: var(--primary);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-icon {
+      font-size: 11px; font-weight: 800;
+      width: 34px; height: 34px;
+      background: var(--accent);
+      color: var(--primary-dark);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      letter-spacing: 0.3px;
+    }
+
+    .header-info h2 { font-size: 0.95rem; font-weight: 700; }
+    .header-info p { font-size: 0.75rem; opacity: 0.7; }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+      margin-left: auto;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--primary-dark);
+    }
+
+    .messages-container::-webkit-scrollbar { width: 4px; }
+    .messages-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+    .message { display: flex; align-items: flex-end; gap: 8px; animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .message.user { flex-direction: row-reverse; }
+
+    .message-avatar {
+      width: 26px; height: 26px;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0;
+    }
+    .message.bot .message-avatar { background: var(--accent); color: var(--primary-dark); }
+    .message.user .message-avatar { background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.2); }
+
+    .message-bubble {
+      max-width: 78%;
+      padding: 9px 12px;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      line-height: 1.55;
+      word-wrap: break-word;
+    }
+    .message.bot .message-bubble { background: var(--bot-msg); border: 1px solid var(--border); border-bottom-left-radius: 3px; color: rgba(255,255,255,0.88); }
+    .message.user .message-bubble { background: var(--accent); color: var(--primary-dark); font-weight: 500; border-bottom-right-radius: 3px; }
+
+    .typing-indicator {
+      padding: 9px 12px;
+      background: var(--bot-msg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 3px;
+      display: flex; align-items: center; gap: 3px;
+      max-width: fit-content;
+    }
+    .typing-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: typing 1.4s infinite; }
+    .typing-dot:nth-child(2){animation-delay:0.2s}
+    .typing-dot:nth-child(3){animation-delay:0.4s}
+    @keyframes typing { 0%,60%,100%{transform:translateY(0);opacity:0.4} 30%{transform:translateY(-6px);opacity:1} }
+
+    .input-area {
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .quick-actions { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .quick-chip {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: rgba(255,255,255,0.75);
+      font-family: inherit;
+    }
+    .quick-chip:hover { background: var(--accent); color: var(--primary-dark); border-color: var(--accent); font-weight: 600; }
+
+    .input-wrapper { display: flex; gap: 8px; align-items: center; }
+
+    .input-field {
+      flex: 1;
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      resize: none;
+      min-height: 38px;
+      max-height: 100px;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.4;
+      color: white;
+    }
+    .input-field::placeholder { color: rgba(255,255,255,0.3); }
+    .input-field:focus { border-color: var(--accent); }
+
+    .send-btn {
+      background: var(--accent);
+      color: var(--primary-dark);
+      border: none;
+      border-radius: 10px;
+      width: 38px; height: 38px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px var(--accent-glow);
+    }
+    .send-btn:hover:not(:disabled) { transform: scale(1.06); box-shadow: 0 4px 16px var(--accent-glow); }
+    .send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .welcome-box {
+      background: rgba(175,208,55,0.07);
+      border: 1px solid rgba(175,208,55,0.22);
+      border-radius: var(--radius);
+      padding: 14px;
+      font-size: 0.85rem;
+    }
+    .welcome-box h3 { color: var(--accent); margin-bottom: 8px; font-size: 0.9rem; }
+    .welcome-box ul { list-style: none; }
+    .welcome-box li { padding: 4px 0; color: rgba(255,255,255,0.75); }
+    .welcome-box li:before { content: "— "; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="chat-header">
+    <div class="header-icon">AI</div>
+    <div class="header-info">
+      <h2>SpoznajAI</h2>
+      <p>Asistent za storitve</p>
+    </div>
+    <div class="status-dot"></div>
+  </div>
+
+  <div class="messages-container" id="msgs"></div>
+
+  <div class="input-area">
+    <div class="quick-actions" id="quickActions">
+      <button class="quick-chip" data-p="Koliko stane chatbot?">Cene</button>
+      <button class="quick-chip" data-p="Kaj je vključeno v pakete?">Paketi</button>
+      <button class="quick-chip" data-p="Kako poteka postopek postavitve?">Postopek</button>
+      <button class="quick-chip" data-p="Katera so pogosta vprašanja?">FAQ</button>
+      <button class="quick-chip" data-p="Kako vas kontaktiram?">Kontakt</button>
+    </div>
+    <div class="input-wrapper">
+      <textarea class="input-field" id="inp" rows="1" placeholder="Vprašajte nas..."></textarea>
+      <button class="send-btn" id="sendBtn">→</button>
+    </div>
+  </div>
+
+  <script>
+    const API = (window.CHATBOT_API_URL || '') + '/chat/';
+    const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    const msgs = document.getElementById('msgs');
+    const inp = document.getElementById('inp');
+    const sendBtn = document.getElementById('sendBtn');
+
+    function fmt(t) {
+      return t.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    }
+
+    function addMsg(text, type) {
+      const wrap = document.createElement('div');
+      wrap.className = `message ${type}`;
+      const av = document.createElement('div');
+      av.className = 'message-avatar';
+      av.textContent = type === 'bot' ? 'AI' : 'Vi';
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+      bubble.innerHTML = fmt(text);
+      wrap.appendChild(av);
+      wrap.appendChild(bubble);
+      msgs.appendChild(wrap);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function showTyping() {
+      const wrap = document.createElement('div');
+      wrap.className = 'message bot'; wrap.id = 'typing';
+      const av = document.createElement('div');
+      av.className = 'message-avatar'; av.textContent = 'AI';
+      const ind = document.createElement('div');
+      ind.className = 'typing-indicator';
+      ind.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+      wrap.appendChild(av); wrap.appendChild(ind);
+      msgs.appendChild(wrap);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function hideTyping() { document.getElementById('typing')?.remove(); }
+
+    async function send(text) {
+      const t = text.trim();
+      if (!t) return;
+      document.getElementById('quickActions').style.display = 'none';
+      addMsg(t, 'user');
+      inp.value = '';
+      sendBtn.disabled = true;
+      showTyping();
+      try {
+        const r = await fetch(API, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({message: t, session_id: sessionId})
+        });
+        hideTyping();
+        const d = await r.json();
+        addMsg(d.reply || 'Ni odgovora.', 'bot');
+      } catch {
+        hideTyping();
+        addMsg('Napaka pri povezavi. Kontaktirajte nas: info@spoznaj-ai.si', 'bot');
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', () => send(inp.value));
+    inp.addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(inp.value);} });
+    document.querySelectorAll('.quick-chip').forEach(c => c.addEventListener('click', () => send(c.dataset.p)));
+
+    // Welcome
+    msgs.innerHTML = `<div class="welcome-box">
+      <h3>Pozdravljeni pri SpoznajAI</h3>
+      <ul>
+        <li>Cene in paketi storitev</li>
+        <li>Kako deluje AI chatbot</li>
+        <li>Brezplačna konzultacija</li>
+      </ul>
+    </div>`;
+  </script>
+</body>
+</html>
