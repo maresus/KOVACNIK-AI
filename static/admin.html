@@ -512,6 +512,7 @@
     <div class="filters">
       <div class="filter-row">
         <select id="filter-status">
+          <option value="active" selected>Aktivni (brez zavrnjenih)</option>
           <option value="">Vsi statusi</option>
           <option value="pending">Čaka</option>
           <option value="processing">V obdelavi</option>
@@ -1088,7 +1089,7 @@
     }
 
     function resetFilters() {
-      qs('filter-status').value = '';
+      qs('filter-status').value = 'active';
       qs('filter-type').value = currentTab;
       qs('filter-source').value = '';
       qs('filter-date-from').value = '';
@@ -1114,7 +1115,8 @@
       const date_to = qs('filter-date-to').value.replace(/\s+/g, '');
       const params = new URLSearchParams();
       params.set('limit', '200');
-      if (status) params.set('status', status);
+      // "active" = brez zavrnjenih, filtriramo na client strani
+      if (status && status !== 'active') params.set('status', status);
       if (type) params.set('type', type);
       if (source) params.set('source', source);
       if (date_from) params.set('date_from', date_from);
@@ -1423,9 +1425,12 @@
       const dateFrom = dfVal ? new Date(dfVal) : null;
       const dateTo = dtVal ? new Date(dtVal) : null;
 
+      const statusFilter = qs('filter-status').value;
       const filtered = expanded.filter(r => {
         const d = parseDDMMYYYY(r.date);
         if (!d) return false;
+        // "active" = skrij zavrnjene rezervacije
+        if (statusFilter === 'active' && r.status === 'rejected') return false;
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo) return false;
         // če ni range filtrov, filtriramo na trenutno izbran mesec/let

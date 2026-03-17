@@ -38,6 +38,21 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "Za aktivnosti z otroki priporočamo jahanje na ponijih Malajka in Marsi (5 € na krog)."
             )
         }
+    # Vremenska napoved — chatbot NIMA dostopa do vremenskih podatkov
+    # Mora ujeti: "kako bo vreme", "kakšno bo vreme", "vreme jutri", "vreme naslednji teden"
+    if any(kw in msg_l for kw in (
+        "kako bo vreme", "kakšno bo vreme", "kaksno bo vreme", "kakšno vreme", "kaksno vreme",
+        "bo vreme", "napoved vreme", "vremenska napoved", "vreme naslednji", "vreme ta vikend",
+        "vreme jutri", "vreme danes", "ali bo lep", "ali bo deževal", "ali bo dezeval",
+        "bo deževalo", "bo dezevalo", "vreme v ", "vreme za "
+    )) or (re.search(r"\bvreme\b", msg_l) and any(kw in msg_l for kw in ("kdaj", "naslednji", "vikend", "jutri", "danes", "teden"))):
+        return {
+            "reply": (
+                "Žal vremenskih napovedi nimam — nisem povezan z vremenskimi servisi.\n"
+                "Za napoved priporočam yr.no ali ARSO.\n\n"
+                "Lahko pa pomagam z rezervacijo ali informacijami o kmetiji!"
+            )
+        }
     if any(kw in msg_l for kw in ("dežj", "deže", "deževn", "slabo vreme", "dežuje", "dez ", "dezuje", "dežuje")):
         return {
             "reply": (
