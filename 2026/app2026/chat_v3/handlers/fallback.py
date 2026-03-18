@@ -193,8 +193,13 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "ali pišite: info@kovacnik.com"
             )
         }
-    # Catch-all: rezervacija, ki NI soba ali miza → usmeri na kontakt
-    if any(kw in msg_l for kw in ("rezerv", "naroč")) and not any(kw in msg_l for kw in ("soba", "sobo", "sobi", "miza", "mizo", "mizi")):
+    # Catch-all: rezervacija nečesa, kar JASNO ni soba/miza → usmeri na kontakt
+    # Če je samo "rezerv" brez konteksta, pusti LLM da vpraša "sobo ali mizo?"
+    non_room_table_items = (
+        "narezk", "narezek", "pijač", "tort", "peciv", "sladico", "sladice",
+        "hran", "jedilnik", "menu", "piknik", "zajtrk", "večerj", "malico"
+    )
+    if any(kw in msg_l for kw in ("rezerv", "naroč")) and any(item in msg_l for item in non_room_table_items):
         return {
             "reply": (
                 "Za ta tip rezervacije nas kontaktirajte direktno:\n"
