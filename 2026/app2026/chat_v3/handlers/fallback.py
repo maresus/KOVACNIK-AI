@@ -174,7 +174,23 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
             "reply": (
                 "Za posebne prehranske zahteve (alergije, vegetarijansko, brezglutensko) "
                 "nas pokličite vnaprej — Barbara bo poskrbela za vaše potrebe.\n"
-                "Pokličite: 031 330 113 ali pišite: info@kovacnik.si"
+                "Pokličite: 031 330 113 ali pišite: info@kovacnik.com"
+            )
+        }
+    # Posebne rezervacije — degustacije, dogodki, team building, praznovanja
+    # Te zahtevajo osebni pogovor, chatbot jih ne more obdelati
+    if any(kw in msg_l for kw in (
+        "degustacij", "team building", "teambuilding", "tim bilding", "dogodek", "dogodk",
+        "zabav", "praznovan", "rojstni dan", "rojstnidan", "obletnic", "poroka", "porok",
+        "predstavitev", "seminar", "delavnic", "workshop", "zasebna", "zasebno",
+        "firma", "podjetj", "korporativ", "poslovna", "poslovn"
+    )) and any(kw in msg_l for kw in ("rezerv", "naroč", "organizir", "priredit", "bi rad", "bi radi", "želim", "zelim", "hočem", "hocem")):
+        return {
+            "reply": (
+                "Za degustacije, dogodke in posebna praznovanja se obrnite direktno na Barbaro, "
+                "da skupaj oblikujeta popolno izkušnjo.\n\n"
+                "Pokličite: 031 330 113\n"
+                "ali pišite: info@kovacnik.com"
             )
         }
     # Clarification from LLM — only after all deterministic traps have been checked
