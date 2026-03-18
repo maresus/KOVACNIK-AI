@@ -243,6 +243,17 @@ def _pre_dispatch_trap(message: str) -> str | None:
     if any(kw in msg_l for kw in ("klim", "hlajenje", "vroč", "mraz soba")):
         return "Vse sobe so klimatizirane — za prijetno temperaturo je poskrbljeno."
 
+    # Rezervacija nečesa, kar NI soba/miza → usmeri na kontakt
+    non_room_table_items = (
+        "narezk", "narezek", "pijač", "tort", "peciv", "sladico", "sladice",
+        "hran", "jedilnik", "menu", "piknik", "zajtrk", "večerj", "malico"
+    )
+    if any(kw in msg_l for kw in ("rezerv", "rezerb", "rezerw", "naroč")) and any(item in msg_l for item in non_room_table_items):
+        return (
+            "Za ta tip rezervacije nas kontaktirajte direktno:\n"
+            "031 330 113 ali info@kovacnik.com"
+        )
+
     # Min nočitve
     if any(kw in msg_l for kw in ("minim", "najmanj", "najkraj", "ena noč", "eno noc", "1 noč", "1 noc")):
         return (
