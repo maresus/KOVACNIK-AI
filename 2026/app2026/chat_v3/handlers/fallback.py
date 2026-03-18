@@ -199,7 +199,7 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
         "narezk", "narezek", "pijač", "tort", "peciv", "sladico", "sladice",
         "hran", "jedilnik", "menu", "piknik", "zajtrk", "večerj", "malico"
     )
-    if any(kw in msg_l for kw in ("rezerv", "naroč")) and any(item in msg_l for item in non_room_table_items):
+    if any(kw in msg_l for kw in ("rezerv", "rezerb", "rezerw", "naroč")) and any(item in msg_l for item in non_room_table_items):
         return {
             "reply": (
                 "Za ta tip rezervacije nas kontaktirajte direktno:\n"
