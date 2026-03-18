@@ -193,6 +193,14 @@ async def execute(result: InterpretResult, message: str, session, brand) -> dict
                 "ali pišite: info@kovacnik.com"
             )
         }
+    # Catch-all: rezervacija, ki NI soba ali miza → usmeri na kontakt
+    if any(kw in msg_l for kw in ("rezerv", "naroč")) and not any(kw in msg_l for kw in ("soba", "sobo", "sobi", "miza", "mizo", "mizi")):
+        return {
+            "reply": (
+                "Za ta tip rezervacije nas kontaktirajte direktno:\n"
+                "031 330 113 ali info@kovacnik.com"
+            )
+        }
     # Clarification from LLM — only after all deterministic traps have been checked
     if result.needs_clarification and result.clarification_question:
         return {"reply": result.clarification_question}
