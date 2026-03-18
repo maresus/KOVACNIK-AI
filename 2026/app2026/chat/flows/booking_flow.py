@@ -38,7 +38,28 @@ def _blank_reservation_state_fallback() -> dict[str, Optional[str | int]]:
         "dinner_people": None,
         "note": None,
         "availability": None,
+        "preferred_room": None,  # User's explicitly requested room
     }
+
+
+def _extract_room_name(message: str) -> Optional[str]:
+    """Extract room name from message if user explicitly mentions it."""
+    msg_lower = message.lower()
+    # Normalize for diacritics
+    msg_norm = (
+        msg_lower.replace("š", "s").replace("ž", "z").replace("č", "c")
+    )
+    # Room names: ALJAŽ, JULIJA, ANA
+    # Match patterns like "soba Ana", "sobo Aljaž", "v sobi Julija"
+    room_patterns = [
+        (r"\baljaz\b", "ALJAŽ"),
+        (r"\bjulij[ao]?\b", "JULIJA"),  # julija, julijo, julij
+        (r"\bana\b", "ANA"),
+    ]
+    for pattern, room_name in room_patterns:
+        if re.search(pattern, msg_norm):
+            return room_name
+    return None
 
 
 def reset_reservation_state(state: dict[str, Optional[str | int]]) -> None:
@@ -168,6 +189,20 @@ def advance_after_room_people(reservation_state: dict[str, Optional[str | int]],
         reservation_state["nights"] or 0,
     )
     needed = reservation_state["rooms"] or 1
+
+    # Check if user has preferred room and it's available
+    preferred = reservation_state.get("preferred_room")
+    if preferred and needed == 1 and free_rooms:
+        # Normalize for comparison
+        preferred_upper = str(preferred).upper()
+        free_upper = [r.upper() for r in free_rooms]
+        if preferred_upper in free_upper:
+            # User's preferred room is available - use it!
+            idx = free_upper.index(preferred_upper)
+            reservation_state["location"] = free_rooms[idx]
+            reservation_state["step"] = "awaiting_name"
+            return f"Odlično, soba {free_rooms[idx]} je prosta! Kako se glasi ime in priimek nosilca rezervacije?"
+
     if free_rooms and len(free_rooms) > needed and needed > 1:
         reservation_state["available_locations"] = free_rooms
         reservation_state["step"] = "awaiting_room_location"
@@ -418,10 +453,24 @@ def _handle_room_reservation_impl(
 
     if step == "awaiting_name":
         full_name = message.strip()
+        full_name_lower = full_name.lower()
         _looks_like_people = bool(re.search(r"\d", full_name)) or any(
-            kw in full_name.lower() for kw in ("odrasl", "otrok", "skupaj", "oseb")
+            kw in full_name_lower for kw in ("odrasl", "otrok", "skupaj", "oseb")
         )
-        if _looks_like_people or len(full_name.split()) < 2:
+        # Detect questions and non-name inputs
+        _looks_like_question = any(
+            kw in full_name_lower for kw in (
+                "koliko", "cena", "stane", "pride", "ali ", "kaj ", "kdaj", "kje", "kako",
+                "prosto", "prostor", "soba", "miza", "rezerv", "nočit", "nocit", "?",
+                "hvala", "prosim", "pomoč", "pomoc", "telefon", "email", "kontakt",
+            )
+        )
+        if _looks_like_people or _looks_like_question or len(full_name.split()) < 2:
+            if _looks_like_question:
+                return (
+                    "Najprej potrebujem vaše podatke za rezervacijo.\n"
+                    "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
+                )
             return "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
         reservation_state["name"] = full_name
         reservation_state["step"] = "awaiting_phone"
@@ -432,7 +481,25 @@ def _handle_room_reservation_impl(
 
     if step == "awaiting_phone":
         phone = message.strip()
+        phone_lower = phone.lower()
         digits = re.sub(r"\D+", "", phone)
+        # Detect questions/phrases that are clearly not phone numbers
+        _question_keywords = (
+            "prosto", "prostor", "ali", "kaj", "kdaj", "kje", "kako", "koliko",
+            "cena", "stane", "?", "hvala", "prosim", "pomoč", "pomoc",
+            "soba", "miza", "rezerv", "nocit", "nočit", "vikend",
+        )
+        if any(kw in phone_lower for kw in _question_keywords) or len(digits) == 0:
+            # User asked a question instead of providing phone
+            if "prosto" in phone_lower:
+                return (
+                    "Razpoložljivost je treba preveriti po oddani rezervaciji.\n"
+                    "Prosim vpišite telefonsko številko, da lahko nadaljujemo."
+                )
+            return (
+                "Najprej potrebujem vaše kontaktne podatke.\n"
+                "Prosim vpišite veljavno telefonsko številko."
+            )
         if len(digits) < 7:
             return "Zaznal sem premalo številk. Prosimo vpišite veljavno telefonsko številko."
         reservation_state["phone"] = phone
@@ -924,10 +991,24 @@ def _handle_table_reservation_impl(
 
     if step == "awaiting_name":
         full_name = message.strip()
+        full_name_lower = full_name.lower()
         _looks_like_people = bool(re.search(r"\d", full_name)) or any(
-            kw in full_name.lower() for kw in ("odrasl", "otrok", "skupaj", "oseb")
+            kw in full_name_lower for kw in ("odrasl", "otrok", "skupaj", "oseb")
         )
-        if _looks_like_people or len(full_name.split()) < 2:
+        # Detect questions and non-name inputs
+        _looks_like_question = any(
+            kw in full_name_lower for kw in (
+                "koliko", "cena", "stane", "pride", "ali ", "kaj ", "kdaj", "kje", "kako",
+                "prosto", "prostor", "soba", "miza", "rezerv", "nočit", "nocit", "?",
+                "hvala", "prosim", "pomoč", "pomoc", "telefon", "email", "kontakt",
+            )
+        )
+        if _looks_like_people or _looks_like_question or len(full_name.split()) < 2:
+            if _looks_like_question:
+                return (
+                    "Najprej potrebujem vaše podatke za rezervacijo.\n"
+                    "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
+                )
             return "Prosim napišite vaše ime in priimek (npr. 'Ana Kovačnik')."
         reservation_state["name"] = full_name
         reservation_state["step"] = "awaiting_phone"
@@ -938,7 +1019,25 @@ def _handle_table_reservation_impl(
 
     if step == "awaiting_phone":
         phone = message.strip()
+        phone_lower = phone.lower()
         digits = re.sub(r"\D+", "", phone)
+        # Detect questions/phrases that are clearly not phone numbers
+        _question_keywords = (
+            "prosto", "prostor", "ali", "kaj", "kdaj", "kje", "kako", "koliko",
+            "cena", "stane", "?", "hvala", "prosim", "pomoč", "pomoc",
+            "soba", "miza", "rezerv", "nocit", "nočit", "vikend",
+        )
+        if any(kw in phone_lower for kw in _question_keywords) or len(digits) == 0:
+            # User asked a question instead of providing phone
+            if "prosto" in phone_lower:
+                return (
+                    "Razpoložljivost je treba preveriti po oddani rezervaciji.\n"
+                    "Prosim vpišite telefonsko številko, da lahko nadaljujemo."
+                )
+            return (
+                "Najprej potrebujem vaše kontaktne podatke.\n"
+                "Prosim vpišite veljavno telefonsko številko."
+            )
         if len(digits) < 7:
             return "Zaznal sem premalo številk. Prosimo vpišite veljavno telefonsko številko."
         reservation_state["phone"] = phone
@@ -1090,6 +1189,10 @@ def handle_reservation_flow(
                 reservation_state["adults"] = prefilled_people["adults"]
                 reservation_state["kids"] = prefilled_people["kids"]
                 reservation_state["kids_ages"] = prefilled_people["ages"]
+            # Extract preferred room if user explicitly mentioned one
+            prefilled_room = _extract_room_name(message)
+            if prefilled_room:
+                reservation_state["preferred_room"] = prefilled_room
             if prefilled_date:
                 reservation_state["date"] = prefilled_date
             reply_prefix = "Super, z veseljem uredim rezervacijo sobe. 😊"

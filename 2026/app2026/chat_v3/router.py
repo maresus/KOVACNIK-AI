@@ -32,9 +32,11 @@ _DISAMBIG_LOG_PATH = Path("data/shadow_disambiguation.jsonl")
 
 # Keyword sets for resolving pending disambiguation on the follow-up turn.
 _PERSON_HINTS = frozenset({
-    "druzin", "familij", "oseba", "sin", "hci", "hči", "gospod", "babi",
-    "angelc", "danilo", "barbara", "kmetiji", "kmetija",
-    "partner", "partnerica", "moz", "zena", "dekle", "fant",
+    "druzin", "familij", "oseba", "oseb", "osebe", "sin", "hci", "hči", "gospod", "babi",
+    "angelc", "danilo", "barbara", "kmetiji", "kmetija", "clan", "člana", "clani",
+    "partner", "partnerica", "moz", "moza", "zena", "zeno", "dekle", "fant",
+    "o njej", "o njem", "kdo je", "kdo so", "osebo", "clanu", "članu",
+    "človek", "clovek", "ljudje", "ljudi",
 })
 # Month names — never treat as person/room names in disambiguation
 # Include genitive forms (julija, avgusta, etc.) used in dates like "22. julija"
@@ -47,8 +49,10 @@ _MONTH_NAMES = frozenset({
 })
 _BOOKING_KEYWORDS = frozenset({"rezerv", "book", "sobo", "nočit", "nocit", "room"})
 _ROOM_HINTS = frozenset({
-    "sob",       # soba / sobo / sobi / sobah
+    "sob", "soba", "sobo", "sobi", "sobah",  # explicit forms
     "nastanit", "nocit", "nocitev", "rezerv", "prenoc", "spalnic",
+    "nočit", "noci", "spat", "spanj", "prespat", "prenočit",
+    "nocitev", "nocitvi", "nastanitev",
 })
 
 
@@ -254,6 +258,22 @@ def _pre_dispatch_trap(message: str) -> str | None:
             "031 330 113 ali info@kovacnik.com"
         )
 
+    # Cena nočitev / sob — MORA biti pred min nočitve da ujame "koliko prideta 2 nočitvi"
+    # Ujame: "koliko prideta 2 nočitvi", "koliko stane nočitev", "cena sobe", "cena za 3 noči"
+    if any(kw in msg_l for kw in ("koliko", "cena", "stane", "pride")) and \
+       any(kw in msg_l for kw in ("nočit", "nocit", "noči", "noci", "prenočit", "prenocit", "sob")):
+        # Izključi meni-related fraze
+        if not any(kw in msg_l for kw in ("meni", "kosilo", "degust", "hodni")):
+            return (
+                "Nastanitev na Domačiji Kovačnik:\n"
+                "  • Cena: 50 EUR na osebo/noč (z zajtrkom)\n"
+                "  • Otroci do 5 let: brezplačno\n"
+                "  • Otroci 5–12 let: 50% popust\n"
+                "  • Minimalno 3 nočitve (junij–avgust), 2 nočitvi (ostale mesece)\n"
+                "  • Večerja: 25 EUR/osebo (po naročilu)\n\n"
+                "Za rezervacijo pokličite 031 330 113 ali mi sporočite datum in število oseb."
+            )
+
     # Min nočitve
     if any(kw in msg_l for kw in ("minim", "najmanj", "najkraj", "ena noč", "eno noc", "1 noč", "1 noc")):
         return (
@@ -330,6 +350,38 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     if _pending:
         # Normalize diacritics so "iz družine" matches hint "druzin" etc.
         msg_normalized = _normalize_name(message)
+        msg_stripped = msg_normalized.strip()
+
+        # Direct answers: "soba" / "oseba" / "o sobi" / "o osebi"
+        direct_room_answers = {"soba", "sobo", "sobi", "o sobi", "sobe"}
+        direct_person_answers = {"oseba", "osebo", "osebi", "o osebi", "osebe", "clan", "clana"}
+        if msg_stripped in direct_room_answers:
+            session.data.pop("_pending_disambiguation", None)
+            reply = await info_handler.execute(
+                InterpretResult(
+                    intent="INFO_ROOM",
+                    entities={"name": _pending, "_resolved": "room"},
+                    confidence=1.0,
+                ),
+                _pending,
+                session,
+                brand,
+            )
+            return {"reply": reply["reply"], "session_id": session.session_id}
+        if msg_stripped in direct_person_answers:
+            session.data.pop("_pending_disambiguation", None)
+            reply = await info_handler.execute(
+                InterpretResult(
+                    intent="INFO_PERSON",
+                    entities={"name": _pending, "_resolved": "person"},
+                    confidence=1.0,
+                ),
+                _pending,
+                session,
+                brand,
+            )
+            return {"reply": reply["reply"], "session_id": session.session_id}
+
         is_person = any(h in msg_normalized for h in _PERSON_HINTS)
         is_room = any(h in msg_normalized for h in _ROOM_HINTS)
         if is_person and not is_room:
