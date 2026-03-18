@@ -239,15 +239,29 @@ def _admin_new_reservation_html(data: Dict[str, Any], confirm_url: str = "", rej
     
     # Gumbi za akcije (če so URL-ji podani)
     action_buttons = ""
+    guest_email = data.get('email', '')
+    guest_name = data.get('name', 'gost')
+    rid = data.get('id', '')
+    reply_subject = f"Re: Rezervacija #{rid} - Domačija Kovačnik" if rid else "Re: Vaše povpraševanje - Domačija Kovačnik"
+    reply_mailto = f"mailto:{guest_email}?subject={reply_subject}" if guest_email else ""
+
     if confirm_url and reject_url:
+        reply_button = ""
+        if reply_mailto:
+            reply_button = f"""
+            <a href="{reply_mailto}" style="display:inline-block; background:#2563eb; color:#fff; padding:12px 20px; border-radius:10px; text-decoration:none; font-weight:700; margin-right:10px;">
+                ✉️ Odgovori
+            </a>
+            """
         action_buttons = f"""
         <div style="margin-top:20px;">
             <a href="{confirm_url}" style="display:inline-block; background:{BRAND_COLOR}; color:#fff; padding:12px 20px; border-radius:10px; text-decoration:none; font-weight:700; margin-right:10px;">
                 ✅ Potrdi
             </a>
-            <a href="{reject_url}" style="display:inline-block; background:#b42318; color:#fff; padding:12px 20px; border-radius:10px; text-decoration:none; font-weight:700;">
+            <a href="{reject_url}" style="display:inline-block; background:#b42318; color:#fff; padding:12px 20px; border-radius:10px; text-decoration:none; font-weight:700; margin-right:10px;">
                 ❌ Zavrni
             </a>
+            {reply_button}
         </div>
         """
     
