@@ -222,7 +222,7 @@ Generiraj kratek, oseben odgovor v Barbara's stilu.
 """
 
         response = client.responses.create(
-            model="gpt-4.1",
+            model="gpt-5.2",
             input=[
                 {"role": "system", "content": DRAFT_GENERATION_PROMPT},
                 {"role": "user", "content": user_prompt}

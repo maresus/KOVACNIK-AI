@@ -28,4 +28,4 @@ class Settings(BaseSettings):
     v3_shadow_mode: bool = Field(default=False, alias="V3_SHADOW_MODE")
     v3_enabled: bool = Field(default=False, alias="V3_ENABLED")
     v3_canary_percent: int = Field(default=0, alias="V3_CANARY_PERCENT")
-    v3_intent_model: str = Field(default="gpt-4.1-mini", alias="V3_INTENT_MODEL")
+    v3_intent_model: str = Field(default="gpt-5-mini", alias="V3_INTENT_MODEL")

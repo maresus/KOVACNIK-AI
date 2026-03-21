@@ -84,15 +84,50 @@ CONTACT = {
 }
 
 
+def _normalize_slovenian_suffix(word: str) -> str:
+    """
+    Odstrani pogoste slovenske končnice za boljše ujemanje.
+    potica/potice/potici/potico → potic
+    soba/sobe/sobi/sobo → sob
+    """
+    if len(word) < 4:
+        return word
+    # Daljše končnice najprej (vrstni red je pomemben)
+    suffixes = (
+        # množina in skloni
+        "ami", "ama", "imi", "ima",  # orodnik mn.
+        "jem", "jev",                 # rodilnik mn.
+        "ice", "ici", "ico", "ica",   # ženske samostalniške končnice
+        "ove", "ovi", "ova",          # pridevniki
+        "nih", "nim", "nem",          # pridevniki
+        "ega", "emu",                 # pridevniki
+        # krajše končnice
+        "ah", "ih", "oh", "eh",       # mestnik mn.
+        "om", "em", "am", "im",       # orodnik/dajalnik
+        "ov", "ev",                   # rodilnik mn.
+        "mi", "ma",                   # orodnik
+        "jo", "ja", "je",             # ženski skloni
+        "e", "i", "o", "a", "u",      # osnovni skloni
+    )
+    for suffix in suffixes:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[:-len(suffix)]
+    return word
+
+
 def _tokenize(text: str) -> Set[str]:
     lowered = text.lower()
     cleaned = re.sub(r"[^\w]+", " ", lowered)
-    return {token for token in cleaned.split() if len(token) >= 3}
+    tokens = {token for token in cleaned.split() if len(token) >= 3}
+    # Normaliziraj slovenske končnice
+    return {_normalize_slovenian_suffix(t) for t in tokens}
 
 
 def _bm25_tokenize(text: str) -> list[str]:
     tokens = re.findall(r"[A-Za-zČŠŽčšžĐđĆć0-9]+", text.lower())
-    return [t for t in tokens if len(t) >= 3]
+    # Normaliziraj slovenske končnice za boljše ujemanje
+    normalized = [_normalize_slovenian_suffix(t) for t in tokens if len(t) >= 3]
+    return normalized
 
 
 BM25_K1 = 1.6
@@ -207,7 +242,7 @@ def _rerank_with_llm(query: str, chunks: list[KnowledgeChunk]) -> list[Knowledge
         "Items:\n" + "\n\n".join(items)
     )
     response = client.responses.create(
-        model="gpt-4.1-mini",
+        model="gpt-5-mini",
         input=prompt,
         max_output_tokens=200,
         temperature=0,
@@ -677,7 +712,7 @@ def generate_llm_answer(question: str, top_k: int = 6, history: list[dict[str, s
     convo.append({"role": "user", "content": f"Vprašanje gosta: {question}"})
 
     response = client.responses.create(
-        model="gpt-4.1-mini",
+        model="gpt-5-mini",
         input=convo,
         max_output_tokens=400,
         temperature=0.7,
