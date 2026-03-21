@@ -99,10 +99,12 @@ def interpret(message: str, history: list[dict[str, str]] | None, session: dict[
         )
         raw = _extract_text_from_response(response)
         if not raw:
+            print(f"[interpreter.py] Prazen odgovor od LLM (model: {v3_config.V3_INTENT_MODEL})")
             return _fallback_unclear()
         parsed = _strict_from_raw(raw)
         return _apply_disambiguation(message, parsed)
-    except Exception:
+    except Exception as e:
+        print(f"[interpreter.py] LLM napaka: {type(e).__name__}: {e}")
         return _fallback_unclear()
 
 

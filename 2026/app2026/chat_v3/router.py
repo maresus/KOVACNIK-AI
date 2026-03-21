@@ -572,8 +572,10 @@ def build_shadow_record_sync(message: str, session, brand: Any, v2_reply: str) -
 
 @router.post("", response_model=ChatResponse)
 async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
+    print(f"[V3 CHAT] Zahteva: message={payload.message[:50]!r}... | v3_enabled={_settings.v3_enabled} | chat_engine={_settings.chat_engine}")
     # Disabled by default.
     if not _settings.v3_enabled or _settings.chat_engine != "v3":
+        print(f"[V3 CHAT] Izklopljen! v3_enabled={_settings.v3_enabled}, chat_engine={_settings.chat_engine}")
         return ChatResponse(reply="V3 endpoint je izklopljen. Uporabite /v2/chat.", session_id=payload.session_id)
     brand = get_brand()
     result = await handle_message(payload.message, payload.session_id or "", brand)
