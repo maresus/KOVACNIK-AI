@@ -94,7 +94,6 @@ def interpret(message: str, history: list[dict[str, str]] | None, session: dict[
                 {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
             ],
             max_output_tokens=260,
-            temperature=0.0,
             text={"format": {"type": "json_object"}},
         )
         raw = _extract_text_from_response(response)

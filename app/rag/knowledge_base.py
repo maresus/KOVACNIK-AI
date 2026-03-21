@@ -245,7 +245,6 @@ def _rerank_with_llm(query: str, chunks: list[KnowledgeChunk]) -> list[Knowledge
         model="gpt-5-mini",
         input=prompt,
         max_output_tokens=200,
-        temperature=0,
     )
     text = getattr(response, "output_text", "") or ""
     try:
@@ -715,8 +714,6 @@ def generate_llm_answer(question: str, top_k: int = 6, history: list[dict[str, s
         model="gpt-5-mini",
         input=convo,
         max_output_tokens=400,
-        temperature=0.7,
-        top_p=0.9,
     )
 
     answer = getattr(response, "output_text", None)
