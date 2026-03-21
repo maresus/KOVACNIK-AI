@@ -262,7 +262,7 @@
       quickBtns.style.display = 'none';
       showTyping();
       try {
-        const res = await fetch('/v2/chat', {
+        const res = await fetch('/v3/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, session_id: sessionId })
