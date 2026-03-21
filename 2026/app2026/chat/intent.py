@@ -50,7 +50,7 @@ def _detect_intent_llm(message: str) -> str:
         response = client.responses.create(
             model="gpt-5-mini",
             input=[{"role": "user", "content": prompt}],
-            max_output_tokens=30,
+            max_output_tokens=512,
         )
         answer = getattr(response, "output_text", None)
         if not answer:
