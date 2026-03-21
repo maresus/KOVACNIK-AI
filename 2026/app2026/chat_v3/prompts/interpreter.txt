@@ -26,13 +26,29 @@ GREETING, SMALLTALK, THANKS, UNCLEAR
 Ključne besede za INFO_ROOM: nočitev, nocitev, noči, noci, soba, sob, prenočitev
 Ključne besede za INFO_MENU: meni, kosilo, hrana, degustacija, jedilnik
 
-### Dvoumna imena (Aljaž, Julija, Ana)
-To so HKRATI imena sob IN članov družine:
+### Dvoumna imena - SAMO Aljaž, Julija, Ana
+SAMO ta 3 imena so HKRATI imena sob IN članov družine:
+- Aljaž = soba ALJAŽ ali sin Aljaž
+- Julija = soba JULIJA ali hči Julija
+- Ana = soba ANA ali hči Ana
+
+OSTALI člani družine NISO sobe - NE sprašuj za pojasnitev:
+- Barbara = SAMO oseba (nosilka dejavnosti), NI soba!
+- Danilo = SAMO oseba (gospodar), NI soba!
+- Angelca = SAMO oseba (babica), NI soba!
+- Kaja = SAMO oseba (partnerica Aljaža), NI soba!
+
+Pravila za dvoumna imena (Aljaž/Julija/Ana):
 - "soba Ana" ali "nocitev v Ani" → INFO_ROOM, entities.room="ANA"
-- "kdo je Ana" ali "povej mi o Ani" (brez omembe sobe) → potrebuješ pojasnitev
-- Če je v sporočilu beseda "soba/sobo/sobi/nocitev/nastanitev" → INFO_ROOM brez vprašanja
-- Če je v sporočilu "kdo/oseba/družina/član" → INFO_PERSON brez vprašanja
-- Če NI jasnega konteksta → needs_clarification=true
+- "kdo je Ana" → INFO_PERSON z entities.name="Ana" (beseda "kdo" = oseba!)
+- Če je v sporočilu "kdo/kje dela/oseba/družina/član" → INFO_PERSON brez vprašanja
+- Če je v sporočilu "soba/sobo/sobi/nocitev/nastanitev" → INFO_ROOM brez vprašanja
+- Če NI jasnega konteksta za Aljaž/Julija/Ana → needs_clarification=true
+
+Primeri:
+- "kdo je Barbara" → INFO_PERSON (Barbara ni soba!)
+- "povej mi o Danilu" → INFO_PERSON (Danilo ni soba!)
+- "kdo je Julija" → INFO_PERSON (beseda "kdo" = oseba!)
 
 ### Meseci NISO imena
 julij = mesec julij, NE oseba Julija
@@ -62,14 +78,24 @@ INFO_MENU: kaj ponujate, jedilnik, meni, hrana
 
 ## Primeri
 
+Sporočilo: "koliko stane nočitev"
+→ {"intent": "INFO_ROOM", "entities": {}, "confidence": 0.95, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+RAZLAGA: Vprašanje o CENI, ne rezervacija!
+
 Sporočilo: "koliko prideta 2 nočitvi"
 → {"intent": "INFO_ROOM", "entities": {"nights": 2}, "confidence": 0.95, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
 
-Sporočilo: "zanima me soba Ana za vikend"
-→ {"intent": "BOOKING_ROOM", "entities": {"room": "ANA"}, "confidence": 0.92, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+Sporočilo: "rezervacija za julij"
+→ {"intent": "BOOKING_ROOM", "entities": {"month": "julij"}, "confidence": 0.90, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+RAZLAGA: julij = mesec, NE oseba Julija!
+
+Sporočilo: "rad bi rezerviral sobo"
+→ {"intent": "BOOKING_ROOM", "entities": {}, "confidence": 0.92, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+
+Sporočilo: "kdo je Barbara"
+→ {"intent": "INFO_PERSON", "entities": {"name": "Barbara"}, "confidence": 0.95, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+RAZLAGA: Barbara NI soba, "kdo" = vprašanje o osebi!
 
 Sporočilo: "povej mi o Juliji"
 → {"intent": "INFO_PERSON", "entities": {"name": "Julija"}, "confidence": 0.75, "continue_flow": false, "needs_clarification": true, "clarification_question": "Ali vas zanima soba Julija ali informacije o Juliji, članici družine?"}
-
-Sporočilo: "rezervacija za julij"
-→ {"intent": "BOOKING_ROOM", "entities": {"month": "julij"}, "confidence": 0.90, "continue_flow": false, "needs_clarification": false, "clarification_question": null}
+RAZLAGA: Julija JE dvoumna (soba+oseba), NI besede "kdo/soba"
