@@ -570,6 +570,61 @@ def build_shadow_record_sync(message: str, session, brand: Any, v2_reply: str) -
     return asyncio.run(build_shadow_record(message, session, brand, v2_reply))
 
 
+def _check_missing_booking_fields(session) -> str | None:
+    """Check if the LLM collected booking data but skipped email or children.
+
+    Returns a follow-up question to ask, or None if nothing is missing.
+    Only fires when the session is NOT in the structured reservation flow
+    (active_flow != 'reservation') but the conversation contains booking data.
+    """
+    if session.active_flow == "reservation":
+        # Structured flow handles its own field collection — don't interfere.
+        return None
+
+    data = session.data or {}
+    pending = data.get("_pending_fields")
+    if pending and pending.get("done"):
+        return None
+
+    history = session.history or []
+    if len(history) < 4:
+        return None
+
+    # Combine recent history to look for booking signals.
+    combined = " ".join(
+        msg.get("content", "") for msg in history[-10:]
+    ).lower()
+
+    # Booking signals: date + people count in conversation.
+    has_date = bool(re.search(r"\d{1,2}[./]\d{1,2}", combined))
+    has_people = bool(re.search(r"\d+\s*(oseb|osebi|osobami|gost|odrasli?)", combined))
+    is_table_booking = any(kw in combined for kw in ("mizo", "miza", "kosilo", "rezervacij"))
+
+    if not (has_date and has_people and is_table_booking):
+        return None
+
+    # Check what's already been collected in the conversation.
+    has_email = bool(re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", combined))
+    has_kids_answer = any(kw in combined for kw in (
+        "otrok", "otroci", "otroka", "brez otrok", "nimam otrok", "samo odrasli", "ne, brez",
+        "2 otroka", "1 otrok", "3 otroci", "imate s seboj otroke", "imate otroke",
+    ))
+
+    if not has_email:
+        # Track that we asked for email in this session.
+        if not data.get("_asked_email"):
+            data["_asked_email"] = True
+            session.data = data
+            return "Za potrditev rezervacije potrebujemo še vaš **e-mail naslov**."
+    elif not has_kids_answer:
+        if not data.get("_asked_kids"):
+            data["_asked_kids"] = True
+            session.data = data
+            return "Imate s seboj **otroke**?"
+
+    return None
+
+
 @router.post("", response_model=ChatResponse)
 async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
     print(f"[V3 CHAT] Zahteva: message={payload.message[:50]!r}... | v3_enabled={_settings.v3_enabled} | chat_engine={_settings.chat_engine}")
@@ -579,15 +634,23 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         return ChatResponse(reply="V3 endpoint je izklopljen. Uporabite /v2/chat.", session_id=payload.session_id)
     brand = get_brand()
     result = await handle_message(payload.message, payload.session_id or "", brand)
+    reply_text = str(result["reply"])
+    session_id = str(result["session_id"])
+
+    # After LLM responds, check if booking data was collected without email/children.
+    session = get_session(session_id)
+    missing_field_question = _check_missing_booking_fields(session)
+    if missing_field_question:
+        reply_text = reply_text + "\n\n" + missing_field_question
 
     # Log conversation to database for daily reports
     try:
         from app.services.reservation_service import ReservationService
         service = ReservationService()
         service.log_conversation(
-            session_id=str(result["session_id"]),
+            session_id=session_id,
             user_message=payload.message,
-            bot_response=str(result["reply"]),
+            bot_response=reply_text,
             intent=None,  # V3 doesn't expose intent directly
             needs_followup=False,
             followup_email=None,
@@ -596,4 +659,4 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         # Don't fail the chat if logging fails
         print(f"[V3 CHAT] Napaka pri logganju pogovora: {e}")
 
-    return ChatResponse(reply=str(result["reply"]), session_id=str(result["session_id"]))
+    return ChatResponse(reply=reply_text, session_id=session_id)
