@@ -755,9 +755,9 @@ def _handle_table_reservation_impl(
                 or any(kw in message.lower() for kw in ("otrok", "otroci", "otroka"))
             )
             if not _has_kids_ctx:
-                reservation_state["kids"] = 0
-                reservation_state["adults"] = people
-                return proceed_after_table_people(reservation_state, reservation_service)
+                # Always ask about children for table reservations
+                reservation_state["step"] = "awaiting_kids_info"
+                return "Imate s seboj otroke?"
             if parsed["kids"] and not parsed["ages"]:
                 reservation_state["step"] = "awaiting_kids_ages"
                 return "Koliko so stari otroci?"
@@ -966,10 +966,9 @@ def _handle_table_reservation_impl(
             or any(kw in message.lower() for kw in ("otrok", "otroci", "otroka", "otroka"))
         )
         if not _has_kids_context:
-            # Total given without breakdown — assume all adults, skip kids_info
-            reservation_state["kids"] = 0
-            reservation_state["adults"] = people
-            return proceed_after_table_people(reservation_state, reservation_service)
+            # Always ask about children for table reservations
+            reservation_state["step"] = "awaiting_kids_info"
+            return "Imate s seboj otroke?"
         if parsed["kids"] and not parsed["ages"]:
             reservation_state["step"] = "awaiting_kids_ages"
             return "Koliko so stari otroci?"
@@ -1278,9 +1277,9 @@ def handle_reservation_flow(
                 return _tr("Za koliko oseb pripravimo mizo?")
 
             if reservation_state.get("kids") is None and reservation_state.get("adults") is None:
-                # Total given without breakdown — assume all adults, skip kids_info
-                reservation_state["kids"] = 0
-                reservation_state["adults"] = reservation_state["people"]
+                # Always ask about children for table reservations (needed for seating/menu planning)
+                reservation_state["step"] = "awaiting_kids_info"
+                return _tr("Imate s seboj otroke?")
             if (reservation_state.get("kids") or 0) >= 2 and not reservation_state.get("kids_ages"):
                 reservation_state["step"] = "awaiting_kids_ages"
                 return _tr("Koliko so stari otroci?")
