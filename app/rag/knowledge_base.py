@@ -689,6 +689,31 @@ Ti: "Ni za kaj! Če boste imeli še kakšno vprašanje, sem tu. Lep pozdrav s Po
 """
 
 
+def _get_current_seasonal_menu_text() -> str:
+    """Returns the current seasonal menu as a text block for injection into the system prompt."""
+    try:
+        import datetime as _dt
+        from app2026.brand.kovacnik import SEASONAL_MENUS
+        current_month = _dt.datetime.now().month
+        for entry in SEASONAL_MENUS:
+            if current_month in entry.get("months", set()):
+                label = entry.get("label", "Aktualni meni")
+                items = entry.get("items", [])
+                lines = [f"\nAKTUALNI SEZONSKI MENI — {label}:"]
+                for item in items:
+                    lines.append(f"  • {item}")
+                lines.append(
+                    "\nKo gost vpraša katero jed nudite (juho, meso, sladico...):"
+                    "\n- VEDNO preveri zgornji meni in odgovori točno iz njega."
+                    "\n- Če jedi NI v meniju, jasno povej: 'Te jedi v aktualnem meniju nimamo.'"
+                    "\n- Ne bodi vago ali neodločen — meni je znan vnaprej!"
+                )
+                return "\n".join(lines)
+    except Exception:
+        pass
+    return ""
+
+
 def generate_llm_answer(question: str, top_k: int = 6, history: list[dict[str, str]] | None = None) -> str:
     try:
         paragraphs = _gather_relevant_chunks(question, base_top_k=top_k)
@@ -710,8 +735,9 @@ def generate_llm_answer(question: str, top_k: int = 6, history: list[dict[str, s
         context_text = _build_context_snippet(question, paragraphs)
 
     client = get_llm_client()
+    seasonal_menu_text = _get_current_seasonal_menu_text()
     convo: list[dict[str, str]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_PROMPT + seasonal_menu_text},
         {"role": "developer", "content": f"Kontekst iz baze znanja Kovačnik:\n{context_text}"},
     ]
     if history:
