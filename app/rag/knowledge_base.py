@@ -699,14 +699,16 @@ def _get_current_seasonal_menu_text() -> str:
             if current_month in entry.get("months", set()):
                 label = entry.get("label", "Aktualni meni")
                 items = entry.get("items", [])
-                lines = [f"\nAKTUALNI SEZONSKI MENI — {label}:"]
+                lines = [f"\nAKTUALNI SEZONSKI MENI — {label} (INTERNO — za tvojo referenco):"]
                 for item in items:
-                    lines.append(f"  • {item}")
+                    lines.append(f"  {item}")
                 lines.append(
-                    "\nKo gost vpraša katero jed nudite (juho, meso, sladico...):"
-                    "\n- VEDNO preveri zgornji meni in odgovori točno iz njega."
+                    "\nNAVODILA ZA ODGOVARJANJE O MENIJU:"
+                    "\n- Ko gost vpraša o meniju ALI o specifični jedi: odgovori KRATKO in NARAVNO v 2-3 stavkih."
+                    "\n- NE kopiraj celotnega menija — samo relevantni del (npr. samo juhe, samo sladice...)."
                     "\n- Če jedi NI v meniju, jasno povej: 'Te jedi v aktualnem meniju nimamo.'"
-                    "\n- Ne bodi vago ali neodločen — meni je znan vnaprej!"
+                    "\n- Primer dobre juhe: 'Trenutno strežemo govejo župco z rezanci in koprivno juhico s čemažem.'"
+                    "\n- Primer slabega odgovora: celoten bullet seznam vseh jedi naenkrat."
                 )
                 return "\n".join(lines)
     except Exception:
