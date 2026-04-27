@@ -1,3 +1,4 @@
+error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a4667a64abaaf77f.idx
 <!DOCTYPE html>
 <html lang="sl">
 <head>
@@ -159,7 +160,7 @@
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </button>
     </div>
-    <div class="powered">Ustvaril <a href="https://kovacnik.com" target="_blank">Turistična kmetija Kovačnik</a></div>
+    <div class="powered">built by: <a href="https://spoznaj-ai.si" target="_blank">spoznaj-ai.si</a></div>
   </div>
 
   <script>
@@ -262,7 +263,7 @@
       quickBtns.style.display = 'none';
       showTyping();
       try {
-        const res = await fetch('/v3/chat', {
+        const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, session_id: sessionId })
