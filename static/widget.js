@@ -989,6 +989,13 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     setTimeout(function() {
       if (!panelOpen) showCards();
     }, 800);
+
+    // Auto-odpri panel na desktopu po zamiku
+    if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
+      setTimeout(function() {
+        if (!panelOpen) openPanel();
+      }, CONFIG.autoOpenDelay || 1500);
+    }
   }
 
   var panelOpen = false;
