@@ -93,7 +93,12 @@ PERSONS = {
     "julija": {
         "name": "Julija",
         "role": "hči",
-        "notes": ["skrbi za živali", "animatorka na kmetiji"],
+        "notes": [
+            "skrbi za živali",
+            "animatorka na kmetiji",
+            "pokaže zajčke in organizira jahanje s ponijema Malajka in Marsi (5 € en krog, za vse starosti)",
+            "včasih je pri delu v kuhinji ali šoli — priporočamo predhodno najavo",
+        ],
     },
     "angelca": {
         "name": "Angelca",
@@ -107,6 +112,7 @@ PERSONS = {
 }
 
 ANIMALS = {
+    "krave": {"name": "Kravice", "type": "domače živali"},
     "malajka": {"name": "Malajka", "type": "konjiček"},
     "cody": {"name": "Cody", "type": "konjiček"},
     "marsi": {"name": "Marsi", "type": "konjiček"},
