@@ -987,8 +987,9 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     }
 
     // Kartice so vidne takoj (display:flex v inline style zgoraj)
-    // Auto-odpri panel na desktopu po zamiku
-    if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
+    // Auto-odpri panel SAMO na pravem desktopu (ne touch naprave — iPad, mobil v landscape)
+    var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (CONFIG.autoOpenDesktop && !isTouch) {
       setTimeout(function() {
         if (!panelOpen) openPanel();
       }, CONFIG.autoOpenDelay || 6000);
