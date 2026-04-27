@@ -636,12 +636,13 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     greetingCards.setAttribute('style', [
       'position:fixed',
       'bottom:90px',
-      'right:0',
+      'right:10px',
       'z-index:2147483647',
-      'display:none',
+      'display:flex',
       'flex-direction:column',
       'align-items:flex-end',
       'padding-right:0',
+      'gap:6px',
     ].join(';'));
 
     var xBtn = document.createElement('button');
@@ -985,16 +986,12 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
       addMessageToUI(CONFIG.welcomeMessage, 'bot', false);  // false = ne scrollaj
     }
 
-    // Pokaži kartice po kratkem zamiku
-    setTimeout(function() {
-      if (!panelOpen) showCards();
-    }, 800);
-
+    // Kartice so vidne takoj (display:flex v inline style zgoraj)
     // Auto-odpri panel na desktopu po zamiku
     if (CONFIG.autoOpenDesktop && window.innerWidth > CONFIG.mobileBreakpoint) {
       setTimeout(function() {
         if (!panelOpen) openPanel();
-      }, CONFIG.autoOpenDelay || 1500);
+      }, CONFIG.autoOpenDelay || 6000);
     }
   }
 
