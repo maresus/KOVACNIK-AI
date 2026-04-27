@@ -13,7 +13,7 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     welcomeMessage: 'Pozdravljeni! 👋 Sem vaš virtualni pomočnik Domačije Kovačnik. Kako vam lahko pomagam? — Feel free to write in any language!',
     mobileBreakpoint: 768,
     autoOpenDesktop: true,  // Auto-popup na desktopu
-    autoOpenDelay: 1500,  // ms
+    autoOpenDelay: 6000,  // ms — daj karticam čas da se prikažejo (800ms), nato odpri panel
     maxStoredMessages: 50  // Maksimalno število shranjenih sporočil
   };
 
@@ -1043,6 +1043,7 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     }
     hideCards();
     document.getElementById('kv-widget-bubble').classList.remove('kv-has-notification');
+    document.getElementById('kv-widget-bubble').style.display = 'none';
     document.getElementById('kv-widget-input').focus();
     localStorage.setItem('kv_widget_open', 'true');
     var messages = document.getElementById('kv-widget-messages');
@@ -1062,6 +1063,7 @@ error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a466
     panel.style.transform = 'translateY(8px)';
     document.body.style.overflow = '';
     localStorage.setItem('kv_widget_open', 'false');
+    document.getElementById('kv-widget-bubble').style.display = '';
     showCards();
   }
 
