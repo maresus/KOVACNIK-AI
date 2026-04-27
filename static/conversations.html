@@ -242,9 +242,10 @@
         const domId = sessionDomId(s.session_id);
         const lastItem = s.last || {};
         const canView = s.session_id && s.session_id !== 'no-session';
+        const isTest = s.session_id && (s.session_id.startsWith('test-') || s.session_id.startsWith('smoke-') || s.session_id.startsWith('gauntlet-'));
         return `
-          <tr>
-            <td class="nowrap">${escapeHtml(s.session_id)}</td>
+          <tr${isTest ? ' style="opacity:0.45;"' : ''}>
+            <td class="nowrap">${isTest ? '<span style="background:#e8b84b;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-right:4px;">TEST</span>' : ''}${escapeHtml(s.session_id)}</td>
             <td class="nowrap">${s.messages.length}</td>
             <td class="nowrap">${escapeHtml(formatDate(lastItem.created_at))}</td>
             <td>${escapeHtml(lastItem.user_message || '-')}</td>
