@@ -420,40 +420,40 @@ TESTS: list[TC] = [
     ]),
     TC("4-hodni meni", "TEDENSKI_MENI", [
         Turn("Zanima me 4-hodni meni.",
-             must=["36"],
+             must=["40"],
              any_=["4-HODNI", "4-hodni", "gibanica", "župca"]),
     ]),
     TC("5-hodni meni", "TEDENSKI_MENI", [
         Turn("Opišite 5-hodni degustacijski meni.",
-             must=["43"],
+             must=["50"],
              any_=["5-HODNI", "5-hodni", "gibanica"]),
     ]),
     TC("6-hodni meni", "TEDENSKI_MENI", [
         Turn("Kakšen je 6-hodni meni?",
-             must=["53"],
+             must=["60"],
              any_=["6-HODNI", "6-hodni", "štukelj"]),
     ]),
     TC("7-hodni meni", "TEDENSKI_MENI", [
         Turn("Kaj vsebuje 7-hodni meni?",
-             must=["62"],
+             must=["70"],
              any_=["7-HODNI", "7-hodni", "gibanica"]),
     ]),
     TC("4-hodni follow-up guard", "TEDENSKI_MENI", [
         Turn("Kaj ponujate čez teden?"),
         Turn("4",
-             must=["36"],
+             must=["40"],
              any_=["4-HODNI", "4-hodni", "gibanica"]),
     ]),
     TC("6-hodni follow-up guard", "TEDENSKI_MENI", [
         Turn("Kaj ponujate čez teden?"),
         Turn("6",
-             must=["53"],
+             must=["60"],
              any_=["6-HODNI", "6-hodni"]),
     ]),
     TC("7-hodni follow-up guard", "TEDENSKI_MENI", [
         Turn("Kaj ponujate čez teden?"),
         Turn("7",
-             must=["62"],
+             must=["70"],
              any_=["7-HODNI", "7-hodni"]),
     ]),
     TC("Vinska degustacija uz meni", "TEDENSKI_MENI", [
@@ -462,11 +462,11 @@ TESTS: list[TC] = [
     ]),
     TC("Cena 4-hodnega menija direktno", "TEDENSKI_MENI", [
         Turn("Koliko stane 4-hodni meni?",
-             must=["36"]),
+             must=["40"]),
     ]),
     TC("Cena 7-hodnega menija direktno", "TEDENSKI_MENI", [
         Turn("Koliko stane 7-hodni meni?",
-             must=["62"]),
+             must=["70"]),
     ]),
     TC("Rezervacija menija", "TEDENSKI_MENI", [
         Turn("Kako rezerviram tedenski meni?",
