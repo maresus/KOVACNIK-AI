@@ -296,16 +296,31 @@
       flex-shrink: 0;
     }
 
+    #kv-widget-disclaimer {
+      font-size: 11px;
+      color: #999;
+      line-height: 1.4;
+      padding: 6px 14px 2px;
+      background: white;
+      text-align: center;
+    }
+    #kv-widget-disclaimer a {
+      color: #7b5e3b;
+      text-decoration: none;
+    }
     #kv-widget-powered {
       text-align: center;
-      font-size: 13px;
-      color: #aaa;
-      padding: 4px 0 6px;
+      font-size: 11px;
+      color: #ccc;
+      padding: 2px 0 6px;
       background: white;
     }
     #kv-widget-powered a {
-      color: #7b5e3b;
+      color: #bbb;
       text-decoration: none;
+    }
+    #kv-widget-powered a:hover {
+      color: #7b5e3b;
     }
 
     #kv-widget-input {
@@ -695,6 +710,7 @@
       <div id="kv-bf-open-bar">
         <button id="kv-bf-open-btn">📅 Rezerviraj sobo ali mizo</button>
       </div>
+      <div id="kv-widget-disclaimer">Odgovori AI pomočnika so informativne narave in ne nadomeščajo osebnega posveta. Za rezervacije in natančne informacije nas pokličite ali pišite. <a href="https://kovacnik.com/ai" target="_blank">Več →</a></div>
       <div id="kv-widget-powered">built by: <a href="https://spoznaj-ai.si" target="_blank">spoznaj-ai.si</a></div>
     `;
 
