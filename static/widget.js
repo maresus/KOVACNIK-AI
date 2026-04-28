@@ -1,4 +1,3 @@
-error: non-monotonic index .git/objects/pack/._pack-77a3c134273f26497d6154d1a4667a64abaaf77f.idx
 (function() {
   'use strict';
 
