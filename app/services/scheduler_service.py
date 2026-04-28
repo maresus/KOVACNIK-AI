@@ -2,10 +2,14 @@
 Scheduler Service - Runs periodic background tasks
 
 Currently runs:
-- Daily conversation report at 7:00 AM
+- Daily multi-bot report at 05:00 (Europe/Ljubljana)
+- Hourly new-conversation alert at :02 (only if new convos exist)
+- Weekly table reservation reminder (Thursday 18:00)
+- Email draft generator (every hour)
 """
 
 import os
+import requests as _requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
@@ -33,15 +37,21 @@ def start_scheduler():
 
     _scheduler = AsyncIOScheduler(timezone="Europe/Ljubljana")
 
-    # Daily report at 7:00 AM
-    daily_report_time = os.getenv("DAILY_REPORT_TIME", "7:00")  # Format: "HH:MM"
-    hour, minute = map(int, daily_report_time.split(":"))
-
+    # Multi-bot dnevno poročilo ob 05:00
     _scheduler.add_job(
-        func=_run_daily_report,
-        trigger=CronTrigger(hour=hour, minute=minute),
+        func=lambda: _trigger_report("daily"),
+        trigger=CronTrigger(hour=5, minute=0, timezone="Europe/Ljubljana"),
         id="daily_conversation_report",
-        name="Daily Conversation Report",
+        name="Daily Multi-Bot Report (05:00)",
+        replace_existing=True,
+    )
+
+    # Urni alert — ob :02, samo če so novi pogovori
+    _scheduler.add_job(
+        func=lambda: _trigger_report("hourly"),
+        trigger=CronTrigger(minute=2, timezone="Europe/Ljubljana"),
+        id="hourly_alert",
+        name="Hourly New Conversation Alert",
         replace_existing=True,
     )
 
@@ -60,16 +70,14 @@ def start_scheduler():
     # Email draft generation - every hour
     _scheduler.add_job(
         func=_run_draft_generator,
-        trigger=CronTrigger(minute=0),  # Every hour at :00
+        trigger=CronTrigger(minute=0),
         id="email_draft_generator",
         name="Email Draft Generator",
         replace_existing=True,
     )
 
     _scheduler.start()
-    print(f"[SCHEDULER] Zagnan - dnevno poročilo ob {daily_report_time}")
-    print(f"[SCHEDULER] Zagnan - tedenski reminder ob četrtkih {weekly_reminder_time}")
-    print(f"[SCHEDULER] Zagnan - generiranje email draftov vsako uro")
+    print("[SCHEDULER] Zagnan: dnevno ob 05:00, urno ob :02, tedenski reminder, draft generator")
 
 
 def stop_scheduler():
@@ -81,8 +89,22 @@ def stop_scheduler():
         print("[SCHEDULER] Ustavljen")
 
 
+def _trigger_report(mode: str) -> None:
+    """Pokliče multi-bot report endpoint lokalno."""
+    try:
+        port = int(os.environ.get("PORT", 8000))
+        r = _requests.get(
+            f"http://localhost:{port}/api/admin/notify/daily-report",
+            params={"mode": mode},
+            timeout=120,
+        )
+        print(f"[SCHEDULER] {mode} report: {r.text[:120]}")
+    except Exception as e:
+        print(f"[SCHEDULER] {mode} report error: {e}")
+
+
 def _run_daily_report():
-    """Wrapper za zagon dnevnega poročila."""
+    """Wrapper za zagon dnevnega poročila (staro - ne uporablja se več)."""
     from app.services.daily_report_service import generate_and_send_daily_report
 
     print(f"[SCHEDULER] Zaganjalnik dnevnega poročila: {datetime.now()}")

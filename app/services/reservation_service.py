@@ -203,6 +203,15 @@ class ReservationService:
                     )
                     """
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS report_log (
+                        id SERIAL PRIMARY KEY,
+                        report_type TEXT NOT NULL,
+                        sent_at TEXT NOT NULL
+                    )
+                    """
+                )
                 # dodaj manjkajoče stolpce na obstoječo tabelo (robustnost)
                 for col, definition in new_columns:
                     cur.execute(
@@ -309,6 +318,15 @@ class ReservationService:
                     suggestion TEXT NOT NULL,
                     status TEXT DEFAULT 'new',
                     created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS report_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_type TEXT NOT NULL,
+                    sent_at TEXT NOT NULL
                 )
                 """
             )
@@ -1466,6 +1484,87 @@ class ReservationService:
             row = cur.fetchone()
             count = list(row.values())[0] if isinstance(row, dict) else row[0]
             return count > 0
+        finally:
+            cur.close()
+            conn.close()
+
+    def get_recent_conversations(self, hours: int = 1, since: str | None = None) -> list[dict]:
+        """Vrne pogovore iz zadnjih N ur ali od določenega cutoff časa."""
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            if since:
+                cutoff = since
+            else:
+                cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            sql = f"""
+                SELECT * FROM conversations
+                WHERE created_at >= {ph}
+                ORDER BY session_id, created_at ASC
+            """
+            cur.execute(sql, (cutoff,))
+            rows = cur.fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            cur.close()
+            conn.close()
+
+    def get_recent_sessions(self, hours: int = 1, since: str | None = None) -> list[dict]:
+        """Vrne unikatne session-e iz zadnjih N ur z njihovimi pogovori."""
+        conversations = self.get_recent_conversations(hours=hours, since=since)
+        sessions: dict = {}
+        for conv in conversations:
+            sid = conv.get("session_id", "unknown")
+            if sid not in sessions:
+                sessions[sid] = {
+                    "session_id": sid,
+                    "messages": [],
+                    "first_message_at": conv.get("created_at"),
+                    "last_message_at": conv.get("created_at"),
+                }
+            sessions[sid]["messages"].append({
+                "user": conv.get("user_message"),
+                "bot": conv.get("bot_response"),
+                "created_at": conv.get("created_at"),
+            })
+            sessions[sid]["last_message_at"] = conv.get("created_at")
+        result = list(sessions.values())
+        result.sort(key=lambda x: x.get("last_message_at", ""), reverse=True)
+        return result
+
+    def get_last_report_time(self, report_type: str = "daily") -> str | None:
+        """Vrne čas zadnjega poslanega poročila."""
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT sent_at FROM report_log WHERE report_type = {ph} ORDER BY sent_at DESC LIMIT 1",
+                (report_type,),
+            )
+            row = cur.fetchone()
+            return dict(row)["sent_at"] if row else None
+        except Exception:
+            return None
+        finally:
+            cur.close()
+            conn.close()
+
+    def save_report_time(self, report_type: str = "daily") -> None:
+        """Shrani čas pošiljanja poročila."""
+        conn = self._conn()
+        ph = self._placeholder()
+        try:
+            cur = conn.cursor()
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute(
+                f"INSERT INTO report_log (report_type, sent_at) VALUES ({ph}, {ph})",
+                (report_type, now_str),
+            )
+            conn.commit()
+        except Exception:
+            pass
         finally:
             cur.close()
             conn.close()

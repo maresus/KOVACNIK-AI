@@ -1025,3 +1025,216 @@ def delete_all_conversations():
     except Exception as e:
         import traceback
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.get("/api/admin/notify/daily-report")
+def notify_daily_report(mode: str = ""):
+    """Multi-bot poročilo.
+    mode=daily  → celodnevno (prejšnji dan), vedno pošlje
+    mode=hourly → zadnja ura, pošlje SAMO če total > 0
+    """
+    import requests as _req
+    from app.services.email_service import send_admin_notification_email
+
+    now = datetime.now()
+    today_str = now.strftime("%-d. %-m. %Y")
+
+    if mode == "daily":
+        yesterday = now.date() - timedelta(days=1)
+        cutoff_dt = datetime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0)
+        period_from = cutoff_dt.strftime("%-d. %-m.")
+        period_to = period_from
+        report_type = "daily"
+    elif mode == "hourly":
+        cutoff_dt = now - timedelta(hours=1)
+        period_from = cutoff_dt.strftime("%H:%M")
+        period_to = now.strftime("%H:%M")
+        report_type = "hourly"
+    else:
+        last_sent = service.get_last_report_time("daily")
+        if last_sent:
+            try:
+                cutoff_dt = datetime.strptime(last_sent.replace("T", " ")[:19], "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                cutoff_dt = now - timedelta(hours=8)
+        else:
+            cutoff_dt = now - timedelta(hours=8)
+        period_from = cutoff_dt.strftime("%d.%m %H:%M")
+        period_to = now.strftime("%H:%M")
+        report_type = "daily"
+
+    hours_since = max(1, int((now - cutoff_dt).total_seconds() / 3600) + 1)
+    cutoff = cutoff_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _fetch_json(url, timeout=10):
+        try:
+            r = _req.get(url, timeout=timeout)
+            return r.json() if r.ok else None
+        except Exception:
+            return None
+
+    def _bot_section(title, emoji, color, border, bg, sessions_html, count):
+        empty = '<tr><td style="padding:12px 0;font-size:13px;color:#aaa;font-style:italic;">Ni novih pogovorov v tem obdobju.</td></tr>'
+        return f"""
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
+          <tr>
+            <td style="padding-bottom:10px;border-bottom:3px solid {border};">
+              <span style="font-size:16px;font-weight:700;color:{color};">{emoji}&nbsp;{title}</span>
+            </td>
+            <td align="right" style="padding-bottom:10px;border-bottom:3px solid {border};">
+              <span style="background:{border};color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700;">{count}</span>
+            </td>
+          </tr>
+          {sessions_html if sessions_html else empty}
+        </table>"""
+
+    def _session_block(idx, time_str, msg_count, messages, accent, bg):
+        rows = f"""
+          <tr>
+            <td colspan="2" style="padding:10px 0 6px 0;">
+              <span style="font-size:11px;font-weight:700;color:{accent};text-transform:uppercase;letter-spacing:1px;">Pogovor #{idx}</span>
+              <span style="font-size:11px;color:#aaa;margin-left:8px;">{time_str} &middot; {msg_count} sporočil</span>
+            </td>
+          </tr>"""
+        for m in messages:
+            u = (m.get("user") or "").strip()
+            b = (m.get("bot") or "").strip()
+            if u:
+                rows += f'<tr><td width="20" style="padding:3px 6px 3px 0;vertical-align:top;font-size:13px;color:#888;">👤</td><td style="padding:3px 0;"><div style="background:#ffffff;border:1px solid #e0e0e0;border-radius:0 8px 8px 8px;padding:8px 12px;font-size:13px;color:#222;line-height:1.5;">{u}</div></td></tr>'
+            if b:
+                rows += f'<tr><td width="20" style="padding:3px 6px 8px 0;vertical-align:top;font-size:13px;color:{accent};">🤖</td><td style="padding:3px 0 8px 0;"><div style="background:{bg};border:1px solid {accent}22;border-radius:8px 8px 8px 0;padding:8px 12px;font-size:13px;color:#444;line-height:1.6;">{b}</div></td></tr>'
+        rows += '<tr><td colspan="2" style="padding:0 0 4px 0;border-bottom:1px dashed #eee;"></td></tr>'
+        return rows
+
+    def _norm_ts(ts):
+        return (ts or "").replace("T", " ")[:19]
+
+    # ── 1. KOVAČNIK ───────────────────────────────────────────────────────────
+    kov_sessions = service.get_recent_sessions(since=cutoff)
+    kov_html = "".join(_session_block(i, s.get("first_message_at","")[:16], len(s.get("messages",[])), s.get("messages",[]), "#7b5e3b", "#fdf8f3") for i, s in enumerate(kov_sessions, 1))
+
+    # ── 2. SV ANA ─────────────────────────────────────────────────────────────
+    sv_sessions_raw = _fetch_json("https://web-production-13aea.up.railway.app/admin/sessions") or []
+    sv_sessions = [s for s in sv_sessions_raw if _norm_ts(s.get("last_msg","") or s.get("started","")) >= cutoff]
+    sv_html = "".join(_session_block(i, s.get("started","")[:16], len(_fetch_json(f"https://web-production-13aea.up.railway.app/admin/sessions/{s.get('session_id','')}") or []), _fetch_json(f"https://web-production-13aea.up.railway.app/admin/sessions/{s.get('session_id','')}") or [], "#3a7ca5", "#f0f6fb") for i, s in enumerate(sv_sessions, 1))
+
+    # ── 3. SPOZNAJ AI ─────────────────────────────────────────────────────────
+    sp_sessions_raw = _fetch_json("https://web-production-ce7f8.up.railway.app/admin/sessions") or []
+    sp_sessions = [s for s in sp_sessions_raw if _norm_ts(s.get("last_msg","") or s.get("started","")) >= cutoff]
+    sp_html = "".join(_session_block(i, s.get("started","")[:16], len(_fetch_json(f"https://web-production-ce7f8.up.railway.app/admin/sessions/{s.get('session_id','')}") or []), _fetch_json(f"https://web-production-ce7f8.up.railway.app/admin/sessions/{s.get('session_id','')}") or [], "#5b3fa5", "#f5f2fb") for i, s in enumerate(sp_sessions, 1))
+
+    # ── 4. POD GORO ───────────────────────────────────────────────────────────
+    pg_data = _fetch_json(f"https://kmetija-pod-goro-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    pg_map = {}
+    for c in [c for c in pg_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in pg_map: pg_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        pg_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    pg_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#2d7a4f", "#f0faf4") for i, s in enumerate(pg_map.values(), 1))
+
+    # ── 5. ZDRAVSTVENI ────────────────────────────────────────────────────────
+    zd_data = _fetch_json(f"https://zdravstvenicenter-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    zd_map = {}
+    for c in [c for c in zd_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in zd_map: zd_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        zd_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    zd_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#c0392b", "#fdf5f4") for i, s in enumerate(zd_map.values(), 1))
+
+    # ── 6. KMETIJA URŠKA ──────────────────────────────────────────────────────
+    urska_data = _fetch_json(f"https://kmetija-urska-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    urska_map = {}
+    for c in [c for c in urska_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in urska_map: urska_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        urska_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    urska_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#8b6343", "#fff8f0") for i, s in enumerate(urska_map.values(), 1))
+
+    # ── 7. LEPO MESTO ─────────────────────────────────────────────────────────
+    lm_data = _fetch_json(f"https://web-production-454ac9.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    lm_map = {}
+    for c in [c for c in lm_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in lm_map: lm_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        lm_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    lm_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#1a4a7a", "#f0f6ff") for i, s in enumerate(lm_map.values(), 1))
+
+    totals = {
+        "kovacnik": len(kov_sessions),
+        "sv_ana": len(sv_sessions),
+        "spoznaj_ai": len(sp_sessions),
+        "pod_goro": len(pg_map),
+        "zdravstveni": len(zd_map),
+        "urska": len(urska_map),
+        "lepo_mesto": len(lm_map),
+    }
+    grand_total = sum(totals.values())
+
+    if mode == "hourly" and grand_total == 0:
+        return {"sent": False, **totals, "total": 0, "reason": "no_new_conversations"}
+
+    bots_meta = [
+        ("🏡 Domačija Kovačnik", totals["kovacnik"],   "#7b5e3b", "#c19a6b"),
+        ("🏛️ Občina Sveta Ana",  totals["sv_ana"],     "#3a7ca5", "#5b9fc8"),
+        ("💡 Spoznaj AI",         totals["spoznaj_ai"], "#5b3fa5", "#8b6fd4"),
+        ("🌲 Kmetija Pod Goro",   totals["pod_goro"],   "#2d7a4f", "#4da870"),
+        ("🏥 Zdravstveni center", totals["zdravstveni"],"#c0392b", "#e05c4a"),
+        ("🌾 Kmetija Urška",      totals["urska"],      "#8b6343", "#c4956a"),
+        ("🏛️ Lepo Mesto",         totals["lepo_mesto"], "#1a4a7a", "#4a90d9"),
+    ]
+    summary_rows = ""
+    for name, cnt, clr, _ in bots_meta:
+        bar_w = max(4, int(cnt / max(grand_total, 1) * 180)) if grand_total else 4
+        status_icon = "✅" if cnt > 0 else "⬜"
+        summary_rows += f'<tr><td style="padding:5px 10px;font-size:13px;color:{clr};font-weight:600;">{status_icon} {name}</td><td style="padding:5px 10px;"><div style="background:{clr};height:8px;width:{bar_w}px;border-radius:4px;display:inline-block;opacity:0.8;"></div></td><td style="padding:5px 10px;font-size:13px;font-weight:700;color:#333;text-align:right;">{cnt}</td></tr>'
+
+    if mode == "daily":
+        header_title = f"📊 Dnevno poročilo — {period_from}"
+        header_sub = f"Skupaj pogovorov včeraj: {grand_total}"
+        subject = f"📊 Dnevno poročilo {period_from} — {grand_total} pogovorov"
+    elif mode == "hourly":
+        header_title = f"🔔 Novi pogovori — {period_from}–{period_to}"
+        header_sub = f"V zadnji uri: {grand_total} novih pogovorov"
+        subject = f"🔔 Novi pogovori ({grand_total}) — {period_from}–{period_to}"
+    else:
+        header_title = "📊 Poročilo botov"
+        header_sub = f"{today_str} · od {period_from} do {period_to}"
+        subject = f"📊 Boti — {grand_total} pogovorov | {today_str}"
+
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;background:#f0f0f0;font-family:Arial,Helvetica,sans-serif;">
+<div style="max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+  <div style="background:linear-gradient(135deg,#1a2a1a,#2d4a2d);padding:22px 26px;">
+    <div style="color:#fff;font-size:20px;font-weight:700;">{header_title}</div>
+    <div style="color:#a8c8a8;font-size:13px;margin-top:4px;">{header_sub}</div>
+  </div>
+  <div style="padding:18px 26px;background:#fafafa;border-bottom:2px solid #eee;">
+    <div style="font-size:11px;color:#999;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Statistika po botih</div>
+    <table cellpadding="0" cellspacing="0" width="100%">
+      {summary_rows}
+      <tr style="border-top:2px solid #ddd;">
+        <td style="padding:8px 10px;font-size:14px;font-weight:800;color:#1a2a1a;">SKUPAJ</td>
+        <td></td>
+        <td style="padding:8px 10px;font-size:18px;font-weight:800;color:#1a2a1a;text-align:right;">{grand_total}</td>
+      </tr>
+    </table>
+  </div>
+  <div style="padding:8px 26px 26px 26px;">
+    {_bot_section("Domačija Kovačnik","🏡","#7b5e3b","#c19a6b","#fdf8f3", kov_html, totals["kovacnik"])}
+    {_bot_section("Občina Sveta Ana","🏛️","#3a7ca5","#5b9fc8","#f0f6fb", sv_html, totals["sv_ana"])}
+    {_bot_section("Spoznaj AI","💡","#5b3fa5","#8b6fd4","#f5f2fb", sp_html, totals["spoznaj_ai"])}
+    {_bot_section("Kmetija Pod Goro","🌲","#2d7a4f","#4da870","#f0faf4", pg_html, totals["pod_goro"])}
+    {_bot_section("Zdravstveni center","🏥","#c0392b","#e05c4a","#fdf5f4", zd_html, totals["zdravstveni"])}
+    {_bot_section("Kmetija Urška","🌾","#8b6343","#c4956a","#fff8f0", urska_html, totals["urska"])}
+    {_bot_section("Občina Lepo Mesto","🏛️","#1a4a7a","#4a90d9","#f0f6ff", lm_html, totals["lepo_mesto"])}
+  </div>
+  <div style="background:#f5f5f5;padding:12px 26px;border-top:1px solid #e8e8e8;font-size:11px;color:#bbb;text-align:center;">
+    spoznaj-ai.si &nbsp;·&nbsp; {today_str} {now.strftime("%H:%M")} &nbsp;·&nbsp;
+    <a href="https://kovacnik-ai-production.up.railway.app/admin" style="color:#7b5e3b;">Admin panel</a>
+  </div>
+</div></body></html>"""
+
+    success = send_admin_notification_email(subject=subject, html_content=html)
+    if success and mode != "hourly":
+        service.save_report_time(report_type)
+    return {"sent": success, **totals, "total": grand_total}
