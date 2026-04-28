@@ -542,8 +542,17 @@
   };
 
   // Session ID in shranjeni pogovori
-  let sessionId = localStorage.getItem('kv_widget_session') || generateSessionId();
-  localStorage.setItem('kv_widget_session', sessionId);
+  // Če URL vsebuje ?test=1, uporabi test- prefix (pogovor se označi kot TEST v bazi)
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _isTestSession = _urlParams.get('test') === '1';
+  function generateSessionId() {
+    const prefix = _isTestSession ? 'test-' : 'widget_';
+    return prefix + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+  let sessionId = _isTestSession
+    ? generateSessionId()  // test način: vedno nova seja, ne iz localStorage
+    : (localStorage.getItem('kv_widget_session') || generateSessionId());
+  if (!_isTestSession) localStorage.setItem('kv_widget_session', sessionId);
 
   // Naloži shranjene pogovore
   let storedMessages = [];
@@ -554,10 +563,6 @@
     }
   } catch (e) {
     storedMessages = [];
-  }
-
-  function generateSessionId() {
-    return 'widget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }
 
   function saveMessages() {
