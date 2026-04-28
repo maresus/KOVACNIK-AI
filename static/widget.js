@@ -852,6 +852,16 @@
       if (e.key === 'Enter') sendMessage();
     };
 
+    // iOS fix: ko se keyboard odpre, scroll na dno da zadnje sporočilo ostane vidno
+    document.getElementById('kv-widget-input').addEventListener('focus', function() {
+      var msgs = document.getElementById('kv-widget-messages');
+      if (!msgs) return;
+      // Delay: počakamo da iOS keyboard dokonča animacijo (~300ms)
+      setTimeout(function() {
+        msgs.scrollTop = msgs.scrollHeight;
+      }, 350);
+    });
+
     // Booking form - type tabs
     let bookingType = 'room';
     let stepValues = { nights: 2, adults: 2, children: 0 };
