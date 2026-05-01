@@ -64,6 +64,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     session_id: str | None = None
+    action: str | None = None
+    booking_type_hint: str | None = None
 
 
 def _preview(text: str, limit: int = 100) -> str:
@@ -323,7 +325,7 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
                 session,
                 brand,
             )
-            return {"reply": reply["reply"], "session_id": session.session_id}
+            return {"reply": reply["reply"], "session_id": session.session_id, "action": reply.get("action"), "booking_type_hint": reply.get("booking_type_hint")}
 
     # ── OOD Policy Guard ────────────────────────────────────────────────────
     # Check for out-of-domain messages BEFORE disambiguation and pre-dispatch traps.
@@ -515,6 +517,8 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     session.active_flow = state_machine.transition(session.active_flow, result)
     reply = await _dispatch(result, message, session, brand)
     reply_text = reply["reply"]
+    reply_action = reply.get("action")
+    reply_hint = reply.get("booking_type_hint")
 
     # If user switched topic mid-booking, gently offer to continue after answering.
     _booking_intents = {"BOOKING_ROOM", "BOOKING_TABLE", "CONTINUE_FLOW", "CANCEL", "CONFIRM"}
@@ -528,7 +532,7 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
         _continuation = get_booking_continuation(_pre_step, {})
         reply_text = reply_text + f"\n\n—\nNadaljujemo z rezervacijo? {_continuation}"
 
-    return {"reply": reply_text, "session_id": session.session_id}
+    return {"reply": reply_text, "session_id": session.session_id, "action": reply_action, "booking_type_hint": reply_hint}
 
 
 async def build_shadow_record(message: str, session, brand: Any, v2_reply: str) -> dict[str, Any]:
@@ -636,6 +640,8 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
     result = await handle_message(payload.message, payload.session_id or "", brand)
     reply_text = str(result["reply"])
     session_id = str(result["session_id"])
+    reply_action = result.get("action")
+    reply_hint = result.get("booking_type_hint")
 
     # After LLM responds, check if booking data was collected without email/children.
     session = get_session(session_id)
@@ -659,4 +665,4 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         # Don't fail the chat if logging fails
         print(f"[V3 CHAT] Napaka pri logganju pogovora: {e}")
 
-    return ChatResponse(reply=reply_text, session_id=session_id)
+    return ChatResponse(reply=reply_text, session_id=session_id, action=reply_action, booking_type_hint=reply_hint)

@@ -39,8 +39,32 @@ def _prefill_state_from_entities(session: Any, intent: str, entities: dict) -> N
         state["time"] = entities["time"]
 
 
+_FORM_REPLY = {
+    "room": (
+        "Seveda! 😊 Najhitreje je prek **rezervacijskega obrazca** — odprl se bo takoj.\n\n"
+        "⚠️ Gre za **povpraševanje**, ne vezavo — rezervacijo skupaj potrdimo po pregledu razpoložljivosti.\n\n"
+        "Če raje pišete tukaj: sporočite datum prihoda, število oseb (odrasli + otroci), ime in e-mail."
+    ),
+    "table": (
+        "Seveda! 😊 Najhitreje je prek **rezervacijskega obrazca** — odprl se bo takoj.\n\n"
+        "⚠️ Gre za **povpraševanje**, ne vezavo — rezervacijo skupaj potrdimo po pregledu razpoložljivosti.\n\n"
+        "Če raje pišete tukaj: sporočite datum (sob/ned), uro, število oseb, ime in e-mail."
+    ),
+}
+
+
 async def execute(result: InterpretResult, message: str, session: Any, brand: Any) -> dict[str, str]:
     if result.intent in {"BOOKING_ROOM", "BOOKING_TABLE"}:
+        res_type = "room" if result.intent == "BOOKING_ROOM" else "table"
+        # First time: offer the inline form, don't jump into step-by-step yet.
+        if session.active_flow != "reservation":
+            _prefill_state_from_entities(session, result.intent, result.entities or {})
+            return {
+                "reply": _FORM_REPLY[res_type],
+                "action": "open_booking_form",
+                "booking_type_hint": res_type,
+            }
+        # Already mid-flow: continue step-by-step.
         _prefill_state_from_entities(session, result.intent, result.entities or {})
         return {"reply": reservation_flow.start(session, message, brand)}
     if result.intent == "CONTINUE_FLOW":
