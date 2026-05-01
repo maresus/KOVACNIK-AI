@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import time
 import asyncio
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -666,3 +668,104 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         print(f"[V3 CHAT] Napaka pri logganju pogovora: {e}")
 
     return ChatResponse(reply=reply_text, session_id=session_id, action=reply_action, booking_type_hint=reply_hint)
+
+
+# ── QUICK BOOKING (inline widget forma) ───────────────────────────────────────
+
+class QuickBookingRequest(BaseModel):
+    session_id: str | None = None
+    booking_type: str = "room"          # "room" | "table"
+    date: str
+    nights: int | None = None
+    time: str | None = None             # za mize
+    meal_type: str | None = None        # vikend / tedenska / brunch
+    adults: int = 2
+    children: int = 0
+    children_ages: list[int] = []
+    name: str
+    phone: str
+    email: str = ""
+    dinner: bool = False                # polpenzion za sobe
+    note: str = ""
+    gdpr: bool = False
+
+
+@router.post("/quick-booking")
+async def quick_booking(payload: QuickBookingRequest):
+    """Sprejme celotno rezervacijo naenkrat iz inline forme v widgetu."""
+    if not payload.gdpr:
+        return {"ok": False, "error": "Strinjanje z obdelavo podatkov je obvezno."}
+
+    from app.services.reservation_service import ReservationService
+    from app.services.email_service import send_admin_notification, send_guest_confirmation
+
+    _svc = ReservationService()
+
+    # Sestavi opombo
+    parts = []
+    if payload.dinner:
+        parts.append("Večerja: DA")
+    if payload.children_ages:
+        parts.append("Starosti otrok: " + ", ".join(str(a) for a in payload.children_ages))
+    if payload.meal_type and payload.booking_type == "table":
+        parts.append(f"Tip: {payload.meal_type}")
+    if payload.note:
+        parts.append(payload.note)
+    note_full = " | ".join(parts) if parts else "Rezervacija iz widget forme."
+
+    reservation_id = _svc.create_reservation(
+        date=payload.date,
+        people=payload.adults + payload.children,
+        reservation_type=payload.booking_type,
+        nights=payload.nights,
+        time=payload.time,
+        name=payload.name,
+        phone=payload.phone,
+        email=payload.email or None,
+        note=note_full,
+        kids=str(payload.children) if payload.children else None,
+        kids_small=", ".join(str(a) for a in payload.children_ages) if payload.children_ages else None,
+        status="pending",
+        source="widget_form",
+    )
+
+    # Logiraj pogovor
+    try:
+        sid = payload.session_id or str(uuid.uuid4())
+        _svc.log_conversation(
+            session_id=sid,
+            user_message=f"[Forma] {payload.booking_type}: {payload.date}, {payload.adults}+{payload.children} oseb, {payload.name}",
+            bot_reply=f"Rezervacija #{reservation_id} shranjena.",
+        )
+    except Exception as e:
+        print(f"[quick-booking] log_conversation napaka: {e}")
+
+    # Pošlji email obvestili
+    try:
+        email_data = {
+            "id": reservation_id,
+            "name": payload.name,
+            "email": payload.email or "",
+            "phone": payload.phone,
+            "date": payload.date,
+            "nights": payload.nights or 0,
+            "people": payload.adults + payload.children,
+            "reservation_type": payload.booking_type,
+            "time": payload.time or "",
+            "note": note_full,
+            "kids": str(payload.children) if payload.children else "",
+            "kids_ages": ", ".join(str(a) for a in payload.children_ages),
+        }
+        import threading
+        def _send():
+            try:
+                if payload.email:
+                    send_guest_confirmation(email_data)
+                send_admin_notification(email_data)
+            except Exception as exc:
+                print(f"[quick-booking] Email napaka: {exc}")
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception as e:
+        print(f"[quick-booking] Email setup napaka: {e}")
+
+    return {"ok": True, "reservation_id": reservation_id}
