@@ -41,14 +41,15 @@ def _prefill_state_from_entities(session: Any, intent: str, entities: dict) -> N
 
 _FORM_REPLY = {
     "room": (
-        "Seveda! 😊 Najhitreje je prek **rezervacijskega obrazca** — odprl se bo takoj.\n\n"
-        "⚠️ Gre za **povpraševanje**, ne vezavo — rezervacijo skupaj potrdimo po pregledu razpoložljivosti.\n\n"
-        "Če raje pišete tukaj: sporočite datum prihoda, število oseb (odrasli + otroci), ime in e-mail."
+        "Seveda, sobe so na voljo tudi med tednom! 😊\n\n"
+        "Izpolnite kratek obrazec — odprl se bo takoj. "
+        "Po oddaji vas kontaktiramo in potrdimo termin.\n\n"
+        "Če raje nadaljujete v pogovoru, mi sporočite datum prihoda, število oseb in kontaktne podatke."
     ),
     "table": (
-        "Seveda! 😊 Najhitreje je prek **rezervacijskega obrazca** — odprl se bo takoj.\n\n"
-        "⚠️ Gre za **povpraševanje**, ne vezavo — rezervacijo skupaj potrdimo po pregledu razpoložljivosti.\n\n"
-        "Če raje pišete tukaj: sporočite datum (sob/ned), uro, število oseb, ime in e-mail."
+        "Seveda! 😊 Izpolnite kratek obrazec — odprl se bo takoj. "
+        "Po oddaji vas kontaktiramo in potrdimo termin.\n\n"
+        "Če raje nadaljujete v pogovoru, mi sporočite datum (sob/ned), uro in število oseb."
     ),
 }
 

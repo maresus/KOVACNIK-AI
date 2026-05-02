@@ -482,13 +482,22 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
 
     history = session.history[-5:]
 
-    # Pre-interpretation override: "soba za X oseb" is clearly a booking, not info request
+    # Pre-interpretation override: force BOOKING_ROOM for clear accommodation requests
     _msg_low = message.lower()
+    _has_people = any(kw in _msg_low for kw in ("odrasl", "oseb", "osebe", "otroc", "otrok", "ljudje", "osebo"))
     _has_room_for = re.search(r"sob[oai]\s+(za\s+)?\d+", _msg_low) or any(kw in _msg_low for kw in ("soba za", "sobo za"))
-    _has_people = any(kw in _msg_low for kw in ("odrasl", "oseb", "osebe", "otroc", "otrok"))
+    # "spanje / nastanitev / prenočitev za X" → booking
+    _has_stay_kw = any(kw in _msg_low for kw in ("spanj", "spanje", "spat ", "nastanit", "prenočit", "prenocit", "nocit", "nočit", "bivanj"))
+    # Date range with people ("6.-8.5. en odrasel", "od 6. do 8. maja 2 osebi") → booking
+    _has_date_range = bool(re.search(r"\d{1,2}\s*[./-]\s*\d{1,2}", _msg_low)) and (
+        _has_people or re.search(r"\b(en|ena|eno|dv[ae]|tri|štir|pet|šest|sedem)\b", _msg_low)
+    )
     if _has_room_for and _has_people:
-        # Force BOOKING_ROOM intent - this is clearly a booking request
         result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.95)
+    elif _has_stay_kw and (_has_people or re.search(r"\b\d+\s*(oseb|ljudi|person)", _msg_low)):
+        result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.92)
+    elif _has_date_range and not any(kw in _msg_low for kw in ("kosilo", "mizo", "miza", "jesti", "meni")):
+        result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.90)
     else:
         result = interpreter.interpret(message, history, session.data)
 
