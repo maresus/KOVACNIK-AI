@@ -87,7 +87,7 @@
       bottom: 90px;
       right: 20px;
       width: 380px;
-      height: 520px;
+      height: 560px;
       max-height: calc(100vh - 120px);
       background: #fff;
       border-radius: 16px;
@@ -106,6 +106,14 @@
       opacity: 1;
       visibility: visible;
       transform: translateY(0);
+    }
+
+    /* Desktop — večji widget */
+    @media (min-width: ${CONFIG.mobileBreakpoint + 1}px) {
+      #kv-widget-panel {
+        width: 420px;
+        height: 620px;
+      }
     }
 
     /* Mobilni full-screen */
@@ -858,7 +866,7 @@
       if (!msgs) return;
       // Delay: počakamo da iOS keyboard dokonča animacijo (~300ms)
       setTimeout(function() {
-        msgs.scrollTop = msgs.scrollHeight;
+        msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' });
       }, 350);
     });
 
@@ -997,7 +1005,7 @@
     const scrollArrow = document.getElementById('kv-scroll-down');
 
     scrollArrow.onclick = function() {
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
     };
 
     messagesEl.onscroll = function() {
@@ -1104,15 +1112,17 @@
     msg.innerHTML = '<div class="kv-message-bubble">' + escapeHtml(text) + '</div>';
     messages.appendChild(msg);
 
-    // Če je autoScroll false (pri nalaganju), ne scrollaj
     if (!autoScroll) return;
 
-    // Ko pošlješ novo sporočilo, VEDNO scrollaj na dno da vidiš pogovor
-    messages.scrollTop = messages.scrollHeight;
-    // Skrij puščico ker smo na dnu
-    if (scrollArrow) {
-      scrollArrow.classList.remove('kv-visible');
+    if (sender === 'user') {
+      // User sporočilo: scrollaj tako da je vprašanje vidno na vrhu vidnega dela
+      // (ne skočimo na dno — bot odgovor bo prišel spodaj in se bo smooth scrollalo)
+      msg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      // Bot odgovor: smooth scroll na dno
+      messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
     }
+    if (scrollArrow) scrollArrow.classList.remove('kv-visible');
   }
 
   function addMessage(text, sender, save = true) {
@@ -1133,11 +1143,9 @@
     typing.innerHTML = '<div class="kv-message-bubble kv-typing"><span></span><span></span><span></span></div>';
     messages.appendChild(typing);
 
-    // Vedno scrollaj na dno ko se pokaže typing
-    messages.scrollTop = messages.scrollHeight;
-    if (scrollArrow) {
-      scrollArrow.classList.remove('kv-visible');
-    }
+    // Typing indicator: smooth scroll na dno
+    messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+    if (scrollArrow) scrollArrow.classList.remove('kv-visible');
   }
 
   function hideTyping() {
