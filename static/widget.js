@@ -1209,6 +1209,35 @@
           var mealSelect = document.getElementById('kv-bf-meal-type');
           if (mealSelect) mealSelect.value = 'brunch';
         }
+        // Predizpolni polja če so na voljo
+        var prefill = data.booking_prefill;
+        if (prefill) {
+          if (prefill.date) {
+            var dateEl = document.getElementById('kv-bf-date');
+            if (dateEl) dateEl.value = prefill.date;
+          }
+          if (prefill.nights) {
+            stepValues.nights = prefill.nights;
+            var nightsEl = document.getElementById('kv-bf-nights-val');
+            if (nightsEl) nightsEl.textContent = prefill.nights;
+          }
+          if (prefill.adults) {
+            stepValues.adults = prefill.adults;
+            var adultsEl = document.getElementById('kv-bf-adults-val');
+            if (adultsEl) adultsEl.textContent = prefill.adults;
+          }
+          if (prefill.children) {
+            stepValues.children = prefill.children;
+            var childrenEl = document.getElementById('kv-bf-children-val');
+            if (childrenEl) childrenEl.textContent = prefill.children;
+            var agesWrap = document.getElementById('kv-bf-children-ages-wrap');
+            if (agesWrap) agesWrap.style.display = '';
+          }
+          if (prefill.children_ages) {
+            var agesEl = document.getElementById('kv-bf-children-ages');
+            if (agesEl) agesEl.value = prefill.children_ages;
+          }
+        }
         setTimeout(function() {
           var form = document.getElementById('kv-booking-form');
           if (form) form.classList.add('kv-open');

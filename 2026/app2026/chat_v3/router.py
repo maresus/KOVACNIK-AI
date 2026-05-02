@@ -68,6 +68,7 @@ class ChatResponse(BaseModel):
     session_id: str | None = None
     action: str | None = None
     booking_type_hint: str | None = None
+    booking_prefill: dict | None = None
 
 
 def _preview(text: str, limit: int = 100) -> str:
@@ -486,18 +487,42 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     _msg_low = message.lower()
     _has_people = any(kw in _msg_low for kw in ("odrasl", "oseb", "osebe", "otroc", "otrok", "ljudje", "osebo"))
     _has_room_for = re.search(r"sob[oai]\s+(za\s+)?\d+", _msg_low) or any(kw in _msg_low for kw in ("soba za", "sobo za"))
-    # "spanje / nastanitev / prenočitev za X" → booking
+    # "spanje / nastanitev / prenočitev za X" → booking inquiry (no date yet)
     _has_stay_kw = any(kw in _msg_low for kw in ("spanj", "spanje", "spat ", "nastanit", "prenočit", "prenocit", "nocit", "nočit", "bivanj"))
-    # Date range with people ("6.-8.5. en odrasel", "od 6. do 8. maja 2 osebi") → booking
+    # Date range with people ("6.-8.5. en odrasel", "od 6. do 8. maja 2 osebi") → booking with data
     _has_date_range = bool(re.search(r"\d{1,2}\s*[./-]\s*\d{1,2}", _msg_low)) and (
         _has_people or re.search(r"\b(en|ena|eno|dv[ae]|tri|štir|pet|šest|sedem)\b", _msg_low)
     )
     if _has_room_for and _has_people:
         result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.95)
     elif _has_stay_kw and (_has_people or re.search(r"\b\d+\s*(oseb|ljudi|person)", _msg_low)):
-        result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.92)
+        # Inquiry without specific date — mark as inquiry so handler only suggests form
+        result = InterpretResult(intent="BOOKING_ROOM", entities={"_inquiry_only": True}, confidence=0.92)
     elif _has_date_range and not any(kw in _msg_low for kw in ("kosilo", "mizo", "miza", "jesti", "meni")):
-        result = InterpretResult(intent="BOOKING_ROOM", entities={}, confidence=0.90)
+        # Has concrete date + people → extract entities for pre-fill
+        from app.services.parsing import extract_date_range, extract_date, extract_nights, parse_people_count
+        _entities: dict[str, Any] = {"_has_date": True}
+        _range = extract_date_range(message)
+        if _range:
+            _entities["date"] = _range[0]
+            from app.services.parsing import nights_from_range
+            _n = nights_from_range(_range[0], _range[1])
+            if _n:
+                _entities["nights"] = _n
+        else:
+            _d = extract_date(message)
+            if _d:
+                _entities["date"] = _d
+            _n2 = extract_nights(message)
+            if _n2:
+                _entities["nights"] = _n2
+        _pc = parse_people_count(message)
+        if _pc.get("total"):
+            _entities["people"] = _pc["total"]
+            _entities["adults"] = _pc.get("adults") or _pc["total"]
+            _entities["kids"] = _pc.get("kids") or 0
+            _entities["kids_ages"] = _pc.get("ages") or ""
+        result = InterpretResult(intent="BOOKING_ROOM", entities=_entities, confidence=0.90)
     else:
         result = interpreter.interpret(message, history, session.data)
 
@@ -530,6 +555,7 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
     reply_text = reply["reply"]
     reply_action = reply.get("action")
     reply_hint = reply.get("booking_type_hint")
+    reply_prefill = reply.get("booking_prefill")
 
     # If user switched topic mid-booking, gently offer to continue after answering.
     _booking_intents = {"BOOKING_ROOM", "BOOKING_TABLE", "CONTINUE_FLOW", "CANCEL", "CONFIRM"}
@@ -543,7 +569,7 @@ async def handle_message(message: str, session_id: str, brand: Any) -> dict[str,
         _continuation = get_booking_continuation(_pre_step, {})
         reply_text = reply_text + f"\n\n—\nNadaljujemo z rezervacijo? {_continuation}"
 
-    return {"reply": reply_text, "session_id": session.session_id, "action": reply_action, "booking_type_hint": reply_hint}
+    return {"reply": reply_text, "session_id": session.session_id, "action": reply_action, "booking_type_hint": reply_hint, "booking_prefill": reply_prefill}
 
 
 async def build_shadow_record(message: str, session, brand: Any, v2_reply: str) -> dict[str, Any]:
@@ -653,6 +679,7 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
     session_id = str(result["session_id"])
     reply_action = result.get("action")
     reply_hint = result.get("booking_type_hint")
+    reply_prefill = result.get("booking_prefill")
 
     # After LLM responds, check if booking data was collected without email/children.
     session = get_session(session_id)
@@ -676,7 +703,7 @@ async def chat_v3_endpoint(payload: ChatRequest) -> ChatResponse:
         # Don't fail the chat if logging fails
         print(f"[V3 CHAT] Napaka pri logganju pogovora: {e}")
 
-    return ChatResponse(reply=reply_text, session_id=session_id, action=reply_action, booking_type_hint=reply_hint)
+    return ChatResponse(reply=reply_text, session_id=session_id, action=reply_action, booking_type_hint=reply_hint, booking_prefill=reply_prefill)
 
 
 # ── QUICK BOOKING (inline widget forma) ───────────────────────────────────────
