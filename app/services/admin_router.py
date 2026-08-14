@@ -1113,17 +1113,16 @@ def notify_daily_report(mode: str = ""):
     kov_sessions = service.get_recent_sessions(since=cutoff)
     kov_html = "".join(_session_block(i, s.get("first_message_at","")[:16], len(s.get("messages",[])), s.get("messages",[]), "#7b5e3b", "#fdf8f3") for i, s in enumerate(kov_sessions, 1))
 
-    # ── 2. SV ANA ─────────────────────────────────────────────────────────────
-    sv_sessions_raw = _fetch_json("https://web-production-13aea.up.railway.app/admin/sessions") or []
-    sv_sessions = [s for s in sv_sessions_raw if _norm_ts(s.get("last_msg","") or s.get("started","")) >= cutoff]
-    sv_html = "".join(_session_block(i, s.get("started","")[:16], len(_fetch_json(f"https://web-production-13aea.up.railway.app/admin/sessions/{s.get('session_id','')}") or []), _fetch_json(f"https://web-production-13aea.up.railway.app/admin/sessions/{s.get('session_id','')}") or [], "#3a7ca5", "#f0f6fb") for i, s in enumerate(sv_sessions, 1))
+    # ── 2. SPOZNAJ AI ─────────────────────────────────────────────────────────
+    sp_data = _fetch_json(f"https://spoznaj-ai.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    sp_map = {}
+    for c in [c for c in sp_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in sp_map: sp_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        sp_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    sp_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#0B3149", "#f0f5f9") for i, s in enumerate(sp_map.values(), 1))
 
-    # ── 3. SPOZNAJ AI ─────────────────────────────────────────────────────────
-    sp_sessions_raw = _fetch_json("https://web-production-ce7f8.up.railway.app/admin/sessions") or []
-    sp_sessions = [s for s in sp_sessions_raw if _norm_ts(s.get("last_msg","") or s.get("started","")) >= cutoff]
-    sp_html = "".join(_session_block(i, s.get("started","")[:16], len(_fetch_json(f"https://web-production-ce7f8.up.railway.app/admin/sessions/{s.get('session_id','')}") or []), _fetch_json(f"https://web-production-ce7f8.up.railway.app/admin/sessions/{s.get('session_id','')}") or [], "#5b3fa5", "#f5f2fb") for i, s in enumerate(sp_sessions, 1))
-
-    # ── 4. POD GORO ───────────────────────────────────────────────────────────
+    # ── 3. POD GORO ───────────────────────────────────────────────────────────
     pg_data = _fetch_json(f"https://kmetija-pod-goro-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
     pg_map = {}
     for c in [c for c in pg_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
@@ -1132,25 +1131,16 @@ def notify_daily_report(mode: str = ""):
         pg_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
     pg_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#2d7a4f", "#f0faf4") for i, s in enumerate(pg_map.values(), 1))
 
-    # ── 5. ZDRAVSTVENI ────────────────────────────────────────────────────────
+    # ── 4. MDT ZDRAVSTVENI ────────────────────────────────────────────────────
     zd_data = _fetch_json(f"https://zdravstvenicenter-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
     zd_map = {}
     for c in [c for c in zd_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
         sid = c.get("session_id","unknown")
         if sid not in zd_map: zd_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
         zd_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
-    zd_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#c0392b", "#fdf5f4") for i, s in enumerate(zd_map.values(), 1))
+    zd_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#1b1f1a", "#f2f5f3") for i, s in enumerate(zd_map.values(), 1))
 
-    # ── 6. KMETIJA URŠKA ──────────────────────────────────────────────────────
-    urska_data = _fetch_json(f"https://kmetija-urska-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
-    urska_map = {}
-    for c in [c for c in urska_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
-        sid = c.get("session_id","unknown")
-        if sid not in urska_map: urska_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
-        urska_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
-    urska_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#8b6343", "#fff8f0") for i, s in enumerate(urska_map.values(), 1))
-
-    # ── 7. LEPO MESTO ─────────────────────────────────────────────────────────
+    # ── 5. LEPO MESTO ─────────────────────────────────────────────────────────
     lm_data = _fetch_json(f"https://web-production-454ac9.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
     lm_map = {}
     for c in [c for c in lm_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
@@ -1159,14 +1149,92 @@ def notify_daily_report(mode: str = ""):
         lm_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
     lm_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#1a4a7a", "#f0f6ff") for i, s in enumerate(lm_map.values(), 1))
 
+    # ── 6. VITAMINKLINIK ──────────────────────────────────────────────────────
+    vk_data = _fetch_json(f"https://vitaminklinik-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    vk_map = {}
+    for c in [c for c in vk_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in vk_map: vk_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        vk_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    vk_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#3d3d3d", "#f5f2ee") for i, s in enumerate(vk_map.values(), 1))
+
+    # ── 7. PRI BARONU ─────────────────────────────────────────────────────────
+    pb_data = _fetch_json(f"https://pribaronu-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    pb_map = {}
+    for c in [c for c in pb_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in pb_map: pb_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        pb_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    pb_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#2d5a52", "#f0f8f6") for i, s in enumerate(pb_map.values(), 1))
+
+    # ── 8. LOTY ───────────────────────────────────────────────────────────────
+    lo_data = _fetch_json(f"https://loty-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    lo_map = {}
+    for c in [c for c in lo_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in lo_map: lo_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        lo_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    lo_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#c47a7a", "#fdf5f5") for i, s in enumerate(lo_map.values(), 1))
+
+    # ── 9. Q SERVICE TRUCK ────────────────────────────────────────────────────
+    qs_data = _fetch_json(f"https://q-service-truck-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    qs_map = {}
+    for c in [c for c in qs_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in qs_map: qs_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        qs_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    qs_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#002B6E", "#f0f3f9") for i, s in enumerate(qs_map.values(), 1))
+
+    # ── 10. NOTESNIKI ─────────────────────────────────────────────────────────
+    no_data = _fetch_json(f"https://notesniki.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    no_map = {}
+    for c in [c for c in no_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in no_map: no_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        no_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    no_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#1a3a5c", "#f0f5fa") for i, s in enumerate(no_map.values(), 1))
+
+    # ── 11. MARLES OKNA ───────────────────────────────────────────────────────
+    ma_data = _fetch_json(f"https://marles-okna.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    ma_map = {}
+    for c in [c for c in ma_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in ma_map: ma_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        ma_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    ma_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#4e8221", "#f3f8ee") for i, s in enumerate(ma_map.values(), 1))
+
+    # ── 12. KLIME TRATNJEK ────────────────────────────────────────────────────
+    tr_data = _fetch_json(f"https://klime-tratnjek-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    tr_map = {}
+    for c in [c for c in tr_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in tr_map: tr_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        tr_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    tr_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#1B2D6E", "#f0f2f9") for i, s in enumerate(tr_map.values(), 1))
+
+    # ── 13. BBQ CENTER ────────────────────────────────────────────────────────
+    bbq_data = _fetch_json(f"https://bbq-center-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    bbq_map = {}
+    for c in [c for c in bbq_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in bbq_map: bbq_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        bbq_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    bbq_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#c8251a", "#fdf2f2") for i, s in enumerate(bbq_map.values(), 1))
+
     totals = {
-        "kovacnik": len(kov_sessions),
-        "sv_ana": len(sv_sessions),
-        "spoznaj_ai": len(sp_sessions),
-        "pod_goro": len(pg_map),
-        "zdravstveni": len(zd_map),
-        "urska": len(urska_map),
-        "lepo_mesto": len(lm_map),
+        "kovacnik":      len(kov_sessions),
+        "spoznaj_ai":    len(sp_map),
+        "pod_goro":      len(pg_map),
+        "zdravstveni":   len(zd_map),
+        "lepo_mesto":    len(lm_map),
+        "vitaminklinik": len(vk_map),
+        "pri_baronu":    len(pb_map),
+        "loty":          len(lo_map),
+        "qservice":      len(qs_map),
+        "notesniki":     len(no_map),
+        "marles":        len(ma_map),
+        "tratnjek":      len(tr_map),
+        "bbq":           len(bbq_map),
     }
     grand_total = sum(totals.values())
 
@@ -1174,12 +1242,19 @@ def notify_daily_report(mode: str = ""):
         return {"sent": False, **totals, "total": 0, "reason": "no_new_conversations"}
 
     bots_meta = [
-        ("🏡 Domačija Kovačnik", totals["kovacnik"],   "#7b5e3b", "#c19a6b"),
-        ("🏛️ Občina Sveta Ana",  totals["sv_ana"],     "#3a7ca5", "#5b9fc8"),
-        ("💡 Spoznaj AI",         totals["spoznaj_ai"], "#5b3fa5", "#8b6fd4"),
-        ("🌲 Kmetija Pod Goro",   totals["pod_goro"],   "#2d7a4f", "#4da870"),
-        ("🏥 Zdravstveni center", totals["zdravstveni"],"#c0392b", "#e05c4a"),
-        ("🌾 Kmetija Urška",      totals["urska"],      "#8b6343", "#c4956a"),
+        ("🏡 Domačija Kovačnik", totals["kovacnik"],      "#7b5e3b", "#c19a6b"),
+        ("💡 Spoznaj AI",         totals["spoznaj_ai"],    "#0B3149", "#A6CE39"),
+        ("🌲 Kmetija Pod Goro",   totals["pod_goro"],      "#2d7a4f", "#4da870"),
+        ("🏥 MDT Zdravstveni",    totals["zdravstveni"],   "#1b1f1a", "#3a7a8a"),
+        ("🏛️ Lepo Mesto",         totals["lepo_mesto"],    "#1a4a7a", "#4a90d9"),
+        ("💊 Vitaminklinik",      totals["vitaminklinik"], "#3d3d3d", "#c4a55a"),
+        ("🏨 Pri Baronu",         totals["pri_baronu"],    "#2d5a52", "#4a9080"),
+        ("🛍️ Loty",               totals["loty"],          "#c47a7a", "#e8a0a0"),
+        ("🚛 Q Service Truck",    totals["qservice"],      "#002B6E", "#0055cc"),
+        ("💻 Notesniki.si",       totals["notesniki"],     "#1a3a5c", "#2d6aad"),
+        ("🪟 Marles Okna",        totals["marles"],        "#4e8221", "#6aa830"),
+        ("❄️ Klime Tratnjek",     totals["tratnjek"],      "#1B2D6E", "#3a5cb8"),
+        ("🔥 BBQ Center",         totals["bbq"],           "#c8251a", "#e03b30"),
         ("🏛️ Lepo Mesto",         totals["lepo_mesto"], "#1a4a7a", "#4a90d9"),
     ]
     summary_rows = ""
@@ -1221,12 +1296,18 @@ def notify_daily_report(mode: str = ""):
   </div>
   <div style="padding:8px 26px 26px 26px;">
     {_bot_section("Domačija Kovačnik","🏡","#7b5e3b","#c19a6b","#fdf8f3", kov_html, totals["kovacnik"])}
-    {_bot_section("Občina Sveta Ana","🏛️","#3a7ca5","#5b9fc8","#f0f6fb", sv_html, totals["sv_ana"])}
-    {_bot_section("Spoznaj AI","💡","#5b3fa5","#8b6fd4","#f5f2fb", sp_html, totals["spoznaj_ai"])}
+    {_bot_section("Spoznaj AI","💡","#0B3149","#A6CE39","#f0f5f9", sp_html, totals["spoznaj_ai"])}
     {_bot_section("Kmetija Pod Goro","🌲","#2d7a4f","#4da870","#f0faf4", pg_html, totals["pod_goro"])}
-    {_bot_section("Zdravstveni center","🏥","#c0392b","#e05c4a","#fdf5f4", zd_html, totals["zdravstveni"])}
-    {_bot_section("Kmetija Urška","🌾","#8b6343","#c4956a","#fff8f0", urska_html, totals["urska"])}
-    {_bot_section("Občina Lepo Mesto","🏛️","#1a4a7a","#4a90d9","#f0f6ff", lm_html, totals["lepo_mesto"])}
+    {_bot_section("MDT Zdravstveni","🏥","#1b1f1a","#3a7a8a","#f2f5f3", zd_html, totals["zdravstveni"])}
+    {_bot_section("Lepo Mesto","🏛️","#1a4a7a","#4a90d9","#f0f6ff", lm_html, totals["lepo_mesto"])}
+    {_bot_section("Vitaminklinik","💊","#3d3d3d","#c4a55a","#f5f2ee", vk_html, totals["vitaminklinik"])}
+    {_bot_section("Pri Baronu","🏨","#2d5a52","#4a9080","#f0f8f6", pb_html, totals["pri_baronu"])}
+    {_bot_section("Loty","🛍️","#c47a7a","#e8a0a0","#fdf5f5", lo_html, totals["loty"])}
+    {_bot_section("Q Service Truck","🚛","#002B6E","#0055cc","#f0f3f9", qs_html, totals["qservice"])}
+    {_bot_section("Notesniki.si","💻","#1a3a5c","#2d6aad","#f0f5fa", no_html, totals["notesniki"])}
+    {_bot_section("Marles Okna","🪟","#4e8221","#6aa830","#f3f8ee", ma_html, totals["marles"])}
+    {_bot_section("Klime Tratnjek","❄️","#1B2D6E","#3a5cb8","#f0f2f9", tr_html, totals["tratnjek"])}
+    {_bot_section("BBQ Center","🔥","#c8251a","#e03b30","#fdf2f2", bbq_html, totals["bbq"])}
   </div>
   <div style="background:#f5f5f5;padding:12px 26px;border-top:1px solid #e8e8e8;font-size:11px;color:#bbb;text-align:center;">
     spoznaj-ai.si &nbsp;·&nbsp; {today_str} {now.strftime("%H:%M")} &nbsp;·&nbsp;
