@@ -1221,6 +1221,24 @@ def notify_daily_report(mode: str = ""):
         bbq_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
     bbq_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#c8251a", "#fdf2f2") for i, s in enumerate(bbq_map.values(), 1))
 
+    # ── 14. ŠENKOVA DOMACIJA ─────────────────────────────────────────────────
+    sk_data = _fetch_json(f"https://senkova-domacija-ai-production.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    sk_map = {}
+    for c in [c for c in sk_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in sk_map: sk_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        sk_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    sk_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#5a3a1a", "#fdf6ee") for i, s in enumerate(sk_map.values(), 1))
+
+    # ── 15. ENERGIJA PLUS ────────────────────────────────────────────────────
+    ep_data = _fetch_json(f"https://energijaplus.up.railway.app/api/admin/conversations?hours={hours_since}") or {}
+    ep_map = {}
+    for c in [c for c in ep_data.get("conversations",[]) if c.get("created_at","") >= cutoff]:
+        sid = c.get("session_id","unknown")
+        if sid not in ep_map: ep_map[sid] = {"time": c.get("created_at","")[:16], "msgs": []}
+        ep_map[sid]["msgs"].append({"user": c.get("user_message",""), "bot": c.get("bot_response","")})
+    ep_html = "".join(_session_block(i, s["time"], len(s["msgs"]), s["msgs"], "#006B3C", "#f0f9f4") for i, s in enumerate(ep_map.values(), 1))
+
     totals = {
         "kovacnik":      len(kov_sessions),
         "spoznaj_ai":    len(sp_map),
@@ -1235,6 +1253,8 @@ def notify_daily_report(mode: str = ""):
         "marles":        len(ma_map),
         "tratnjek":      len(tr_map),
         "bbq":           len(bbq_map),
+        "senkova":       len(sk_map),
+        "energija":      len(ep_map),
     }
     grand_total = sum(totals.values())
 
@@ -1255,7 +1275,8 @@ def notify_daily_report(mode: str = ""):
         ("🪟 Marles Okna",        totals["marles"],        "#4e8221", "#6aa830"),
         ("❄️ Klime Tratnjek",     totals["tratnjek"],      "#1B2D6E", "#3a5cb8"),
         ("🔥 BBQ Center",         totals["bbq"],           "#c8251a", "#e03b30"),
-        ("🏛️ Lepo Mesto",         totals["lepo_mesto"], "#1a4a7a", "#4a90d9"),
+        ("🏠 Šenkova Domacija",   totals["senkova"],       "#5a3a1a", "#8a6a3a"),
+        ("⚡ Energija Plus",      totals["energija"],      "#006B3C", "#00a85a"),
     ]
     summary_rows = ""
     for name, cnt, clr, _ in bots_meta:
@@ -1308,6 +1329,8 @@ def notify_daily_report(mode: str = ""):
     {_bot_section("Marles Okna","🪟","#4e8221","#6aa830","#f3f8ee", ma_html, totals["marles"])}
     {_bot_section("Klime Tratnjek","❄️","#1B2D6E","#3a5cb8","#f0f2f9", tr_html, totals["tratnjek"])}
     {_bot_section("BBQ Center","🔥","#c8251a","#e03b30","#fdf2f2", bbq_html, totals["bbq"])}
+    {_bot_section("Šenkova Domacija","🏠","#5a3a1a","#8a6a3a","#fdf6ee", sk_html, totals["senkova"])}
+    {_bot_section("Energija Plus","⚡","#006B3C","#00a85a","#f0f9f4", ep_html, totals["energija"])}
   </div>
   <div style="background:#f5f5f5;padding:12px 26px;border-top:1px solid #e8e8e8;font-size:11px;color:#bbb;text-align:center;">
     spoznaj-ai.si &nbsp;·&nbsp; {today_str} {now.strftime("%H:%M")} &nbsp;·&nbsp;
