@@ -1286,15 +1286,15 @@ def notify_daily_report(mode: str = ""):
 
     if mode == "daily":
         header_title = f"📊 Dnevno poročilo — {period_from}"
-        header_sub = f"Skupaj pogovorov včeraj: {grand_total}"
+        header_sub = f"Skupaj pogovorov včeraj: {grand_total} · 15 botov"
         subject = f"📊 Dnevno poročilo {period_from} — {grand_total} pogovorov"
     elif mode == "hourly":
         header_title = f"🔔 Novi pogovori — {period_from}–{period_to}"
-        header_sub = f"V zadnji uri: {grand_total} novih pogovorov"
+        header_sub = f"V zadnji uri: {grand_total} novih pogovorov · 15 botov"
         subject = f"🔔 Novi pogovori ({grand_total}) — {period_from}–{period_to}"
     else:
         header_title = "📊 Poročilo botov"
-        header_sub = f"{today_str} · od {period_from} do {period_to}"
+        header_sub = f"{today_str} · od {period_from} do {period_to} · 15 botov"
         subject = f"📊 Boti — {grand_total} pogovorov | {today_str}"
 
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
